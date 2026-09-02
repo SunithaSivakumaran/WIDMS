@@ -1799,100 +1799,83 @@ require $subject
                             this is for identification
                         -->
 
-                        <div class="aid-form-grid two-columns">
+                        <div class="aid-identification-block">
 
-                            <label>
+                            <label class="aid-identification-title">
                                 Identification *
                             </label>
 
-                            
+                            <div class="aid-identification-options">
 
-
-                            <div class="identification-options">
-
-                                <label class="identification-option">
-
+                                <label class="aid-identification-choice">
                                     <input
                                         type="checkbox"
-                                        name="use_nic"
                                         id="use_nic"
-                                        <?= isset($_POST['use_nic'])
-                                            ? 'checked'
-                                            : '' ?>
+                                        name="use_nic"
+                                        <?= isset($_POST['use_nic']) ? 'checked' : '' ?>
                                     >
-
-                                    NIC
-
+                                    <span>NIC</span>
                                 </label>
 
 
-                                <label class="identification-option">
-
+                                <label class="aid-identification-choice">
                                     <input
                                         type="checkbox"
-                                        name="use_elders_card"
                                         id="use_elders_card"
-                                        <?= isset($_POST['use_elders_card'])
-                                            ? 'checked'
-                                            : '' ?>
+                                        name="use_elders_card"
+                                        <?= isset($_POST['use_elders_card']) ? 'checked' : '' ?>
                                     >
-
-                                    Elder's Identification Card
-
+                                    <span>Elders' Identity Card</span>
                                 </label>
 
                             </div>
 
 
-                            <div
+                            <small
                                 id="identification-error"
-                                class="identification-error"
+                                class="aid-identification-error"
                                 hidden
                             >
                                 Select at least one identification method.
-                            </div>
+                            </small>
 
 
+                            <!-- NIC field -->
                             <label
                                 id="nic-identification-field"
-                                class="identification-input"
+                                class="aid-identification-input"
                                 hidden
                             >
-
-                                National Identity Card Number *
+                                NIC Number
 
                                 <input
+                                    type="text"
                                     id="nic"
                                     name="nic"
                                     value="<?= old('nic') ?>"
                                     maxlength="20"
                                     placeholder="e.g. 901234567V or 199012345678"
                                 >
-
                             </label>
 
 
+                            <!-- Elders' Identity Card field -->
                             <label
                                 id="elders-card-identification-field"
-                                class="identification-input"
+                                class="aid-identification-input"
                                 hidden
                             >
-
-                                Elder's Identification Card Number *
-
+                                Elders' Identity Card Number
 
                                 <input
+                                    type="text"
                                     id="elders_card_number"
                                     name="elders_card_number"
                                     value="<?= old('elders_card_number') ?>"
                                     maxlength="30"
-                                    placeholder="Enter Elder's Identification Card number"
+                                    placeholder="Enter Elders' Identity Card number"
                                 >
-
-                                </label>
-
-                            </div>
-
+                            </label>
 
                         </div>
 
