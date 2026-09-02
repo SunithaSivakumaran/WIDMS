@@ -504,78 +504,63 @@ try {
     $rows = $db->query(
         'SELECT
             ar.*,
+
             b.full_name,
             b.nic,
+            b.elders_card_number,
+            b.address,
 
             TIMESTAMPDIFF(
                 YEAR,
                 b.date_of_birth,
                 CURDATE()
-            ) age,
+            ) AS age,
 
-            d.name district_name,
-            ds.name division_name,
+            d.name AS district_name,
+            ds.name AS division_name,
 
             i.item_name,
             i.variety,
 
-            u.full_name submitter_name,
-            r.full_name reviewer_name
+            u.full_name AS submitter_name,
+            r.full_name AS reviewer_name
 
          FROM aid_requests ar
 
          JOIN beneficiaries b
-            ON b.id=ar.beneficiary_id
+            ON b.id = ar.beneficiary_id
 
          JOIN districts d
-            ON d.id=b.district_id
+            ON d.id = b.district_id
 
          JOIN ds_divisions ds
-            ON ds.id=b.ds_division_id
+            ON ds.id = b.ds_division_id
 
          JOIN inventory_items i
-            ON i.id=ar.item_id
+            ON i.id = ar.item_id
 
          JOIN users u
-            ON u.id=ar.submitted_by
+            ON u.id = ar.submitted_by
 
          LEFT JOIN users r
-            ON r.id=ar.reviewed_by
+            ON r.id = ar.reviewed_by
 
-         WHERE ar.status<>"draft"
+         WHERE ar.status <> "draft"
 
          ORDER BY
-
             CASE ar.status
-
                 WHEN "pending" THEN 0
-
                 WHEN "approved" THEN 1
-
                 ELSE 2
-
             END,
-
             ar.id DESC'
     )->fetchAll();
 
-
 } catch (PDOException $e) {
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Database Error
-    |--------------------------------------------------------------------------
-    */
-
-    error_log(
-        $e->getMessage()
-    );
-
+    error_log($e->getMessage());
 
     $rows = [];
-
 
     $errors[] =
         'Aid requests are unavailable.';
@@ -765,55 +750,33 @@ require __DIR__ .
                     <thead>
 
                         <tr>
+                            <th>ID</th>
 
-                            <th>
-                                ID
-                            </th>
+                            <th>Beneficiary</th>
 
-                            <th>
-                                Beneficiary
-                            </th>
+                            <th>NIC</th>
 
-                            <th>
-                                NIC
-                            </th>
+                            <th>Elders' Identity Card</th>
 
-                            <th>
-                                Age
-                            </th>
+                            <th>Age</th>
 
-                            <th>
-                                District
-                            </th>
+                            <th>Address</th>
 
-                            <th>
-                                DS Division
-                            </th>
+                            <th>District</th>
 
-                            <th>
-                                Aid Requested
-                            </th>
+                            <th>DS Division</th>
 
-                            <th>
-                                Approvals
-                            </th>
+                            <th>Aid Requested</th>
 
-                            <th>
-                                Submitted By
-                            </th>
+                            <th>Approvals</th>
 
-                            <th>
-                                Date
-                            </th>
+                            <th>Submitted By</th>
 
-                            <th>
-                                Status
-                            </th>
+                            <th>Date</th>
 
-                            <th>
-                                Action
-                            </th>
+                            <th>Status</th>
 
+                            <th>Action</th>
                         </tr>
 
                     </thead>
@@ -835,7 +798,7 @@ require __DIR__ .
                         <tr>
 
                             <td
-                                colspan="12"
+                                colspan="14"
                                 class="admin-empty-row"
                             >
 
@@ -853,334 +816,201 @@ require __DIR__ .
 
 
                             <tr>
+                            <td>
+                                AR-<?= str_pad(
+                                    (string) $r['id'],
+                                    4,
+                                    '0',
+                                    STR_PAD_LEFT
+                                ) ?>
+                            </td>
 
 
-                                <!-- =====================================
-                                     Aid Request ID
-                                ====================================== -->
-
-                                <td>
-
-                                    AR-<?= str_pad(
-                                        (string) $r['id'],
-                                        4,
-                                        '0',
-                                        STR_PAD_LEFT
-                                    ) ?>
-
-                                </td>
-
-
-
-                                <!-- =====================================
-                                     Beneficiary Name
-                                ====================================== -->
-
-                                <td>
-
-                                    <strong>
-
-                                        <?= htmlspecialchars(
-                                            $r['full_name'],
-                                            ENT_QUOTES,
-                                            'UTF-8'
-                                        ) ?>
-
-                                    </strong>
-
-                                </td>
-
-
-
-                                <!-- =====================================
-                                     NIC
-                                ====================================== -->
-
-                                <td>
-
+                            <td class="request-beneficiary-name">
+                                <strong>
                                     <?= htmlspecialchars(
-                                        $r['nic'],
+                                        $r['full_name'],
                                         ENT_QUOTES,
                                         'UTF-8'
                                     ) ?>
-
-                                </td>
-
-
-
-                                <!-- =====================================
-                                     Age
-                                ====================================== -->
-
-                                <td>
-
-                                    <?= (int) $r['age'] ?>
-
-                                </td>
+                                </strong>
+                            </td>
 
 
+                            <td>
+                                <?= htmlspecialchars(
+                                    $r['nic'] ?: '—',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                ) ?>
+                            </td>
 
-                                <!-- =====================================
-                                     District
-                                ====================================== -->
 
-                                <td>
+                            <td>
+                                <?= htmlspecialchars(
+                                    $r['elders_card_number'] ?: '—',
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                ) ?>
+                            </td>
 
-                                    <?= htmlspecialchars(
-                                        $r['district_name'],
+
+                            <td>
+                                <?= (int) $r['age'] ?>
+                            </td>
+
+
+                            <td class="request-address">
+                                <?= htmlspecialchars(
+                                    $r['address'],
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                ) ?>
+                            </td>
+
+
+                            <td>
+                                <?= htmlspecialchars(
+                                    $r['district_name'],
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                ) ?>
+                            </td>
+
+
+                            <td>
+                                <?= htmlspecialchars(
+                                    $r['division_name'],
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                ) ?>
+                            </td>
+
+
+                            <td>
+                                <?= htmlspecialchars(
+                                    $r['item_name'] .
+                                    (
+                                        $r['variety']
+                                            ? ' — ' . $r['variety']
+                                            : ''
+                                    ),
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                ) ?>
+
+                                × <?= (int) $r['quantity'] ?>
+                            </td>
+
+
+                            <td>
+                                <?= array_sum([
+                                    (int) $r['medical_officer_approved'],
+                                    (int) $r['grama_niladhari_approved'],
+                                    (int) $r['social_services_approved'],
+                                    (int) $r['divisional_secretary_approved']
+                                ]) ?> / 4
+                            </td>
+
+
+                            <td>
+                                <?= htmlspecialchars(
+                                    $r['submitter_name'],
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                ) ?>
+                            </td>
+
+
+                            <td>
+                                <?= date(
+                                    'd M Y',
+                                    strtotime($r['created_at'])
+                                ) ?>
+                            </td>
+
+
+                            <td>
+                                <span
+                                    class="request-status-pill
+                                    status-<?= htmlspecialchars(
+                                        $r['status'],
                                         ENT_QUOTES,
                                         'UTF-8'
-                                    ) ?>
-
-                                </td>
-
-
-
-                                <!-- =====================================
-                                     DS Division
-                                ====================================== -->
-
-                                <td>
-
-                                    <?= htmlspecialchars(
-                                        $r['division_name'],
-                                        ENT_QUOTES,
-                                        'UTF-8'
-                                    ) ?>
-
-                                </td>
-
-
-
-                                <!-- =====================================
-                                     Aid Requested
-                                ====================================== -->
-
-                                <td>
-
-                                    <?= htmlspecialchars(
-
-                                        $r['item_name'] .
-
-                                        (
-                                            $r['variety']
-
-                                                ? ' — ' .
-                                                    $r['variety']
-
-                                                : ''
-                                        ),
-
-                                        ENT_QUOTES,
-                                        'UTF-8'
-
-                                    ) ?>
-
-
-                                    × <?= (int) $r['quantity'] ?>
-
-                                </td>
-
-
-
-                                <!-- =====================================
-                                     Official Approval Count
-                                ====================================== -->
-
-                                <td>
-
-                                    <?= array_sum([
-
-                                        (int)
-                                            $r[
-                                                'medical_officer_approved'
-                                            ],
-
-                                        (int)
-                                            $r[
-                                                'grama_niladhari_approved'
-                                            ],
-
-                                        (int)
-                                            $r[
-                                                'social_services_approved'
-                                            ],
-
-                                        (int)
-                                            $r[
-                                                'divisional_secretary_approved'
-                                            ]
-
-                                    ]) ?> / 4
-
-                                </td>
-
-
-
-                                <!-- =====================================
-                                     Submitted By
-                                ====================================== -->
-
-                                <td>
-
-                                    <?= htmlspecialchars(
-                                        $r['submitter_name'],
-                                        ENT_QUOTES,
-                                        'UTF-8'
-                                    ) ?>
-
-                                </td>
-
-
-
-                                <!-- =====================================
-                                     Request Date
-                                ====================================== -->
-
-                                <td>
-
-                                    <?= date(
-                                        'd M Y',
-                                        strtotime(
-                                            $r['created_at']
+                                    ) ?>"
+                                >
+                                    <?= ucwords(
+                                        str_replace(
+                                            '-',
+                                            ' ',
+                                            $r['status']
                                         )
                                     ) ?>
-
-                                </td>
-
-
-
-                                <!-- =====================================
-                                     Request Status
-                                ====================================== -->
-
-                                <td>
-
-                                    <?= ucfirst(
-                                        $r['status']
-                                    ) ?>
-
-                                </td>
+                                </span>
+                            </td>
 
 
+                            <td>
 
-                                <!-- =====================================
-                                     ADMIN ACTION
-                                ====================================== -->
+                                <?php if ($r['status'] === 'pending'): ?>
 
-                                <td>
+                                    <form
+                                        method="post"
+                                        class="goods-decision-form"
+                                    >
 
-
-                                    <?php
-                                    /*
-                                    |--------------------------------------------------------------------------
-                                    | Pending Request
-                                    |--------------------------------------------------------------------------
-                                    |
-                                    | Admin can approve or reject only while
-                                    | the request status is "pending".
-                                    |--------------------------------------------------------------------------
-                                    */
-                                    ?>
-
-                                    <?php if (
-                                        $r['status'] === 'pending'
-                                    ): ?>
-
-
-                                        <form
-                                            method="post"
-                                            class="goods-decision-form"
+                                        <input
+                                            type="hidden"
+                                            name="csrf_token"
+                                            value="<?= htmlspecialchars(
+                                                csrfToken(),
+                                                ENT_QUOTES,
+                                                'UTF-8'
+                                            ) ?>"
                                         >
 
+                                        <input
+                                            type="hidden"
+                                            name="request_id"
+                                            value="<?= (int) $r['id'] ?>"
+                                        >
 
-                                            <!-- CSRF Token -->
+                                        <input
+                                            name="rejection_reason"
+                                            placeholder="Reason for rejection"
+                                        >
 
-                                            <input
-                                                type="hidden"
-                                                name="csrf_token"
-                                                value="<?= htmlspecialchars(
-                                                    csrfToken(),
-                                                    ENT_QUOTES,
-                                                    'UTF-8'
-                                                ) ?>"
-                                            >
+                                        <button
+                                            name="decision"
+                                            value="approve"
+                                            class="approve-button"
+                                        >
+                                            Approve
+                                        </button>
 
+                                        <button
+                                            name="decision"
+                                            value="reject"
+                                            class="reject-button"
+                                        >
+                                            Reject
+                                        </button>
 
-                                            <!-- Aid Request ID -->
+                                    </form>
 
-                                            <input
-                                                type="hidden"
-                                                name="request_id"
-                                                value="<?= (int) $r['id'] ?>"
-                                            >
+                                <?php else: ?>
 
+                                    <?= htmlspecialchars(
+                                        $r['rejection_reason'] ?: '—',
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>
 
-                                            <!-- Rejection Reason -->
+                                <?php endif; ?>
 
-                                            <input
-                                                name="rejection_reason"
-                                                placeholder="Reason for rejection"
-                                            >
+                            </td>
 
-
-                                            <!-- Approve Button -->
-
-                                            <button
-                                                name="decision"
-                                                value="approve"
-                                                class="approve-button"
-                                            >
-                                                Approve
-                                            </button>
-
-
-                                            <!-- Reject Button -->
-
-                                            <button
-                                                name="decision"
-                                                value="reject"
-                                                class="reject-button"
-                                            >
-                                                Reject
-                                            </button>
-
-
-                                        </form>
-
-
-                                    <?php else: ?>
-
-
-                                        <?php
-                                        /*
-                                        |--------------------------------------------------------------------------
-                                        | Request Already Processed
-                                        |--------------------------------------------------------------------------
-                                        |
-                                        | Display rejection reason if available.
-                                        | Otherwise display a dash.
-                                        |--------------------------------------------------------------------------
-                                        */
-                                        ?>
-
-
-                                        <?= htmlspecialchars(
-                                            $r['rejection_reason']
-                                                ?: '—',
-                                            ENT_QUOTES,
-                                            'UTF-8'
-                                        ) ?>
-
-
-                                    <?php endif; ?>
-
-
-                                </td>
-
-
-                            </tr>
-
+                        </tr>
 
                         <?php endforeach; ?>
 
