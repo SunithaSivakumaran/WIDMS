@@ -214,14 +214,22 @@ require __DIR__ .
     <!-- ================================================================
          TOP BAR
     ================================================================= -->
-
     <header class="topbar">
+        <div class="d-flex align-items-center gap-3">
 
-        <h1>
-            Aid Requests Monitor
-        </h1>
 
-    </header>
+            <!-- Mobile Menu Button -->
+
+            <button
+                class="menu-button"
+                id="menu-button"
+            >
+                &#9776;
+            </button>
+            <h1>Item Request</h1>
+
+        </div>
+    </header> 
 
 
 
