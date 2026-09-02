@@ -81,7 +81,10 @@ $v = [
     'ds_division_id' => '',
     'gn_division_id' => '',
     'full_name' => '',
+    // Identification values
     'nic' => '',
+    'elders_card_number' => '',
+
     'date_of_birth' => '',
     'gender' => '',
     'phone' => '',
@@ -157,6 +160,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $v[$key] = trim((string) ($_POST[$key] ?? ''));
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | 8.1.1 Determine whether to use NIC or Elder's Card
+    |--------------------------------------------------------------------------
+    */
+
+    $useNic = isset($_POST['use_nic']);
+    $useEldersCard = isset($_POST['use_elders_card']);
+
+    $nic = $useNic
+        ? strtoupper(preg_replace('/\s+/', '', $v['nic']))
+        : null;
+
+    $eldersCardNumber = $useEldersCard
+        ? strtoupper(trim($v['elders_card_number']))
+        : null;
+
 
     /*
     |--------------------------------------------------------------------------
@@ -202,17 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | 8.4 Normalise NIC
-    |--------------------------------------------------------------------------
-    | Remove spaces and convert letters such as v/x to uppercase.
-    |--------------------------------------------------------------------------
-    */
-
-    $nic = strtoupper(
-        preg_replace('/\s+/', '', $v['nic'])
-    );
+    
 
 
     /*
@@ -269,33 +279,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /*
     |--------------------------------------------------------------------------
-    | Validate NIC
+    | Validate NIC && Elder's Card
     |--------------------------------------------------------------------------
-    | Current behaviour:
     |
-    | NIC may be empty.
-    |
-    | If NIC is provided, it must be either:
-    |
-    | Old NIC:
-    | 901234567V
-    |
-    | New NIC:
-    | 199012345678
-    |--------------------------------------------------------------------------
     */
-
-    if (
-        $nic !== '' &&
-        !preg_match(
-            '/^(?:[0-9]{9}[VX]|[0-9]{12})$/',
-            $nic
-        )
-    ) {
-        $errors[] =
-            'Enter a valid Sri Lankan NIC or leave it blank.';
+    if (!$useNic && !$useEldersCard) {
+    $errors[] =
+        'Select at least one identification method: NIC or Elder\'s Card.';
     }
 
+
+    /* NIC validation */
+    if ($useNic) {
+
+        if ($nic === null || $nic === '') {
+
+            $errors[] = 'Enter the beneficiary NIC number.';
+
+        } elseif (
+            !preg_match(
+                '/^(?:[0-9]{9}[VX]|[0-9]{12})$/',
+                $nic
+            )
+        ) {
+
+            $errors[] = 'Enter a valid Sri Lankan NIC number.';
+        }
+    }
+
+
+    /* Elder's Card validation */
+    if ($useEldersCard) {
+
+        if (
+            $eldersCardNumber === null ||
+            $eldersCardNumber === ''
+        ) {
+
+            $errors[] =
+                'Enter the Elder\'s Card number.';
+
+        } elseif (
+            !preg_match(
+                '/^[A-Z0-9\/\-]{4,30}$/',
+                $eldersCardNumber
+            )
+        ) {
+
+            $errors[] =
+                'Enter a valid Elder\'s Identification Card number.';
+        }
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -614,53 +648,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             /*
             |--------------------------------------------------------------------------
             | 10.4 IDENTIFY EXISTING BENEFICIARY
-            |--------------------------------------------------------------------------
-            |
-            | CURRENT SYSTEM:
-            |
-            | The beneficiary is searched using NIC only.
-            |
-            | If NIC is blank, no beneficiary search happens.
-            |--------------------------------------------------------------------------
             */
 
             $beneficiary = 0;
 
-
-            if ($nic !== '') {
-
-                $q = $db->prepare(
-                    'SELECT id
-                     FROM beneficiaries
-                     WHERE nic = :nic
-                     FOR UPDATE'
-                );
+    $conditions = [];
+    $params = [];
 
 
-                $q->execute([
-                    'nic' => $nic
-                ]);
+    /* Search by NIC */
+    if ($useNic && $nic !== null) {
+
+        $conditions[] = 'nic = :nic';
+        $params['nic'] = $nic;
+    }
 
 
-                /*
-                |--------------------------------------------------------------------------
-                | If NIC exists:
-                |
-                | $beneficiary will contain beneficiaries.id
-                |
-                | Example:
-                |
-                | NIC = 901234567V
-                |
-                | beneficiaries.id = 25
-                |
-                | $beneficiary = 25
-                |--------------------------------------------------------------------------
-                */
+    /* Search by Elder's Card */
+    if (
+        $useEldersCard &&
+        $eldersCardNumber !== null
+    ) {
 
-                $beneficiary =
-                    (int) $q->fetchColumn();
-            }
+        $conditions[] =
+            'elders_card_number = :elders_card';
+
+        $params['elders_card'] =
+            $eldersCardNumber;
+    }
+
+
+    if ($conditions !== []) {
+
+        $q = $db->prepare(
+            'SELECT id, nic, elders_card_number
+            FROM beneficiaries
+            WHERE ' . implode(' OR ', $conditions) . '
+            FOR UPDATE'
+        );
+
+        $q->execute($params);
+
+        $matches = $q->fetchAll();
+
+
+        if (count($matches) > 1) {
+
+            throw new RuntimeException(
+                'The NIC and Elder\'s Card belong to different beneficiary records.'
+            );
+        }
+
+
+        if (count($matches) === 1) {
+
+            $beneficiary =
+                (int) $matches[0]['id'];
+        }
+    }
 
 
             /*
@@ -744,6 +789,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         gn_division_id,
                         full_name,
                         nic,
+                        elders_card_number,
                         date_of_birth,
                         gender,
                         phone,
@@ -759,6 +805,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         :gn,
                         :name,
                         :nic,
+                        :elders_card,
                         :dob,
                         :gender,
                         :phone,
@@ -781,8 +828,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'name' =>
                         $v['full_name'],
 
-                    'nic' =>
-                        $nic ?: null,
+                    'nic' => $nic,
+                    'elders_card' => $eldersCardNumber,
 
                     'dob' =>
                         $v['date_of_birth'],
@@ -1043,7 +1090,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     ? 'Aid request saved as draft.'
 
-                    : 'Aid request submitted for Admin Gate 1 approval.';
+                    : 'Aid request submitted for Admin  approval.';
 
 
             unset($_SESSION['csrf_token']);
@@ -1749,30 +1796,105 @@ require $subject
 
 
                         <!--
-                            CURRENT IDENTIFICATION FIELD
-
-                            At present this field is NIC only.
-
-                            The JavaScript beneficiary-form.js later
-                            removes the required attribute from this NIC.
+                            this is for identification
                         -->
 
-                        <label>
+                        <div class="aid-form-grid two-columns">
 
-                            NIC Number *
+                            <label>
+                                Identification *
+                            </label>
 
-                            <input
-                                name="nic"
-                                value="<?= old('nic') ?>"
-                                placeholder="e.g. 901234567V or 199012345678"
-                                maxlength="20"
-                                required
+                            
+
+
+                            <div class="identification-options">
+
+                                <label class="identification-option">
+
+                                    <input
+                                        type="checkbox"
+                                        name="use_nic"
+                                        id="use_nic"
+                                        <?= isset($_POST['use_nic'])
+                                            ? 'checked'
+                                            : '' ?>
+                                    >
+
+                                    NIC
+
+                                </label>
+
+
+                                <label class="identification-option">
+
+                                    <input
+                                        type="checkbox"
+                                        name="use_elders_card"
+                                        id="use_elders_card"
+                                        <?= isset($_POST['use_elders_card'])
+                                            ? 'checked'
+                                            : '' ?>
+                                    >
+
+                                    Elder's Identification Card
+
+                                </label>
+
+                            </div>
+
+
+                            <div
+                                id="identification-error"
+                                class="identification-error"
+                                hidden
+                            >
+                                Select at least one identification method.
+                            </div>
+
+
+                            <label
+                                id="nic-identification-field"
+                                class="identification-input"
+                                hidden
                             >
 
-                        </label>
+                                National Identity Card Number *
+
+                                <input
+                                    id="nic"
+                                    name="nic"
+                                    value="<?= old('nic') ?>"
+                                    maxlength="20"
+                                    placeholder="e.g. 901234567V or 199012345678"
+                                >
+
+                            </label>
 
 
-                    </div>
+                            <label
+                                id="elders-card-identification-field"
+                                class="identification-input"
+                                hidden
+                            >
+
+                                Elder's Identification Card Number *
+
+
+                                <input
+                                    id="elders_card_number"
+                                    name="elders_card_number"
+                                    value="<?= old('elders_card_number') ?>"
+                                    maxlength="30"
+                                    placeholder="Enter Elder's Identification Card number"
+                                >
+
+                                </label>
+
+                            </div>
+
+
+                        </div>
 
 
                     <div class="aid-form-grid three-columns">
@@ -2634,8 +2756,8 @@ require $subject
 
 
 
+<script src="assets/js/aid-request-identification.js"></script>
 <script>
-
 /*
 |--------------------------------------------------------------------------
 | 14. PRESCRIPTION POWER FIELD

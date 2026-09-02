@@ -1,3 +1,12 @@
+const nic = document.querySelector('input[name="nic"]')
+
+if (nic) {
+  nic.required = false
+
+  const label = nic.closest('label')
+
+  if (label) label.childNodes[0].textContent = 'NIC Number '
+}
 document.addEventListener('DOMContentLoaded', () => {
   const nic = document.querySelector('input[name="nic"]')
   if (nic) {
