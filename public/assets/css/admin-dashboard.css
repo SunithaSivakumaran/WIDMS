@@ -1,3 +1,8 @@
+/* ==========================================================================
+   1. GLOBAL THEME VARIABLES
+   Shared colours used throughout the WIDMS interface.
+   ========================================================================== */
+
 :root {
   --sidebar: #0c1b28;
   --sidebar-active: #143655;
@@ -12,6 +17,11 @@
   box-sizing: border-box;
 }
 
+/* ==========================================================================
+   2. GLOBAL NOTIFICATION STYLES
+   Success-message animation states.
+   ========================================================================== */
+
 .alert-success {
   transition:
     opacity 0.3s ease,
@@ -21,6 +31,11 @@
   opacity: 0;
   transform: translateY(-6px);
 }
+
+/* ==========================================================================
+   3. GLOBAL PAGE / TYPOGRAPHY STYLES
+   Base page colours, font stack, and inherited form-control typography.
+   ========================================================================== */
 
 body {
   margin: 0;
@@ -44,6 +59,11 @@ select,
 textarea {
   font: inherit;
 }
+
+/* ==========================================================================
+   4. SIDEBAR / MAIN NAVIGATION
+   Fixed sidebar, branding, profile, navigation links, badges, and sign-out.
+   ========================================================================== */
 
 .sidebar {
   position: fixed;
@@ -216,6 +236,11 @@ textarea {
   text-decoration: none;
 }
 
+/* ==========================================================================
+   5. MAIN APPLICATION SHELL / TOP BAR
+   Main content offset, top navigation bar, search, and notifications.
+   ========================================================================== */
+
 .admin-shell {
   height: 100vh;
   margin-left: 260px;
@@ -332,6 +357,11 @@ textarea {
   font-size: 8px;
   font-weight: 700;
 }
+
+/* ==========================================================================
+   6. SHARED DASHBOARD CONTENT / SUMMARY CARDS
+   Main viewport content area, statistics cards, panels, and activity tables.
+   ========================================================================== */
 
 .dashboard-content {
   height: calc(100vh - 58px);
@@ -610,6 +640,11 @@ textarea {
   display: none;
 }
 
+/* ==========================================================================
+   7. ADMIN APPROVAL WORKFLOW
+   Approval tabs, alerts, request cards, approval tables, and action buttons.
+   ========================================================================== */
+
 .approvals-page {
   padding-top: 30px;
 }
@@ -751,6 +786,11 @@ textarea {
   color: var(--muted);
 }
 
+/* ==========================================================================
+   8. STORE KEEPER - RECEIVE STOCK
+   Goods receiving form, recent receipts, payment badges, and stock notes.
+   ========================================================================== */
+
 .receive-page {
   padding-top: 24px;
 }
@@ -884,6 +924,11 @@ textarea {
   font-size: 12px;
 }
 
+/* ==========================================================================
+   9. STORE KEEPER - CURRENT STOCK
+   Current inventory table, lifecycle states, and low-stock indicators.
+   ========================================================================== */
+
 .current-stock-page {
   padding-top: 25px;
 }
@@ -956,6 +1001,11 @@ textarea {
   color: #bc5f00;
   white-space: nowrap;
 }
+
+/* ==========================================================================
+   10. STORE KEEPER - CORRECTION REQUESTS
+   Correction forms, correction history, and Admin review information.
+   ========================================================================== */
 
 .correction-page {
   padding-top: 25px;
@@ -1139,6 +1189,11 @@ textarea {
   text-align: center;
 }
 
+/* ==========================================================================
+   11. STORE KEEPER - DISPATCH
+   Dispatch cards and dispatch tables.
+   ========================================================================== */
+
 .dispatch-page {
   padding-top: 25px;
 }
@@ -1188,6 +1243,11 @@ textarea {
   color: var(--muted);
   font-size: 13px;
 }
+
+/* ==========================================================================
+   12. USER PROFILE
+   Profile details, photo upload, password section, and profile form controls.
+   ========================================================================== */
 
 .profile-page {
   padding-top: 22px;
@@ -1435,6 +1495,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   13. SOCIAL SERVICE OFFICER - ITEM DISTRIBUTION
+   Tabs, distribution forms, notices, actions, and distribution history.
+   ========================================================================== */
+
 /* Social Service Officer: item distribution */
 .distribution-tabs {
   display: flex;
@@ -1647,6 +1712,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   14. SOCIAL SERVICE OFFICER - VISION CAMP HANDOVERS
+   Pending handover summaries and handover tables.
+   ========================================================================== */
+
 /* Social Service Officer: pending Vision Camp handovers */
 .handover-summary-grid {
   display: grid;
@@ -1748,6 +1818,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   15. SOCIAL SERVICE OFFICER - POOL QUOTA
+   Quota summary cards and pool quota tables.
+   ========================================================================== */
+
 /* Social Service Officer: pool quota */
 .pool-summary-grid {
   display: grid;
@@ -1845,6 +1920,11 @@ textarea {
     min-height: 112px;
   }
 }
+
+/* ==========================================================================
+   16. SOCIAL SERVICE OFFICER - REQUEST STATUS REPORT
+   Request summary statistics, export actions, and history table.
+   ========================================================================== */
 
 /* Social Service Officer: request status report */
 .request-report-summary {
@@ -1976,6 +2056,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   17. SOCIAL SERVICE OFFICER - BENEFICIARY MANAGEMENT
+   Beneficiary toolbar and beneficiary listing table.
+   ========================================================================== */
+
 /* Social Service Officer: beneficiary management */
 .beneficiary-toolbar {
   display: flex;
@@ -2029,6 +2114,11 @@ textarea {
   color: var(--muted);
   text-align: center;
 }
+
+/* ==========================================================================
+   18. SOCIAL SERVICE OFFICER - RETURN MANAGEMENT
+   Return processing form and recent-return history.
+   ========================================================================== */
 
 /* Social Service Officer: return management */
 .return-card {
@@ -2123,6 +2213,11 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   19. ADMIN OPERATION PAGES / SHARED ADMIN TABLES
+   Shared operation cards, filters, data tables, and common Admin page layouts.
+   ========================================================================== */
 
 /* Admin operation page shells */
 .admin-operation-toolbar {
@@ -2310,6 +2405,11 @@ textarea {
   border-top: 1px solid var(--border);
   font-size: 9px;
 }
+/* ==========================================================================
+   20. SUPPLIER MANAGEMENT
+   Supplier toolbar, supplier forms, supplier tables, and balance information.
+   ========================================================================== */
+
 .supplier-toolbar {
   display: flex;
   margin-bottom: 12px;
@@ -2458,6 +2558,11 @@ textarea {
   color: #b24b00;
   white-space: nowrap;
 }
+/* ==========================================================================
+   21. SUPPLIER PAYMENTS
+   Payment forms, supplier balances, payment history, and payment workspace.
+   ========================================================================== */
+
 .payment-form-card {
   margin-top: 14px;
 }
@@ -2628,6 +2733,11 @@ textarea {
 .payments-page .payment-history-table tbody tr:hover {
   background: #f6faff;
 }
+/* ==========================================================================
+   22. OFFICER POOLS / REPORTS / AUDIT FILTERS
+   Shared filters, report cards, officer-pool tables, and audit controls.
+   ========================================================================== */
+
 .pool-filter-bar {
   display: flex;
   margin: 14px 0;
@@ -2725,6 +2835,11 @@ textarea {
 .audit-table {
   min-width: 850px;
 }
+/* ==========================================================================
+   23. SUBJECT OFFICER - MASTER DATA / WORKSPACE
+   Subject Officer toolbar, geography, eligibility, beneficiary and goods forms.
+   ========================================================================== */
+
 .subject-page-toolbar {
   display: flex;
   margin-bottom: 12px;
@@ -2947,6 +3062,11 @@ textarea {
 .pool-table-card {
   margin-top: 12px;
 }
+
+/* ==========================================================================
+   24. SUBJECT OFFICER - VISION CAMP WORKFLOW
+   Vision Camp request form, stages, details, and request list.
+   ========================================================================== */
 
 /* Subject Officer: Vision Camp workflow */
 .vision-request-page {
@@ -3193,6 +3313,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   25. SHARED ROLE / STATUS / DECISION CONTROLS
+   Role labels and approval / rejection controls.
+   ========================================================================== */
+
 .role-label {
   display: inline-block;
   padding: 4px 12px;
@@ -3254,6 +3379,11 @@ textarea {
   color: var(--muted);
   font-size: 14px;
 }
+
+/* ==========================================================================
+   26. ADMIN USER MANAGEMENT
+   User list, roles, user statuses, and user-management actions.
+   ========================================================================== */
 
 .users-page {
   padding-top: 30px;
@@ -3400,6 +3530,11 @@ textarea {
   cursor: not-allowed;
   opacity: 0.45;
 }
+
+/* ==========================================================================
+   27. ADMIN SYSTEM CONFIGURATION
+   System setting cards, setting controls, and disability-type configuration.
+   ========================================================================== */
 
 .config-page {
   padding-top: 30px;
@@ -3629,6 +3764,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   28. SUBJECT OFFICER DASHBOARD
+   Subject Officer dashboard avatar, quota summaries, pipeline, and viewport rules.
+   ========================================================================== */
+
 .subject-avatar {
   background: #198754;
 }
@@ -3847,6 +3987,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   29. STORE KEEPER DASHBOARD
+   Store Keeper dashboard avatar, attention lists, and dispatch shortcuts.
+   ========================================================================== */
+
 .keeper-avatar {
   background: #d46a00;
 }
@@ -3933,6 +4078,11 @@ textarea {
 .dispatch-list button:hover {
   background: #0d5595;
 }
+
+/* ==========================================================================
+   30. SOCIAL SERVICE OFFICER DASHBOARD
+   Social Officer avatar, quota area, dashboard actions, and handover notice.
+   ========================================================================== */
 
 .social-avatar {
   background: #7a35df;
@@ -4109,6 +4259,12 @@ textarea {
     gap: 7px;
   }
 }
+
+/* ==========================================================================
+   31. AID REQUEST FORM / REQUEST MONITORING
+   Aid request card, location and beneficiary form fields, official approvals,
+   request actions, submitted-request filters, and request tables.
+   ========================================================================== */
 
 .aid-requests-page {
   padding: 16px 20px;
@@ -4788,6 +4944,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   32. SUBMITTED AID REQUEST TABLE
+   Shared submitted-request table used by request monitoring screens.
+   ========================================================================== */
+
 .submitted-table {
   width: 100%;
   min-width: 1200px;
@@ -4854,6 +5015,11 @@ textarea {
     flex: 1;
   }
 }
+
+/* ==========================================================================
+   33. GLOBAL RESPONSIVE LAYOUT RULES
+   Tablet / mobile behaviour for dashboard grids, sidebar, tables, and topbar.
+   ========================================================================== */
 
 @media (max-width: 1199.98px) {
   .stats-grid {
@@ -4964,6 +5130,11 @@ textarea {
     min-width: 850px;
   }
 }
+
+/* ==========================================================================
+   34. DESKTOP DENSITY / VIEWPORT OPTIMISATION
+   Compact desktop rules for Admin and Store Keeper pages.
+   ========================================================================== */
 
 @media (min-width: 1200px) {
   /* Admin desktop: consistent density and viewport-contained layouts. */
@@ -5293,6 +5464,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   35. SUPPLIER PAYMENT DESKTOP VIEWPORT TUNING
+   Keeps payment history visible within the desktop viewport.
+   ========================================================================== */
+
 /* Supplier Payments: keep at least four history rows in the desktop viewport. */
 @media (min-width: 1200px) {
   .admin-ui .payments-page {
@@ -5356,6 +5532,11 @@ textarea {
   }
 }
 
+/* ==========================================================================
+   36. SUBJECT OFFICER DESKTOP DENSITY OVERRIDES
+   Must remain after the shared Admin density rules above.
+   ========================================================================== */
+
 /* This must follow the shared admin density rules above. */
 @media (min-width: 1200px) {
   .admin-ui.subject-dashboard .admin-dashboard-page {
@@ -5370,72 +5551,5 @@ textarea {
   }
   .admin-ui.subject-dashboard .approved-needs-panel .operation-summary-card {
     min-height: 104px;
-  }
-}
-
-/* SSO Aid Request - Beneficiary Identification */
-
-.identification-section {
-  grid-column: 1 / -1;
-  padding: 12px;
-  background: #f7f9fb;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.identification-title {
-  color: var(--ink);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.identification-options {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.identification-option {
-  display: flex;
-  padding: 9px 12px;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-}
-
-.identification-option input {
-  margin: 0;
-}
-
-.identification-input {
-  display: block;
-  margin-top: 12px;
-}
-
-.identification-input input {
-  display: block;
-  width: 100%;
-  height: 34px;
-  margin-top: 4px;
-  padding: 7px 10px;
-  color: var(--ink);
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  font-size: 10px;
-}
-
-.identification-error {
-  margin-top: 8px;
-  color: #c73329;
-  font-size: 10px;
-}
-
-@media (max-width: 575.98px) {
-  .identification-options {
-    flex-direction: column;
   }
 }
