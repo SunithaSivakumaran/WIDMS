@@ -243,5 +243,7 @@ $sidebar = $sidebarFiles[$_SESSION['role']] ?? null;
             </main>
         </div>
         <script src="assets/js/admin-dashboard.js"></script>
+        <script src="assets/js/password-toggle.js?v=2"></script>
+        <?= widmsUiTranslationAssetsHtml() ?>
     </body>
 </html>

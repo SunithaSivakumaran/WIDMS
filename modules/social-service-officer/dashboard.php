@@ -36,10 +36,10 @@ try{$db=database();$user=(int)$_SESSION['user_id'];$stmt=$db->prepare('SELECT i.
 
         <main class="dashboard-content social-dashboard-page">
             <section class="stats-grid" aria-label="Social Service Officer statistics">
-                <article class="stat-card"><span class="stat-icon">📦</span><p>My Pool Quota (Remaining)</p><strong><?=number_format((int)$metrics['remaining'])?></strong><small>Across <?=$metrics['item_types']?> item types</small></article>
-                <article class="stat-card"><span class="stat-icon">🤝</span><p>Distributed Today</p><strong><?=$metrics['today']?></strong><small>Items issued today</small></article>
-                <article class="stat-card"><span class="stat-icon">📋</span><p>My Open Requests</p><strong><?=$metrics['open']?></strong><small>Pending or approved</small></article>
-                <article class="stat-card"><span class="stat-icon">🔄</span><p>Returns This Month</p><strong><?=$metrics['returns']?></strong><small>Returns processed</small></article>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=pool-quota"><span class="stat-icon">📦</span><p>My Pool Quota (Remaining)</p><strong><?=number_format((int)$metrics['remaining'])?></strong><small>Across <?=$metrics['item_types']?> item types</small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=distribute-aid"><span class="stat-icon">🤝</span><p>Distributed Today</p><strong><?=$metrics['today']?></strong><small>Items issued today</small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=aid-requests"><span class="stat-icon">📋</span><p>My Open Requests</p><strong><?=$metrics['open']?></strong><small>Pending or approved</small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=process-return"><span class="stat-icon">🔄</span><p>Returns This Month</p><strong><?=$metrics['returns']?></strong><small>Returns processed</small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
             </section>
 
             <section class="dashboard-grid">

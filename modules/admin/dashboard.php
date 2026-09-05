@@ -40,30 +40,34 @@ try{$db=database();$row=$db->query('SELECT COALESCE(SUM(quantity),0) stock,COUNT
 
         <main class="dashboard-content admin-dashboard-page">
             <section class="stats-grid" aria-label="System statistics">
-                <article class="stat-card">
+                <a class="stat-card stat-card-link" href="dashboard.php?page=central-stock">
                     <span class="stat-icon">📦</span>
                     <p>Total Central Stock</p>
                     <strong><?=number_format((int)$metrics['stock'])?></strong>
                     <small>Across <?=(int)$metrics['item_types']?> item types</small>
-                </article>
-                <article class="stat-card">
+                    <span class="stat-card-action"><?= htmlspecialchars(t('View details'), ENT_QUOTES, 'UTF-8') ?> <span aria-hidden="true">&#8594;</span></span>
+                </a>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=pending-approvals">
                     <span class="stat-icon">🔔</span>
                     <p>Pending Approvals</p>
                     <strong><?=(int)$metrics['pending']?></strong>
                     <small>Across all approval queues</small>
-                </article>
-                <article class="stat-card">
+                    <span class="stat-card-action"><?= htmlspecialchars(t('View details'), ENT_QUOTES, 'UTF-8') ?> <span aria-hidden="true">&#8594;</span></span>
+                </a>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=divisions">
                     <span class="stat-icon">🏛️</span>
                     <p>Active Social Service Officers</p>
                     <strong><?=(int)$metrics['officers']?></strong>
                     <small>Active distributors</small>
-                </article>
-                <article class="stat-card">
+                    <span class="stat-card-action"><?= htmlspecialchars(t('View details'), ENT_QUOTES, 'UTF-8') ?> <span aria-hidden="true">&#8594;</span></span>
+                </a>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=reports">
                     <span class="stat-icon">🤝</span>
                     <p>Distributions Today</p>
                     <strong><?=(int)$metrics['today']?></strong>
                     <small>Items issued today</small>
-                </article>
+                    <span class="stat-card-action"><?= htmlspecialchars(t('View details'), ENT_QUOTES, 'UTF-8') ?> <span aria-hidden="true">&#8594;</span></span>
+                </a>
             </section>
 
             <section class="dashboard-grid">

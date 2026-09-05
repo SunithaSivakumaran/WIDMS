@@ -9,7 +9,8 @@ $profileImage = !empty($_SESSION['profile_image']) ? htmlspecialchars((string) $
 <aside class="sidebar management-role-sidebar" id="admin-sidebar">
     <div class="sidebar-brand">
         <img class="sidebar-logo" src="assets/images/client-logo.jpeg" alt="WIDMS logo">
-        <span><strong>WIDMS</strong></span>
+        <span class="sidebar-brand-name"><strong>WIDMS</strong></span>
+        <?php renderLanguageSwitcher('sidebar-language'); ?>
         <button type="button" class="sidebar-close" id="sidebar-close" aria-label="Close navigation">&times;</button>
     </div>
 
@@ -22,23 +23,24 @@ $profileImage = !empty($_SESSION['profile_image']) ? htmlspecialchars((string) $
             </span><?php endif; ?>
             <span>
                 <strong><?= $officerName ?></strong>
-                <small>Subject Officer</small>
+                <small><?= htmlspecialchars(t('Subject Officer'), ENT_QUOTES, 'UTF-8') ?></small>
             </span>
     </a>
 
     <nav class="sidebar-nav" aria-label="Subject Officer navigation">
         <?php foreach ($navigation as $section => $items): ?>
-            <p class="nav-heading"><?= htmlspecialchars($section, ENT_QUOTES, 'UTF-8') ?></p>
+            <p class="nav-heading"><?= htmlspecialchars(t($section), ENT_QUOTES, 'UTF-8') ?></p>
             <?php foreach ($items as $item): ?>
                 <a href="dashboard.php<?= $item['page'] === 'dashboard' ? '' : '?page=' . urlencode($item['page']) ?>"
                    class="nav-link<?= $item['page'] === $activePage ? ' active' : '' ?>">
                     <span class="nav-icon" aria-hidden="true"><?= $item['icon'] ?></span>
-                    <span><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span><?= htmlspecialchars(t($item['label']), ENT_QUOTES, 'UTF-8') ?></span>
                 </a>
             <?php endforeach; ?>
         <?php endforeach; ?>
     </nav>
 
-    <a class="sign-out" href="logout.php">← Sign Out</a>
+    <!-- Translate this shared action for the selected interface language. -->
+    <a class="sign-out" href="logout.php"><span aria-hidden="true">&#8592;</span><?= htmlspecialchars(t('Sign Out'), ENT_QUOTES, 'UTF-8') ?></a>
 </aside>
 <div class="sidebar-overlay" id="sidebar-overlay"></div>

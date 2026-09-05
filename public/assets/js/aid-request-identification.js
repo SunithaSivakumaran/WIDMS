@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!useNic.checked && !useEldersCard.checked) {
       event.preventDefault()
 
-      error.textContent = "Please select NIC or Elders' Identity Card."
+      error.textContent = form.dataset.identificationRequired || "Please select NIC or Elders' Identity Card."
 
       error.hidden = false
 
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!nicPattern.test(nicValue)) {
         event.preventDefault()
 
-        nic.setCustomValidity('Enter a valid Sri Lankan NIC.')
+        nic.setCustomValidity(form.dataset.invalidNic || 'Enter a valid Sri Lankan NIC.')
 
         nic.reportValidity()
 
@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault()
 
         eldersCard.setCustomValidity(
-          "Enter a valid Elders' Identity Card number.",
+          form.dataset.invalidEldersCard || "Enter a valid Elders' Identity Card number.",
         )
 
         eldersCard.reportValidity()

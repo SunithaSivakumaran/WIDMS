@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const tabs = document.querySelectorAll('.approval-tab')
+  // Only the registration control switches an in-page panel; the other controls open full workflow pages.
+  const tabs = document.querySelectorAll('.approval-tab[data-tab]')
   const panels = document.querySelectorAll('.approval-tab-panel')
 
   tabs.forEach((tab) => {

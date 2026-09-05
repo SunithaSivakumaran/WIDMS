@@ -10,6 +10,10 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
+// Load language selection after the session starts so the preference persists.
+require_once __DIR__ . '/i18n.php';
+widmsLanguage();
+
 function csrfToken(): string
 {
     if (empty($_SESSION['csrf_token'])) {

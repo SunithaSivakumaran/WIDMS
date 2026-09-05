@@ -11,6 +11,8 @@ $notice = '';
 $noticeType = 'success';
 $loadError = '';
 $registrations = [];
+$pendingItemRequests = 0;
+$pendingStockReleases = 0;
 $roleLabels = [
     'subject-officer' => ['Subject Officer', 'green'],
     'store-keeper' => ['Store Keeper', 'yellow'],
@@ -20,12 +22,16 @@ $roleLabels = [
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $requestId = filter_input(INPUT_POST, 'request_id', FILTER_VALIDATE_INT);
     $decision = (string) ($_POST['decision'] ?? '');
+    $decisionReason = trim((string) ($_POST['decision_reason'] ?? ''));
 
     if (!verifyCsrfToken((string) ($_POST['csrf_token'] ?? ''))) {
         $notice = 'Your session expired. Refresh the page and try again.';
         $noticeType = 'danger';
     } elseif (!$requestId || !in_array($decision, ['approved', 'rejected'], true)) {
         $notice = 'Invalid approval request.';
+        $noticeType = 'danger';
+    } elseif ($decision === 'rejected' && $decisionReason === '') {
+        $notice = t('A rejection reason is required.');
         $noticeType = 'danger';
     } else {
         try {
@@ -46,15 +52,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('An account already exists for this email address.');
                 }
 
+                if ($request['role'] === 'social-service-officer') {
+                    if (empty($request['district_id']) || empty($request['ds_division_id'])) {
+                        throw new RuntimeException('This SSO request has no valid district and DS Division. Ask the applicant to submit a new request.');
+                    }
+
+                    $activeOfficer = $connection->prepare(
+                        "SELECT full_name
+                         FROM users
+                         WHERE role='social-service-officer'
+                           AND status='active'
+                           AND ds_division_id=:ds_division_id
+                         LIMIT 1 FOR UPDATE"
+                    );
+                    $activeOfficer->execute(['ds_division_id' => $request['ds_division_id']]);
+                    $activeOfficerName = $activeOfficer->fetchColumn();
+
+                    if ($activeOfficerName) {
+                        throw new RuntimeException(
+                            $activeOfficerName . ' is already the active Social Service Officer for ' .
+                            $request['division'] . '. This request cannot be approved.'
+                        );
+                    }
+                }
+
                 $createUser = $connection->prepare(
-                    'INSERT INTO users (full_name, username, phone, division, password_hash, role, status)
-                     VALUES (:full_name, :email, :phone, :division, :password_hash, :role, :status)'
+                    'INSERT INTO users (full_name, username, phone, division, district_id, ds_division_id, password_hash, role, status)
+                     VALUES (:full_name, :email, :phone, :division, :district_id, :ds_division_id, :password_hash, :role, :status)'
                 );
                 $createUser->execute([
                     'full_name' => $request['full_name'],
                     'email' => $request['email'],
                     'phone' => $request['phone'],
                     'division' => $request['division'],
+                    'district_id' => $request['district_id'],
+                    'ds_division_id' => $request['ds_division_id'],
                     'password_hash' => $request['password_hash'],
                     'role' => $request['role'],
                     'status' => 'active',
@@ -62,13 +94,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $update = $connection->prepare(
-                'UPDATE registration_requests SET status = :status, reviewed_by = :reviewed_by, reviewed_at = NOW() WHERE id = :id'
+                'UPDATE registration_requests SET status=:status,rejection_reason=:reason,reviewed_by=:reviewed_by,reviewed_at=NOW() WHERE id=:id'
             );
-            $update->execute(['status' => $decision, 'reviewed_by' => $_SESSION['user_id'], 'id' => $requestId]);
+            $update->execute(['status'=>$decision,'reason'=>$decision==='rejected'?$decisionReason:null,'reviewed_by'=>$_SESSION['user_id'],'id'=>$requestId]);
             $connection->commit();
             logActivity('Users', ucfirst($decision) . ' user registration request', 'REG-' . str_pad((string)$requestId,3,'0',STR_PAD_LEFT), $decision);
 
-            $emailSent = sendRegistrationDecisionEmail($request['email'], $request['full_name'], $decision);
+            // Rejected applicants need the administrator's reason in their notification.
+            $emailSent = sendRegistrationDecisionEmail($request['email'], $request['full_name'], $decision, $decisionReason);
             $emailUpdate = $connection->prepare('UPDATE registration_requests SET email_status = :email_status WHERE id = :id');
             $emailUpdate->execute(['email_status' => $emailSent ? 'sent' : 'failed', 'id' => $requestId]);
 
@@ -85,15 +118,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log($exception->getMessage());
             $notice = $exception instanceof RuntimeException ? $exception->getMessage() : 'Unable to process the request. Check the database migration.';
             $noticeType = 'danger';
+            $noticeType = 'danger';
         }
     }
 }
 
 try {
-    $registrations = database()->query(
-        "SELECT id, full_name, email, phone, role, division, created_at
-         FROM registration_requests WHERE status = 'pending' ORDER BY created_at ASC"
+    $connection = database();
+    $registrations = $connection->query(
+        "SELECT rr.id,rr.full_name,rr.email,rr.phone,rr.role,rr.division,rr.created_at,
+                d.name district_name,ds.name ds_division_name
+         FROM registration_requests rr
+         LEFT JOIN districts d ON d.id=rr.district_id
+         LEFT JOIN ds_divisions ds ON ds.id=rr.ds_division_id
+         WHERE rr.status='pending' ORDER BY rr.created_at ASC"
     )->fetchAll();
+
+    // Show live approval totals so these controls reflect their actual workflow queues.
+    $pendingItemRequests = (int) $connection
+        ->query("SELECT COUNT(*) FROM aid_requests WHERE status='pending'")
+        ->fetchColumn();
+    $pendingStockReleases = (int) $connection
+        ->query("SELECT COUNT(*) FROM goods_requests WHERE status='pending-admin-approval'")
+        ->fetchColumn();
 } catch (PDOException $exception) {
     error_log($exception->getMessage());
     $loadError = 'Registration requests are unavailable. Import database/migration_registration_requests.sql first.';
@@ -120,8 +167,9 @@ try {
         <?php if ($loadError !== ''): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($loadError, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
         <div class="approval-tabs" role="tablist" aria-label="Approval categories">
             <button class="approval-tab active" type="button" role="tab" data-tab="registrations" aria-selected="true">User Registrations <span class="tab-count red"><?= count($registrations) ?></span></button>
-            <button class="approval-tab" type="button" role="tab" data-tab="items" aria-selected="false">Item Requests <span class="tab-count yellow">0</span></button>
-            <button class="approval-tab" type="button" role="tab" data-tab="stock" aria-selected="false">Stock Release</button>
+            <!-- These queues already have complete pages, so navigation is clearer than empty placeholder panels. -->
+            <a class="approval-tab" href="dashboard.php?page=item-requests">Item Requests <span class="tab-count yellow"><?= $pendingItemRequests ?></span></a>
+            <a class="approval-tab" href="dashboard.php?page=goods-requests">Stock Release <span class="tab-count yellow"><?= $pendingStockReleases ?></span></a>
         </div>
         <section class="approval-tab-panel active" data-panel="registrations">
             <?php if ($registrations !== []): ?><div class="approval-alert">⚠ <?= count($registrations) ?> user registration request<?= count($registrations) === 1 ? '' : 's' ?> require your review.</div><?php endif; ?>
@@ -137,14 +185,20 @@ try {
                         <td><strong><?= htmlspecialchars($registration['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></td>
                         <td><span class="role-label <?= $role[1] ?>"><?= htmlspecialchars($role[0], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= htmlspecialchars($registration['email'], ENT_QUOTES, 'UTF-8') ?><br><small><?= htmlspecialchars($registration['phone'], ENT_QUOTES, 'UTF-8') ?></small></td>
-                        <td><?= htmlspecialchars($registration['division'] ?: '—', ENT_QUOTES, 'UTF-8') ?></td>
+                        <!-- Admin needs the assigned DS Division here; district remains stored for validation and reporting. -->
+                        <td><?= htmlspecialchars(
+                            $registration['ds_division_name'] ?: ($registration['division'] ?: '—'),
+                            ENT_QUOTES,
+                            'UTF-8'
+                        ) ?></td>
                         <td><?= date('d M Y H:i', strtotime($registration['created_at'])) ?></td>
                         <td class="approval-actions">
-                            <form method="post" action="dashboard.php?page=pending-approvals" class="d-flex gap-2" onsubmit="return confirm('Are you sure you want to ' + event.submitter.value + ' this request?');">
+                            <form method="post" action="dashboard.php?page=pending-approvals" class="registration-decision-form">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="request_id" value="<?= (int) $registration['id'] ?>">
-                                <button name="decision" value="approved" class="approve-button" type="submit">✓ Approve</button>
-                                <button name="decision" value="rejected" class="reject-button" type="submit">✕ Reject</button>
+                                <!-- Rejection reason is collected in a dialog only when Reject is selected. -->
+                                <input type="hidden" name="decision_reason" value="">
+                                <div class="decision-button-row"><button name="decision" value="approved" class="approve-button" type="submit">✓ <?= htmlspecialchars(t('Approve'), ENT_QUOTES, 'UTF-8') ?></button><button class="reject-button" type="button" data-reason-trigger data-submit-name="decision" data-submit-value="rejected" data-dialog-title="<?= htmlspecialchars(t('Reject registration request'), ENT_QUOTES, 'UTF-8') ?>" data-dialog-confirm="<?= htmlspecialchars(t('Confirm rejection'), ENT_QUOTES, 'UTF-8') ?>" data-reason-field="decision_reason">✕ <?= htmlspecialchars(t('Reject'), ENT_QUOTES, 'UTF-8') ?></button></div>
                             </form>
                         </td>
                     </tr><?php endforeach; ?></tbody>
@@ -152,11 +206,10 @@ try {
                 <?php endif; ?>
             </article>
         </section>
-        <section class="approval-tab-panel" data-panel="items"><article class="approval-card empty-approval-card"><h2>Item Requests</h2><p>Item request approval records will be connected when the Item Requests module is developed.</p></article></section>
-        <section class="approval-tab-panel" data-panel="stock"><article class="approval-card empty-approval-card"><h2>Stock Release Requests</h2><p>Stock release approval records will be connected when the Central Stock module is developed.</p></article></section>
     </main>
 </div>
 <script src="assets/js/admin-dashboard.js"></script>
 <script src="assets/js/pending-approvals.js"></script>
+<script src="assets/js/admin-reason-dialog.js?v=1"></script>
 </body>
 </html>

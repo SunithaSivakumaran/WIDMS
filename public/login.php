@@ -51,18 +51,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(widmsLanguage(), ENT_QUOTES, 'UTF-8') ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Sign in to the Welfare Inventory and Distribution Management System">
     <title>Sign In | WIDMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/login.css" rel="stylesheet">
+    <link href="assets/css/login.css?v=3" rel="stylesheet">
 </head>
 <body>
-    <main class="login-page d-flex align-items-center justify-content-center">
+    <main class="login-page auth-layout">
+        <!-- The brand panel gives users context before they enter the secure system. -->
+        <aside class="auth-showcase" aria-label="About WIDMS">
+            <?php renderLanguageSwitcher('auth-language'); ?>
+            <div class="showcase-badge">Southern Province</div>
+            <div class="showcase-content">
+                <p class="showcase-kicker">Welfare services, connected</p>
+                <h2>Support reaches people faster when every step is visible.</h2>
+                <p>Manage welfare inventory, requests, approvals and distributions through one secure workspace.</p>
+                <div class="showcase-features" aria-label="System benefits">
+                    <span>Secure access</span>
+                    <span>Clear approvals</span>
+                    <span>Reliable records</span>
+                </div>
+            </div>
+            <p class="showcase-footer">Welfare Inventory &amp; Distribution Management System</p>
+        </aside>
         <section class="login-card" aria-labelledby="login-title">
+            <?php renderLanguageSwitcher('mobile-language'); ?>
             <header class="brand d-flex align-items-center">
                 <img class="brand-mark" src="assets/images/client-logo.jpeg" alt="WIDMS logo">
                 <div>
@@ -72,8 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </header>
 
             <div class="intro">
-                <h1 id="login-title">Sign in</h1>
-                <p>Enter your account details to continue</p>
+                <p class="form-kicker"><?= htmlspecialchars(t('Welcome back'), ENT_QUOTES, 'UTF-8') ?></p>
+                <h1 id="login-title"><?= htmlspecialchars(t('Sign in to your account'), ENT_QUOTES, 'UTF-8') ?></h1>
+                <p><?= htmlspecialchars(t('Enter your approved WIDMS credentials to continue.'), ENT_QUOTES, 'UTF-8') ?></p>
             </div>
 
             <form id="login-form" method="post" action="login.php">
@@ -87,24 +105,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
 
                 <div class="mb-4">
-                    <label for="username" class="form-label">Username</label>
+                    <label for="username" class="form-label"><?= htmlspecialchars(t('Username'), ENT_QUOTES, 'UTF-8') ?></label>
                     <input type="email" class="form-control" id="username" name="username"
                            value="<?= htmlspecialchars($username, ENT_QUOTES, 'UTF-8') ?>"
                            autocomplete="username" required>
                 </div>
 
                 <div class="mb-4">
-                    <label for="password" class="form-label">Password</label>
+                    <label for="password" class="form-label"><?= htmlspecialchars(t('Password'), ENT_QUOTES, 'UTF-8') ?></label>
                     <input type="password" class="form-control" id="password" name="password"
                            autocomplete="current-password" required>
                 </div>
 
-                <button type="submit" class="btn btn-primary sign-in-button w-100">Sign In</button>
-                <p class="signup-prompt mb-0">New to WIDMS? <a href="signup.php">Request an account</a></p>
+                <button type="submit" class="btn btn-primary sign-in-button w-100"><?= htmlspecialchars(t('Sign In'), ENT_QUOTES, 'UTF-8') ?></button>
+                <p class="signup-prompt mb-0"><?= htmlspecialchars(t('New to WIDMS?'), ENT_QUOTES, 'UTF-8') ?> <a href="signup.php"><?= htmlspecialchars(t('Request an account'), ENT_QUOTES, 'UTF-8') ?></a></p>
             </form>
         </section>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/password-toggle.js?v=2"></script>
+    <?= widmsUiTranslationAssetsHtml() ?>
 </body>
 </html>

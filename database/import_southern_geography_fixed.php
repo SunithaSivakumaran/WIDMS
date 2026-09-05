@@ -1019,6 +1019,7 @@ try {
          JOIN districts d ON d.id=ds.district_id
          LEFT JOIN widms_geography_keep_dsd keep_row ON keep_row.id=ds.id
          WHERE d.name IN ('Galle','Matara','Hambantota')
+           AND ds.name NOT IN ('Suraliya Sewana Center','Senda Arana Elder Home')
            AND keep_row.id IS NULL"
     );
     $deleteLegacyDsd->execute();
@@ -1071,7 +1072,8 @@ $verifyDsd = (int) $db->query(
            'Galle',
            'Matara',
            'Hambantota'
-       )"
+       )
+       AND ds.name NOT IN ('Suraliya Sewana Center','Senda Arana Elder Home')"
 )->fetchColumn();
 
 $verifyGnd = (int) $db->query(

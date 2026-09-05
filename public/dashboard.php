@@ -29,6 +29,7 @@ $adminPages = [
 $socialOfficerPages = [
     'dashboard' => __DIR__ . '/../modules/social-service-officer/dashboard.php',
     'pool-quota' => __DIR__ . '/../modules/social-service-officer/pool-quota.php',
+    'new-aid-request' => __DIR__ . '/../modules/social-service-officer/aid-requests.php',
     'aid-requests' => __DIR__ . '/../modules/social-service-officer/aid-requests.php',
     'distribute-aid' => __DIR__ . '/../modules/social-service-officer/distribute-aid.php',
     'pending-handover' => __DIR__ . '/../modules/social-service-officer/pending-handover.php',
@@ -82,4 +83,15 @@ if ($dashboard === null || !is_file($dashboard)) {
     exit('Dashboard is unavailable.');
 }
 
+// Legacy modules share one safe visible-text translator while they are migrated to t().
+ob_start();
 require $dashboard;
+$dashboardHtml = (string) ob_get_clean();
+$language = widmsLanguage();
+$dashboardHtml = preg_replace('/<html(?:\s+lang="[^"]*")?>/i', '<html lang="' . htmlspecialchars($language, ENT_QUOTES, 'UTF-8') . '">', $dashboardHtml, 1) ?? $dashboardHtml;
+
+if ($language !== 'en') {
+    $dashboardHtml = str_replace('</body>', widmsUiTranslationAssetsHtml() . '</body>', $dashboardHtml);
+}
+
+echo $dashboardHtml;

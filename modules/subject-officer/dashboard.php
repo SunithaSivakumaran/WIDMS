@@ -38,10 +38,10 @@ try{$db=database();$user=(int)$_SESSION['user_id'];$stmt=$db->prepare('SELECT CO
 
         <main class="dashboard-content admin-dashboard-page">
             <section class="stats-grid" aria-label="Subject Officer statistics">
-                <article class="stat-card"><span class="stat-icon">📋</span><p>Submitted Requests</p><strong><?=$metrics['submitted']?></strong><small>Goods requests submitted</small></article>
-                <article class="stat-card"><span class="stat-icon">🗃️</span><p>Beneficiaries in Division</p><strong><?=$metrics['beneficiaries']?></strong><small>Active beneficiary records</small></article>
-                <article class="stat-card"><span class="stat-icon">📤</span><p>Pending Stock Releases</p><strong><?=$metrics['releases']?></strong><small>Approved, awaiting dispatch</small></article>
-                <article class="stat-card"><span class="stat-icon">🔄</span><p>Returns This Month</p><strong><?=$metrics['returns']?></strong><small>Division return records</small></article>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=request-goods"><span class="stat-icon">📋</span><p>Submitted Requests</p><strong><?=$metrics['submitted']?></strong><small>Goods requests submitted</small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=beneficiaries"><span class="stat-icon">🗃️</span><p>Beneficiaries in Division</p><strong><?=$metrics['beneficiaries']?></strong><small>Active beneficiary records</small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=central-stock"><span class="stat-icon">📤</span><p>Pending Stock Releases</p><strong><?=$metrics['releases']?></strong><small>Approved, awaiting dispatch</small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
+                <a class="stat-card stat-card-link" href="dashboard.php?page=returns"><span class="stat-icon">🔄</span><p>Returns This Month</p><strong><?=$metrics['returns']?></strong><small>Division return records</small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
             </section>
 
             <section class="panel approved-needs-panel">

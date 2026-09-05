@@ -658,14 +658,17 @@ textarea {
 }
 
 .approval-tab {
+  display: inline-flex;
   height: 55px;
   padding: 0 23px;
+  align-items: center;
   color: var(--muted);
   background: transparent;
   border: 0;
   border-bottom: 2px solid transparent;
   font-size: 15px;
   font-weight: 600;
+  text-decoration: none;
 }
 
 .approval-tab:hover,
@@ -1339,6 +1342,735 @@ textarea {
 .profile-form-grid input:disabled {
   color: #60748f;
   background: #eef1f4;
+}
+
+/* ==========================================================================
+   PROFESSIONAL DARK-NAVY THEME
+   This restrained final theme replaces decorative gradients, oversized curves,
+   and lift effects with a consistent application-style visual hierarchy.
+   ========================================================================== */
+:root {
+  --professional-navy: #101f2d;
+  --professional-navy-raised: #182b3b;
+  --professional-blue: #3979ad;
+  --professional-page: #eef1f4;
+  --professional-line: #d7dee5;
+  --professional-text: #172a3a;
+  --professional-muted: #607284;
+}
+
+body.widms-unified-ui {
+  color: var(--professional-text);
+  background: var(--professional-page);
+  font-family: 'Segoe UI Variable Text', 'Noto Sans Sinhala', 'Noto Sans Tamil', 'Segoe UI', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.widms-unified-ui .sidebar {
+  background: var(--professional-navy);
+  border-right: 1px solid #263947;
+  box-shadow: none;
+}
+.widms-unified-ui .sidebar-logo,
+.widms-unified-ui .profile-avatar { box-shadow: none; }
+.widms-unified-ui .admin-profile {
+  margin: 0;
+  padding: 13px 20px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 0;
+  background: transparent;
+}
+.widms-unified-ui .nav-heading { color: #8298aa; font-weight: 700; }
+.widms-unified-ui .sidebar .nav-link {
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  color: #bdc9d3;
+  font-weight: 500;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.widms-unified-ui .sidebar .nav-link:hover { transform: none; }
+.widms-unified-ui .sidebar .nav-link:hover,
+.widms-unified-ui .sidebar .nav-link.active {
+  color: #fff;
+  background: #1b354a;
+  border-left-color: #69a7d5;
+  box-shadow: none;
+}
+.widms-unified-ui .sign-out {
+  margin: 0;
+  padding: 14px 20px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 0;
+}
+
+.widms-unified-ui .topbar {
+  height: 64px;
+  padding: 0 28px;
+  color: #fff;
+  background: var(--professional-navy-raised);
+  border-bottom: 1px solid #2a4052;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.widms-unified-ui .topbar h1 { color: #fff; font-size: 19px; font-weight: 650; }
+.widms-unified-ui .topbar-role {
+  color: #d4e7f5;
+  background: #263e51;
+  border-color: #38556b;
+  border-radius: 4px;
+}
+.widms-unified-ui .search-box {
+  min-height: 38px;
+  color: #a9c9df;
+  background: #22394b;
+  border-color: #3b5264;
+  border-radius: 5px;
+}
+.widms-unified-ui .search-box input { color: #fff; }
+.widms-unified-ui .search-box input::placeholder { color: #afbec9; }
+.widms-unified-ui .search-box svg { stroke: #a9c9df; }
+.widms-unified-ui .notification-button {
+  width: 38px;
+  height: 38px;
+  background: #22394b;
+  border-color: #3b5264;
+  border-radius: 5px;
+}
+
+.widms-unified-ui .dashboard-content {
+  max-width: none;
+  padding: 24px 28px 36px;
+  background: var(--professional-page);
+}
+.widms-unified-ui .stat-card,
+.widms-unified-ui .operation-summary-card,
+.widms-unified-ui .panel,
+.widms-unified-ui .admin-data-card,
+.widms-unified-ui .users-card,
+.widms-unified-ui .approval-card {
+  border: 1px solid var(--professional-line);
+  border-radius: 7px;
+  box-shadow: 0 1px 3px rgba(9, 30, 50, .08);
+  transition: border-color .15s ease;
+}
+.widms-unified-ui .stat-card:hover,
+.widms-unified-ui .operation-summary-card:hover {
+  border-color: #b8c6d1;
+  box-shadow: 0 1px 3px rgba(9, 30, 50, .08);
+  transform: none;
+}
+.widms-unified-ui .stat-card::after,
+.widms-unified-ui .operation-summary-card::after { content: none; }
+.widms-unified-ui .stat-icon { color: #285f8f; background: #edf4f9; border-radius: 5px; }
+.widms-unified-ui .panel-header,
+.widms-unified-ui .admin-data-header { background: #fff; }
+.widms-unified-ui table thead th { color: #526577; background: #f3f5f7; font-weight: 700; }
+.widms-unified-ui table tbody tr:hover td { background: #f6f8fa; }
+
+.widms-unified-ui input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']),
+.widms-unified-ui select,
+.widms-unified-ui textarea,
+.widms-unified-ui button,
+.widms-unified-ui .approve-button,
+.widms-unified-ui .admin-primary-action,
+.widms-unified-ui .profile-save-button { border-radius: 5px; }
+.widms-unified-ui input:focus,
+.widms-unified-ui select:focus,
+.widms-unified-ui textarea:focus {
+  border-color: var(--professional-blue);
+  box-shadow: 0 0 0 3px rgba(57, 121, 173, .14);
+}
+.widms-unified-ui .alert { border-radius: 5px; box-shadow: none; }
+
+@media (max-width: 991.98px) {
+  .widms-unified-ui .topbar { height: 60px; padding: 0 18px; }
+  .widms-unified-ui .dashboard-content { padding: 18px 16px 28px; }
+}
+
+/* Keep the shared password control inside profile password fields. */
+.profile-form-grid .password-field {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.profile-form-grid .password-field input {
+  padding-right: 45px;
+}
+.profile-form-grid .password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  z-index: 2;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  transform: translateY(-50%);
+  cursor: pointer;
+  appearance: none;
+}
+.profile-form-grid .password-toggle:hover {
+  color: var(--primary);
+}
+.profile-form-grid .password-toggle:focus-visible {
+  color: var(--primary);
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.profile-form-grid .eye-icon {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.profile-form-grid .eye-icon.is-hidden {
+  display: none;
+}
+
+/* Decision and status forms stack their mandatory reason beside the action. */
+.registration-decision-form,
+.sso-status-form {
+  display: grid;
+  min-width: 245px;
+  padding: 10px;
+  gap: 9px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+.decision-reason-label { display: grid; margin: 0; gap: 5px; }
+.decision-reason-label span { color: #425b76; font-size: 11px; font-weight: 700; }
+.registration-decision-form textarea,
+.sso-status-form textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 9px 11px;
+  color: #17324d;
+  background: #fff;
+  border: 1px solid #cbd7e3;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.registration-decision-form textarea:focus,
+.sso-status-form textarea:focus { outline: 0; border-color: #2875bd; box-shadow: 0 0 0 3px rgba(40,117,189,.12); }
+.decision-button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.decision-button-row button,
+.sso-action-button { width: 100%; min-height: 36px; border-radius: 9px; }
+
+/* Compact table actions expand into a focused reason dialog only when needed. */
+.registration-decision-form,
+.sso-status-form { display: block; min-width: 0; padding: 0; background: transparent; border: 0; }
+.decision-button-row { display: flex; min-width: 190px; gap: 7px; }
+.sso-action-button { min-width: 108px; }
+.admin-reason-dialog { width: min(440px, calc(100% - 30px)); padding: 0; border: 0; border-radius: 16px; box-shadow: 0 24px 70px rgba(7,22,43,.28); }
+.admin-reason-dialog::backdrop { background: rgba(7,22,43,.55); backdrop-filter: blur(2px); }
+.reason-dialog-card { padding: 22px; }
+.reason-dialog-heading,.reason-dialog-heading>div,.reason-dialog-actions { display: flex; align-items: center; }
+.reason-dialog-heading { justify-content: space-between; margin-bottom: 18px; }
+.reason-dialog-heading>div { gap: 10px; }
+.reason-dialog-heading h2 { margin: 0; font-size: 18px; }
+.reason-dialog-icon { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; color: #b42318; background: #fee4e2; border-radius: 50%; font-weight: 800; }
+.reason-dialog-close { color: #64748b; background: transparent; border: 0; font-size: 26px; line-height: 1; }
+.reason-dialog-card label { display: grid; gap: 7px; }
+.reason-dialog-label { color: #425b76; font-size: 12px; font-weight: 700; }
+.reason-dialog-card textarea { width: 100%; padding: 11px 12px; border: 1px solid #cbd7e3; border-radius: 10px; font: inherit; font-size: 13px; resize: vertical; }
+.reason-dialog-card textarea:focus { outline: 0; border-color: #2875bd; box-shadow: 0 0 0 3px rgba(40,117,189,.12); }
+.reason-dialog-error { margin: 6px 0 0; color: #b42318; font-size: 12px; }
+.reason-dialog-actions { justify-content: flex-end; margin-top: 18px; gap: 9px; }
+.reason-dialog-actions button { min-height: 38px; padding: 8px 15px; border-radius: 9px; font-size: 12px; font-weight: 700; }
+.reason-dialog-cancel { color: #425b76; background: #fff; border: 1px solid #cbd7e3; }
+.reason-dialog-confirm { color: #fff; background: #d92d20; border: 1px solid #d92d20; }
+
+/* ==========================================================================
+   UNIFIED ROLE INTERFACE
+   These final overrides give every role the same shell, cards, controls and
+   responsive rhythm. Role accents identify context without changing layout.
+   ========================================================================== */
+:root {
+  --ui-primary: #1769aa;
+  --ui-primary-soft: #eaf4fb;
+  --ui-surface: #ffffff;
+  --ui-page: #f4f7fa;
+  --ui-line: #dde6ee;
+  --ui-shadow: 0 10px 30px rgba(22, 50, 77, .07);
+  --role-accent: #1769aa;
+}
+.role-subject { --role-accent: #16856b; }
+.role-store { --role-accent: #b7790b; }
+.role-social { --role-accent: #6f52b5; }
+
+body.widms-unified-ui { color: #132c44; background: var(--ui-page); }
+.widms-unified-ui .sidebar {
+  width: 268px;
+  background: linear-gradient(180deg, #0d2234 0%, #102d45 100%);
+  border-right: 1px solid rgba(255,255,255,.06);
+  box-shadow: 8px 0 30px rgba(5,22,36,.08);
+}
+.widms-unified-ui .sidebar-brand { min-height: 72px; padding: 16px 20px; }
+.widms-unified-ui .sidebar-logo { width: 40px; height: 40px; flex-basis: 40px; box-shadow: 0 4px 14px rgba(0,0,0,.2); }
+.widms-unified-ui .admin-profile { min-height: 76px; margin: 0 10px 8px; padding: 13px 12px; border: 1px solid rgba(255,255,255,.07); border-radius: 12px; background: rgba(255,255,255,.035); }
+.widms-unified-ui .profile-avatar { background: var(--role-accent); box-shadow: 0 0 0 3px rgba(255,255,255,.09); }
+.widms-unified-ui .sidebar-language { margin: 0 10px 10px; }
+.widms-unified-ui .sidebar-nav { padding: 4px 10px 12px; }
+.widms-unified-ui .nav-heading { margin: 15px 10px 5px; color: #7198b8; font-weight: 800; letter-spacing: .1em; }
+.widms-unified-ui .sidebar .nav-link { min-height: 40px; padding: 9px 11px; border-left: 0; border-radius: 9px; color: #b8d0e3; transition: background .16s ease,color .16s ease,transform .16s ease; }
+.widms-unified-ui .sidebar .nav-link:hover { transform: translateX(2px); }
+.widms-unified-ui .sidebar .nav-link:hover,
+.widms-unified-ui .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,.09); box-shadow: inset 3px 0 var(--role-accent); }
+.widms-unified-ui .sign-out { margin: 8px 10px 12px; padding: 11px 13px; border: 1px solid rgba(255,255,255,.08); border-radius: 9px; }
+.widms-unified-ui .sign-out:hover { color: #fff; background: rgba(220,53,69,.13); }
+
+.widms-unified-ui .admin-shell { margin-left: 268px; }
+.widms-unified-ui .topbar { height: 70px; padding: 0 30px; background: rgba(255,255,255,.94); border-bottom: 1px solid var(--ui-line); box-shadow: 0 3px 15px rgba(15,43,68,.035); backdrop-filter: blur(12px); }
+.widms-unified-ui .topbar h1 { color: #102b44; font-size: 20px; font-weight: 750; letter-spacing: -.02em; }
+.topbar-role { display: inline-flex; padding: 5px 9px; color: var(--role-accent); background: color-mix(in srgb, var(--role-accent) 10%, white); border: 1px solid color-mix(in srgb, var(--role-accent) 20%, white); border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.widms-unified-ui .search-box { width: min(260px, 28vw); min-height: 39px; border: 1px solid var(--ui-line); border-radius: 10px; background: #f7f9fb; }
+.widms-unified-ui .notification-button { width: 39px; height: 39px; border: 1px solid var(--ui-line); border-radius: 10px; background: #fff; }
+.widms-unified-ui .dashboard-content { padding: 26px 30px 40px; }
+
+.widms-unified-ui .stats-grid,
+.widms-unified-ui .operation-summary-grid { gap: 16px; }
+.widms-unified-ui .stat-card,
+.widms-unified-ui .operation-summary-card,
+.widms-unified-ui .panel,
+.widms-unified-ui .admin-data-card,
+.widms-unified-ui .users-card,
+.widms-unified-ui .approval-card {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: 15px;
+  box-shadow: var(--ui-shadow);
+}
+.widms-unified-ui .stat-card,
+.widms-unified-ui .operation-summary-card { position: relative; min-height: 132px; padding: 19px; overflow: hidden; }
+.widms-unified-ui .stat-card::after,
+.widms-unified-ui .operation-summary-card::after { content: ''; position: absolute; inset: auto 0 0; height: 3px; background: var(--role-accent); opacity: .8; }
+.widms-unified-ui .stat-card strong,
+.widms-unified-ui .operation-summary-card strong { color: #102b44; font-size: 27px; letter-spacing: -.03em; }
+.widms-unified-ui .stat-icon { display: grid; width: 38px; height: 38px; place-items: center; color: var(--role-accent); background: var(--ui-primary-soft); border-radius: 10px; }
+.widms-unified-ui .dashboard-grid { gap: 18px; }
+.widms-unified-ui .panel-header,
+.widms-unified-ui .admin-data-header { min-height: 58px; padding: 15px 18px; border-bottom: 1px solid var(--ui-line); }
+.widms-unified-ui table { border-collapse: separate; border-spacing: 0; }
+.widms-unified-ui table thead th { padding: 12px 14px; color: #526b82; background: #f6f8fa; border-bottom: 1px solid var(--ui-line); font-size: 10px; font-weight: 800; letter-spacing: .045em; text-transform: uppercase; }
+.widms-unified-ui table tbody td { padding: 13px 14px; border-bottom: 1px solid #edf1f4; vertical-align: middle; }
+.widms-unified-ui table tbody tr:last-child td { border-bottom: 0; }
+
+/* Spacious aid intake styling keeps long forms clear without changing validation. */
+.widms-unified-ui .aid-requests-page {
+  /* Long intake forms scroll inside the fixed application shell. */
+  height: calc(100vh - 64px);
+  padding: 22px 26px 36px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.widms-unified-ui .aid-form-card {
+  max-width: 1280px;
+  margin: 0 auto 24px;
+  overflow: visible;
+  background: #fff;
+  border: 1px solid #d2dce4;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(9, 30, 50, .07);
+}
+.widms-unified-ui .aid-card-header {
+  min-height: 64px;
+  padding: 14px 22px;
+  align-items: flex-start;
+  background: #f8fafb;
+}
+.widms-unified-ui .aid-card-header h2 { font-size: 16px; font-weight: 600; line-height: 1.4; }
+.widms-unified-ui .aid-card-header small { padding-top: 3px; font-size: 11.5px; }
+.widms-unified-ui .aid-request-form { padding: 6px 22px 24px; }
+.widms-unified-ui .aid-request-form fieldset {
+  margin: 0;
+  padding: 18px 0 20px;
+  border-bottom: 1px solid #e1e7eb;
+}
+.widms-unified-ui .aid-request-form fieldset:last-of-type { border-bottom: 0; }
+.widms-unified-ui .aid-request-form legend {
+  margin: 0 0 16px;
+  padding: 0;
+  color: #285f8f;
+  border: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.widms-unified-ui .aid-form-grid { gap: 16px 18px; margin-bottom: 16px; }
+.widms-unified-ui .aid-request-form label { color: #344c5e; font-size: 12.5px; font-weight: 500; line-height: 1.4; }
+.widms-unified-ui .aid-request-form input:not([type='checkbox']),
+.widms-unified-ui .aid-request-form select,
+.widms-unified-ui .aid-request-form textarea {
+  width: 100%;
+  height: auto;
+  min-height: 42px;
+  margin-top: 7px;
+  padding: 9px 11px;
+  color: #22394a;
+  background: #fff;
+  border: 1px solid #b8c6d1;
+  border-radius: 5px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.widms-unified-ui .aid-request-form textarea { min-height: 82px; resize: vertical; }
+.widms-unified-ui .aid-request-form input:hover,
+.widms-unified-ui .aid-request-form select:hover,
+.widms-unified-ui .aid-request-form textarea:hover { border-color: #8fa5b5; }
+.widms-unified-ui .aid-request-form input:focus,
+.widms-unified-ui .aid-request-form select:focus,
+.widms-unified-ui .aid-request-form textarea:focus {
+  border-color: #3979ad;
+  box-shadow: 0 0 0 3px rgba(57, 121, 173, .13);
+}
+.widms-unified-ui .aid-identification-block {
+  padding: 12px 14px;
+  background: #f7f9fb;
+  border: 1px solid #d7e0e7;
+  border-radius: 5px;
+}
+.widms-unified-ui .aid-identification-options { display: flex; margin-top: 8px; flex-wrap: wrap; gap: 9px; }
+.widms-unified-ui .aid-identification-choice,
+.widms-unified-ui .official-grid label {
+  min-height: 42px;
+  padding: 9px 12px;
+  background: #f7f9fb;
+  border: 1px solid #d5dee5;
+  border-radius: 5px;
+}
+.widms-unified-ui .aid-identification-choice input,
+.widms-unified-ui .official-grid input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  accent-color: #3979ad;
+}
+.widms-unified-ui .aid-identification-input { margin-top: 12px; }
+.widms-unified-ui .official-grid { gap: 12px; }
+.widms-unified-ui .form-help,
+.widms-unified-ui .approval-help,
+.widms-unified-ui .form-field-help { color: #667b8c; font-size: 11.5px; line-height: 1.5; }
+.widms-unified-ui .aid-form-actions { margin-top: 4px; padding-top: 20px; flex-wrap: wrap; gap: 10px; }
+.widms-unified-ui .aid-form-actions .submit-aid-button,
+.widms-unified-ui .aid-form-actions .outline-action {
+  min-height: 48px;
+  padding: 12px 22px;
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: 600;
+}
+@media (max-width: 899.98px) {
+  .widms-unified-ui .aid-requests-page {
+    height: calc(100vh - 60px);
+    padding: 16px;
+  }
+  .widms-unified-ui .aid-form-grid.three-columns,
+  .widms-unified-ui .aid-form-grid.two-columns,
+  .widms-unified-ui .official-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 575.98px) {
+  .widms-unified-ui .aid-card-header { padding: 13px 16px; flex-direction: column; gap: 2px; }
+  .widms-unified-ui .aid-request-form { padding: 4px 16px 20px; }
+  .widms-unified-ui .aid-form-actions > * { width: 100%; }
+}
+
+/* Stronger blue-and-ash grouping makes each stage of the aid form easy to scan. */
+.widms-unified-ui .aid-form-card { background: #f3f6f8; }
+.widms-unified-ui .aid-card-header {
+  padding: 18px 22px;
+  background: #e8eff5;
+  border-bottom: 2px solid #8eafc8;
+}
+.widms-unified-ui .aid-card-header h2 {
+  color: #173b57;
+  font-size: 20px;
+  font-weight: 600;
+}
+.widms-unified-ui .aid-request-form {
+  display: grid;
+  padding: 22px;
+  gap: 18px;
+}
+.widms-unified-ui .aid-request-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 17px 14px 18px;
+  background: #f8fafb;
+  border: 1px solid #ccd8e1;
+  border-left: 4px solid #4b83ad;
+  border-radius: 5px;
+}
+.widms-unified-ui .aid-request-form fieldset:last-of-type { border-bottom: 1px solid #ccd8e1; }
+.widms-unified-ui .aid-request-form legend {
+  display: block;
+  width: auto;
+  margin: 0 0 18px;
+  padding: 0 0 9px;
+  color: #20577f;
+  border-bottom: 1px solid #bfd0dc;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.widms-unified-ui .aid-form-grid {
+  align-items: start;
+  gap: 16px 20px;
+  margin-bottom: 16px;
+}
+.widms-unified-ui .aid-form-grid:last-child { margin-bottom: 0; }
+.widms-unified-ui .aid-request-form .full-field { margin-top: 2px; }
+
+/* Identification follows the beneficiary name instead of appearing as a detached side box. */
+.widms-unified-ui .aid-request-form fieldset:nth-of-type(2) > .aid-form-grid.two-columns:first-of-type > label:first-child,
+.widms-unified-ui .aid-request-form fieldset:nth-of-type(2) .aid-identification-block {
+  grid-column: 1 / -1;
+}
+.widms-unified-ui .aid-identification-block {
+  padding: 2px 0 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.widms-unified-ui .aid-identification-title { color: #344c5e; font-size: 12.5px; font-weight: 500; }
+.widms-unified-ui .aid-identification-options { gap: 10px; }
+.widms-unified-ui .aid-identification-choice {
+  min-width: 150px;
+  background: #fff;
+}
+
+/* Approval choices stay compact on wide screens and stack progressively. */
+.widms-unified-ui .official-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.widms-unified-ui .official-grid label {
+  min-width: 0;
+  background: #fff;
+  font-size: 12px;
+}
+.widms-unified-ui .aid-form-actions {
+  margin: 0;
+  padding: 18px 0 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid #cfd9e0;
+  border-radius: 0;
+}
+
+@media (max-width: 1199.98px) {
+  .widms-unified-ui .official-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 899.98px) {
+  .widms-unified-ui .aid-request-form { padding: 16px; }
+  .widms-unified-ui .aid-request-form fieldset { padding: 15px 12px 16px; }
+}
+@media (max-width: 575.98px) {
+  .widms-unified-ui .aid-card-header h2 { font-size: 18px; }
+  .widms-unified-ui .official-grid { grid-template-columns: 1fr; }
+  .widms-unified-ui .aid-identification-choice { width: 100%; min-width: 0; }
+}
+
+/* The dedicated request-list page keeps creation, search, and filtering together. */
+.widms-unified-ui .submitted-requests-card {
+  margin: 0;
+  background: #fff;
+  border: 1px solid #d2dce4;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(9, 30, 50, .07);
+}
+.widms-unified-ui .submitted-header {
+  min-height: 66px;
+  padding: 12px 18px;
+  background: #f4f7f9;
+  border-bottom: 1px solid #d2dce4;
+}
+.widms-unified-ui .submitted-header h2 { color: #173b57; font-size: 17px; font-weight: 600; }
+.widms-unified-ui .submitted-header > div {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.widms-unified-ui .new-aid-request-button {
+  display: inline-flex;
+  min-height: 38px;
+  padding: 8px 13px;
+  align-items: center;
+  color: #fff;
+  background: #326f9f;
+  border: 1px solid #326f9f;
+  border-radius: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.widms-unified-ui .new-aid-request-button:hover { color: #fff; background: #285d86; border-color: #285d86; }
+.widms-unified-ui .submitted-header input,
+.widms-unified-ui .submitted-header select { width: auto; min-width: 170px; margin: 0; }
+.widms-unified-ui .submitted-table-wrap {
+  overflow-x: auto;
+  background: #fff;
+}
+.widms-unified-ui .submitted-table { min-width: 1080px; }
+
+@media (max-width: 767.98px) {
+  .widms-unified-ui .submitted-header { align-items: stretch; flex-direction: column; }
+  .widms-unified-ui .submitted-header > div { justify-content: stretch; }
+  .widms-unified-ui .submitted-header input,
+  .widms-unified-ui .submitted-header select,
+  .widms-unified-ui .new-aid-request-button { width: 100%; }
+  .widms-unified-ui .new-aid-request-button { justify-content: center; }
+}
+.widms-unified-ui table tbody tr:hover td { background: #f9fbfd; }
+.widms-unified-ui input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']),
+.widms-unified-ui select,
+.widms-unified-ui textarea { border-color: #ccd8e3; border-radius: 9px; }
+.widms-unified-ui input:focus,
+.widms-unified-ui select:focus,
+.widms-unified-ui textarea:focus { outline: 0; border-color: var(--role-accent); box-shadow: 0 0 0 3px color-mix(in srgb,var(--role-accent) 13%,transparent); }
+.widms-unified-ui .approve-button,
+.widms-unified-ui .admin-primary-action,
+.widms-unified-ui .profile-save-button { border-radius: 9px; box-shadow: none; }
+.widms-unified-ui .alert { border: 0; border-left: 4px solid currentColor; border-radius: 10px; box-shadow: 0 6px 18px rgba(22,50,77,.05); }
+
+@media (max-width: 991.98px) {
+  .widms-unified-ui .sidebar { width: min(286px,86vw); }
+  .widms-unified-ui .admin-shell { margin-left: 0; }
+  .widms-unified-ui .topbar { height: 62px; padding: 0 18px; }
+  .widms-unified-ui .dashboard-content { padding: 18px 16px 30px; }
+  .topbar-role { display: none; }
+}
+@media (max-width: 575.98px) {
+  .widms-unified-ui .topbar-actions .search-box { display: none; }
+  .widms-unified-ui .topbar h1 { font-size: 17px; }
+  .widms-unified-ui .stats-grid,
+  .widms-unified-ui .operation-summary-grid { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+   READABILITY AND BLUE VISUAL POLISH
+   A system-native font stack keeps all three languages crisp without relying
+   on a network font, while a calm blue palette improves hierarchy and trust.
+   ========================================================================== */
+:root {
+  --ui-blue-950: #09233b;
+  --ui-blue-900: #0d2e4d;
+  --ui-blue-800: #124b78;
+  --ui-blue-700: #1769aa;
+  --ui-blue-600: #2383c4;
+  --ui-blue-100: #e8f3fb;
+  --ui-blue-50: #f4f9fd;
+  --ui-text: #16324a;
+  --ui-text-soft: #587086;
+}
+
+body.widms-unified-ui {
+  color: var(--ui-text);
+  background:
+    radial-gradient(circle at 94% 2%, rgba(35,131,196,.08), transparent 24rem),
+    linear-gradient(180deg, #f7fbfe 0, #f2f6fa 100%);
+  font-family: 'Segoe UI Variable Text', 'Noto Sans Sinhala', 'Noto Sans Tamil', 'Segoe UI', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.widms-unified-ui h1,
+.widms-unified-ui h2,
+.widms-unified-ui h3,
+.widms-unified-ui strong,
+.widms-unified-ui b { letter-spacing: -.012em; }
+.widms-unified-ui .topbar h1 { font-size: 21px; line-height: 1.25; }
+.widms-unified-ui .panel-header h2,
+.widms-unified-ui .admin-data-header h2 { color: var(--ui-blue-950); font-size: 16px; font-weight: 750; }
+.widms-unified-ui .admin-data-header p { margin: 4px 0 0; color: var(--ui-text-soft); font-size: 12px; }
+
+.widms-unified-ui .sidebar {
+  background:
+    radial-gradient(circle at 15% 0, rgba(45,143,207,.18), transparent 15rem),
+    linear-gradient(180deg, var(--ui-blue-950), #0b2943 55%, #0d3556);
+}
+.widms-unified-ui .sidebar-brand strong { font-size: 16px; letter-spacing: .02em; }
+.widms-unified-ui .admin-profile strong { max-width: 165px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.widms-unified-ui .admin-profile small { margin-top: 3px; color: #93bfdf; font-size: 10px; font-weight: 650; }
+.widms-unified-ui .sidebar .nav-link { font-size: 13px; font-weight: 560; line-height: 1.35; }
+.widms-unified-ui .sidebar .nav-link.active { background: linear-gradient(90deg, rgba(42,137,200,.25), rgba(255,255,255,.06)); }
+.widms-unified-ui .nav-icon { display: inline-grid; width: 22px; height: 22px; place-items: center; flex: 0 0 22px; }
+
+.widms-unified-ui .dashboard-content { max-width: 1680px; margin: 0 auto; }
+.widms-unified-ui .stat-card,
+.widms-unified-ui .operation-summary-card,
+.widms-unified-ui .panel,
+.widms-unified-ui .admin-data-card,
+.widms-unified-ui .users-card,
+.widms-unified-ui .approval-card { transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.widms-unified-ui .stat-card:hover,
+.widms-unified-ui .operation-summary-card:hover { border-color: #bad7ea; box-shadow: 0 15px 34px rgba(17,78,119,.1); transform: translateY(-2px); }
+.widms-unified-ui .stat-card p,
+.widms-unified-ui .operation-summary-card p { margin-bottom: 7px; color: var(--ui-text-soft); font-size: 12px; font-weight: 700; }
+.widms-unified-ui .stat-card small,
+.widms-unified-ui .operation-summary-card small { color: #6a8093; font-size: 11px; line-height: 1.4; }
+
+.widms-unified-ui table { width: 100%; color: var(--ui-text); font-size: 13px; }
+.widms-unified-ui table thead th { color: #44647f; background: linear-gradient(180deg, #f6fafe, #edf4f9); font-size: 10.5px; }
+.widms-unified-ui table tbody td { line-height: 1.5; }
+.widms-unified-ui table tbody td strong { color: var(--ui-blue-950); font-weight: 700; }
+.widms-unified-ui table tbody td small { display: block; margin-top: 3px; color: var(--ui-text-soft); }
+
+.widms-unified-ui input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']),
+.widms-unified-ui select,
+.widms-unified-ui textarea { min-height: 42px; padding: 9px 11px; color: var(--ui-blue-950); background: #fff; font-size: 13px; line-height: 1.4; transition: border-color .16s ease, box-shadow .16s ease, background .16s ease; }
+.widms-unified-ui textarea { min-height: 74px; }
+.widms-unified-ui input::placeholder,
+.widms-unified-ui textarea::placeholder { color: #8a9dad; opacity: 1; }
+.widms-unified-ui button,
+.widms-unified-ui a { -webkit-tap-highlight-color: transparent; }
+.widms-unified-ui button:not(:disabled),
+.widms-unified-ui .approve-button,
+.widms-unified-ui .reject-button { transition: transform .14s ease, box-shadow .14s ease, background .14s ease; }
+.widms-unified-ui button:not(:disabled):active,
+.widms-unified-ui .approve-button:active,
+.widms-unified-ui .reject-button:active { transform: translateY(1px); }
+.widms-unified-ui :focus-visible { outline: 3px solid rgba(35,131,196,.28); outline-offset: 2px; }
+
+.widms-unified-ui .user-status,
+.widms-unified-ui .status,
+.widms-unified-ui .role-label { padding: 5px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: .015em; }
+.widms-unified-ui .dashboard-empty-state,
+.widms-unified-ui .admin-empty-row { color: #71879a; background: var(--ui-blue-50); font-size: 12px; }
+.widms-unified-ui .alert-danger { color: #912018; background: #fff1f0; }
+.widms-unified-ui .alert-success { color: #116149; background: #ecf9f3; }
+.widms-unified-ui .alert-warning { color: #7a4c06; background: #fff7e6; }
+
+@media (max-width: 767.98px) {
+  body.widms-unified-ui { font-size: 13px; }
+  .widms-unified-ui .panel,
+  .widms-unified-ui .admin-data-card,
+  .widms-unified-ui .users-card,
+  .widms-unified-ui .approval-card { border-radius: 12px; }
+  .widms-unified-ui table { font-size: 12px; }
+  .widms-unified-ui table thead th,
+  .widms-unified-ui table tbody td { padding: 10px 11px; }
 }
 .password-section {
   margin-top: 21px;
@@ -5552,4 +6284,646 @@ textarea {
   .admin-ui.subject-dashboard .approved-needs-panel .operation-summary-card {
     min-height: 104px;
   }
+}
+
+/* Keep the professional shell last so older page-specific density rules cannot
+   restore the previous bright and decorative dashboard treatment. */
+body.widms-unified-ui { background: #eef1f4; }
+.widms-unified-ui .sidebar { background: #101f2d; box-shadow: none; }
+.widms-unified-ui .admin-profile { margin: 0; border-radius: 0; background: transparent; }
+.widms-unified-ui .sidebar .nav-link { border-radius: 4px; }
+.widms-unified-ui .sidebar .nav-link:hover { transform: none; }
+.widms-unified-ui .sidebar .nav-link:hover,
+.widms-unified-ui .sidebar .nav-link.active { background: #1b354a; box-shadow: none; }
+.widms-unified-ui .topbar,
+.admin-ui .topbar,
+.store-page .topbar {
+  height: 64px;
+  color: #fff;
+  background: #182b3b;
+  border-bottom-color: #2a4052;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.widms-unified-ui .topbar h1,
+.admin-ui .topbar h1,
+.store-page .topbar h1 { color: #fff; font-size: 19px; font-weight: 650; }
+.widms-unified-ui .dashboard-content,
+.admin-ui .dashboard-content { background: #eef1f4; }
+.widms-unified-ui .stat-card,
+.widms-unified-ui .operation-summary-card,
+.widms-unified-ui .panel,
+.widms-unified-ui .admin-data-card,
+.widms-unified-ui .users-card,
+.widms-unified-ui .approval-card {
+  border-radius: 7px;
+  box-shadow: 0 1px 3px rgba(9, 30, 50, .08);
+}
+.widms-unified-ui .stat-card:hover,
+.widms-unified-ui .operation-summary-card:hover {
+  box-shadow: 0 1px 3px rgba(9, 30, 50, .08);
+  transform: none;
+}
+.widms-unified-ui .stat-card::after,
+.widms-unified-ui .operation-summary-card::after { content: none; }
+.widms-unified-ui table thead th { background: #f3f5f7; }
+.widms-unified-ui input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']),
+.widms-unified-ui select,
+.widms-unified-ui textarea,
+.widms-unified-ui button { border-radius: 5px; }
+
+@media (max-width: 991.98px) {
+  .widms-unified-ui .topbar,
+  .admin-ui .topbar,
+  .store-page .topbar { height: 60px; }
+}
+
+/* Keep shared navigation controls compact, aligned, and readable in all languages. */
+.widms-unified-ui .sidebar-brand { min-height: 64px; padding: 12px 18px; gap: 10px; }
+.widms-unified-ui .sidebar-logo { width: 38px; height: 38px; flex-basis: 38px; }
+.widms-unified-ui .sidebar-brand strong { font-size: 15px; }
+.widms-unified-ui .admin-profile { min-height: 62px; padding: 10px 18px; }
+.widms-unified-ui .profile-avatar { width: 34px; height: 34px; flex-basis: 34px; font-size: 12px; }
+.widms-unified-ui .admin-profile strong { font-size: 12px; font-weight: 650; }
+.widms-unified-ui .admin-profile small { margin-top: 2px; color: #89a4b7; font-size: 9px; font-weight: 500; }
+
+.widms-unified-ui .topbar-heading {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap: 1px !important;
+}
+.widms-unified-ui .topbar-heading h1 { max-width: min(52vw, 640px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.widms-unified-ui .topbar-heading .topbar-role {
+  padding: 0;
+  color: #9fb6c8;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.widms-unified-ui .search-box {
+  display: flex;
+  width: min(280px, 30vw);
+  height: 38px;
+  min-height: 38px;
+  padding: 0 12px;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+  background: #22394b;
+  border: 1px solid #3b5264;
+  border-radius: 5px;
+}
+.widms-unified-ui .search-box svg { width: 16px; height: 16px; flex: 0 0 16px; }
+.widms-unified-ui .search-box input[type='search'],
+.widms-unified-ui .search-box input[type='search']:focus {
+  width: 100%;
+  height: 36px;
+  min-height: 0;
+  padding: 0;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+}
+.widms-unified-ui .sign-out {
+  display: flex;
+  min-height: 42px;
+  margin: 8px 10px 12px;
+  padding: 10px 12px;
+  align-items: center;
+  gap: 9px;
+  color: #bfcbd5;
+  background: transparent;
+  border: 1px solid #2a4052;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.widms-unified-ui .sign-out:hover { color: #fff; background: #1b354a; border-color: #3a566b; }
+
+@media (max-width: 575.98px) {
+  .widms-unified-ui .topbar-heading h1 { max-width: 62vw; font-size: 17px; }
+}
+
+/* Inline language links are faster to scan and avoid a bulky sidebar dropdown. */
+.widms-unified-ui .sidebar-language {
+  display: flex;
+  margin: 0;
+  padding: 9px 18px;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+.widms-unified-ui .sidebar-language .language-link {
+  padding: 2px 8px;
+  color: #91a8ba;
+  border-right: 1px solid #405564;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+}
+.widms-unified-ui .sidebar-language .language-link:first-child { padding-left: 0; }
+.widms-unified-ui .sidebar-language .language-link:last-child { padding-right: 0; border-right: 0; }
+.widms-unified-ui .sidebar-language .language-link:hover { color: #fff; }
+.widms-unified-ui .sidebar-language .language-link.active { color: #72b8e9; font-weight: 700; }
+
+/* Keep branding, language access, and profile identity on a shared alignment grid. */
+.widms-unified-ui .sidebar-brand {
+  display: grid;
+  min-height: 64px;
+  padding: 11px 14px;
+  grid-template-columns: 38px auto minmax(92px, 1fr);
+  align-items: center;
+  column-gap: 9px;
+}
+.widms-unified-ui .sidebar-brand-name { min-width: 0; }
+.widms-unified-ui .sidebar-brand-name strong { white-space: nowrap; }
+.widms-unified-ui .sidebar-brand .sidebar-language {
+  justify-self: end;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  white-space: nowrap;
+}
+.widms-unified-ui .sidebar-brand .language-link {
+  padding: 1px 5px;
+  font-size: 9px;
+}
+.widms-unified-ui .sidebar-brand .sidebar-close {
+  grid-column: 4;
+  margin-left: 0;
+}
+.widms-unified-ui .admin-profile {
+  display: grid;
+  min-height: 64px;
+  padding: 10px 16px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 11px;
+}
+.widms-unified-ui .admin-profile .profile-avatar {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+}
+.widms-unified-ui .admin-profile > span:last-child { min-width: 0; }
+.widms-unified-ui .admin-profile strong,
+.widms-unified-ui .admin-profile small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 991.98px) {
+  .widms-unified-ui .sidebar-brand { grid-template-columns: 38px auto minmax(92px, 1fr) 28px; }
+}
+
+/* ==========================================================================
+   CONTENT READABILITY
+   Slightly larger multilingual text and calmer spacing prevent operational
+   forms and data tables from feeling compressed without enlarging the shell.
+   ========================================================================== */
+body.widms-unified-ui,
+.widms-unified-ui button,
+.widms-unified-ui input,
+.widms-unified-ui select,
+.widms-unified-ui textarea {
+  font-family: Aptos, 'Noto Sans Sinhala', 'Noto Sans Tamil', 'Segoe UI', Arial, sans-serif;
+}
+.widms-unified-ui .dashboard-content {
+  color: #223647;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.widms-unified-ui .panel-header,
+.widms-unified-ui .admin-data-header {
+  min-height: 54px;
+  padding: 14px 18px;
+}
+.widms-unified-ui .panel-header h2,
+.widms-unified-ui .admin-data-header h2,
+.widms-unified-ui .users-card h2,
+.widms-unified-ui .approval-card h2 {
+  color: #183247;
+  font-size: 15.5px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.widms-unified-ui .admin-data-header p,
+.widms-unified-ui .panel-header p {
+  color: #65798a;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.widms-unified-ui .stat-card p,
+.widms-unified-ui .operation-summary-card p {
+  color: #566d7f;
+  font-size: 12.5px;
+  line-height: 1.4;
+  letter-spacing: .015em;
+}
+.widms-unified-ui .stat-card strong,
+.widms-unified-ui .operation-summary-card strong { font-size: 27px; line-height: 1.2; }
+.widms-unified-ui .stat-card small,
+.widms-unified-ui .operation-summary-card small { color: #667b8c; font-size: 11.5px; line-height: 1.45; }
+
+/* Tables use legible type and measured spacing while retaining horizontal scrolling. */
+.widms-unified-ui .admin-data-table-wrap,
+.widms-unified-ui .activity-table-wrap,
+.widms-unified-ui .approval-table-wrap,
+.widms-unified-ui .users-table-wrap { overflow-x: auto; }
+.widms-unified-ui table,
+.admin-ui .admin-data-table,
+.store-page table {
+  color: #263b4c;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.widms-unified-ui table thead th,
+.admin-ui .admin-data-table th,
+.store-page table th {
+  padding: 11px 13px;
+  color: #475e70;
+  background: #f1f4f6;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: .025em;
+}
+.widms-unified-ui table tbody td,
+.admin-ui .admin-data-table td,
+.store-page table td {
+  padding: 12px 13px;
+  border-bottom-color: #e4e9ed;
+  line-height: 1.5;
+}
+.widms-unified-ui table tbody tr:nth-child(even) td { background: #fbfcfd; }
+.widms-unified-ui table tbody tr:hover td { background: #f2f6f9; }
+.widms-unified-ui table td small { font-size: 11px; line-height: 1.4; }
+
+/* Form controls share one neutral treatment and a clear blue keyboard focus. */
+.widms-unified-ui form label,
+.widms-unified-ui .form-label,
+.widms-unified-ui .field-label {
+  color: #30495c;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.widms-unified-ui input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']),
+.widms-unified-ui select,
+.widms-unified-ui textarea,
+.admin-ui .payment-form input,
+.admin-ui .payment-form select,
+.store-page input:not([type='hidden']):not([type='checkbox']):not([type='radio']),
+.store-page select,
+.store-page textarea {
+  min-height: 39px;
+  padding: 8px 11px;
+  color: #23394a;
+  background: #fff;
+  border: 1px solid #bbc8d2;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.widms-unified-ui textarea,
+.store-page textarea { min-height: 78px; }
+.widms-unified-ui input::placeholder,
+.widms-unified-ui textarea::placeholder { color: #8293a1; }
+.widms-unified-ui input:focus,
+.widms-unified-ui select:focus,
+.widms-unified-ui textarea:focus {
+  outline: 0;
+  border-color: #3979ad;
+  box-shadow: 0 0 0 3px rgba(57, 121, 173, .13);
+}
+.widms-unified-ui button,
+.widms-unified-ui .approve-button,
+.widms-unified-ui .reject-button,
+.widms-unified-ui .admin-primary-action,
+.widms-unified-ui .profile-save-button {
+  min-height: 37px;
+  padding: 8px 13px;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.widms-unified-ui .user-status,
+.widms-unified-ui .status,
+.widms-unified-ui .role-label { font-size: 11px; line-height: 1.25; }
+
+@media (max-width: 767.98px) {
+  .widms-unified-ui .dashboard-content { font-size: 13px; }
+  .widms-unified-ui table,
+  .admin-ui .admin-data-table,
+  .store-page table { font-size: 12px; }
+  .widms-unified-ui table thead th,
+  .admin-ui .admin-data-table th,
+  .store-page table th { font-size: 10.5px; }
+}
+
+/* The topbar search remains visually part of the dark header, not a content form. */
+.widms-unified-ui .topbar .search-box input[type='search'],
+.widms-unified-ui .topbar .search-box input[type='search']:focus {
+  height: 36px;
+  min-height: 0;
+  padding: 0;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ==========================================================================
+   FLAT CONTENT HIERARCHY
+   Moderate weights and open sections reduce visual noise; borders now describe
+   actual data or form boundaries instead of boxing every part of the page.
+   ========================================================================== */
+.widms-unified-ui .dashboard-content strong,
+.widms-unified-ui .dashboard-content b { font-weight: 600; }
+.widms-unified-ui .dashboard-content h1,
+.widms-unified-ui .dashboard-content h2,
+.widms-unified-ui .dashboard-content h3 { font-weight: 600; }
+.widms-unified-ui .panel-header h2,
+.widms-unified-ui .admin-data-header h2,
+.widms-unified-ui .users-card h2,
+.widms-unified-ui .approval-card h2 { font-weight: 600; }
+.widms-unified-ui form label,
+.widms-unified-ui .form-label,
+.widms-unified-ui .field-label { font-weight: 500; }
+.widms-unified-ui table { font-weight: 400; }
+.widms-unified-ui table thead th,
+.admin-ui .admin-data-table th,
+.store-page table th {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.widms-unified-ui table tbody td strong { font-weight: 600; }
+.widms-unified-ui .user-status,
+.widms-unified-ui .status,
+.widms-unified-ui .role-label { font-weight: 600; }
+.widms-unified-ui button,
+.widms-unified-ui .approve-button,
+.widms-unified-ui .reject-button,
+.widms-unified-ui .admin-primary-action,
+.widms-unified-ui .profile-save-button { font-weight: 600; }
+
+/* Operational content is presented as open page sections rather than nested cards. */
+.widms-unified-ui .panel,
+.widms-unified-ui .admin-data-card,
+.widms-unified-ui .users-card,
+.widms-unified-ui .approval-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.widms-unified-ui .panel-header,
+.widms-unified-ui .admin-data-header,
+.widms-unified-ui .users-card-header,
+.widms-unified-ui .approval-card-header {
+  padding-right: 0;
+  padding-left: 0;
+  background: transparent;
+  border-bottom: 1px solid #cfd8df;
+}
+.widms-unified-ui .admin-data-table-wrap,
+.widms-unified-ui .activity-table-wrap,
+.widms-unified-ui .approval-table-wrap,
+.widms-unified-ui .users-table-wrap,
+.widms-unified-ui .current-stock-table-wrap,
+.widms-unified-ui .dispatch-table-wrap,
+.widms-unified-ui .receipt-table-wrap,
+.widms-unified-ui .correction-table-wrap {
+  margin-top: 12px;
+  background: #fff;
+  border: 1px solid #d7dee5;
+  border-radius: 3px;
+}
+.widms-unified-ui .admin-data-table-wrap table,
+.widms-unified-ui .activity-table-wrap table,
+.widms-unified-ui .approval-table-wrap table,
+.widms-unified-ui .users-table-wrap table,
+.widms-unified-ui .current-stock-table-wrap table,
+.widms-unified-ui .dispatch-table-wrap table,
+.widms-unified-ui .receipt-table-wrap table,
+.widms-unified-ui .correction-table-wrap table { margin: 0; background: #fff; }
+
+/* Forms keep a quiet white working surface without the previous floating-card effect. */
+.widms-unified-ui .admin-form,
+.widms-unified-ui .payment-form,
+.widms-unified-ui .receive-form,
+.widms-unified-ui .correction-form,
+.widms-unified-ui .request-form,
+.widms-unified-ui .profile-form {
+  background: #fff;
+  border: 1px solid #d7dee5;
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+/* Summary cards remain distinct because they represent separate key metrics. */
+.widms-unified-ui .stat-card,
+.widms-unified-ui .operation-summary-card {
+  border-radius: 5px;
+  box-shadow: none;
+}
+
+/* ==========================================================================
+   ACTIONABLE DASHBOARDS AND STRUCTURED TABLES
+   Dashboard summaries expose their destination, while data tables regain a
+   precise boundary and consistent alignment without returning to heavy cards.
+   ========================================================================== */
+.widms-unified-ui .stat-card-link {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  color: inherit;
+  border-color: #ced8e0;
+  text-decoration: none;
+  cursor: pointer;
+}
+.widms-unified-ui .stat-card-link:hover {
+  color: inherit;
+  background: #fbfdff;
+  border-color: #7fa7c5;
+}
+.widms-unified-ui .stat-card-link:focus-visible {
+  outline: 3px solid rgba(57, 121, 173, .2);
+  outline-offset: 2px;
+}
+.widms-unified-ui .stat-card-action {
+  display: flex;
+  margin-top: 11px;
+  align-items: center;
+  justify-content: space-between;
+  color: #326f9f;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.widms-unified-ui .stat-card-action span {
+  transition: transform .15s ease;
+}
+.widms-unified-ui .stat-card-link:hover .stat-card-action span { transform: translateX(3px); }
+
+/* Only dashboard overview panels use a surface; operational pages stay open. */
+.widms-unified-ui .admin-dashboard-page .panel,
+.widms-unified-ui.subject-dashboard .panel,
+.widms-unified-ui.social-officer-dashboard .panel,
+.widms-unified-ui.store-dashboard .panel {
+  background: #fff;
+  border: 1px solid #d3dce3;
+  border-radius: 5px;
+  box-shadow: 0 1px 2px rgba(16, 36, 52, .05);
+  overflow: hidden;
+}
+.widms-unified-ui .admin-dashboard-page .panel-header,
+.widms-unified-ui.subject-dashboard .panel-header,
+.widms-unified-ui.social-officer-dashboard .panel-header,
+.widms-unified-ui.store-dashboard .panel-header {
+  padding: 13px 16px;
+  background: #f8fafb;
+  border-bottom: 1px solid #dbe2e7;
+}
+
+.widms-unified-ui .admin-data-table-wrap,
+.widms-unified-ui .activity-table-wrap,
+.widms-unified-ui .approval-table-wrap,
+.widms-unified-ui .users-table-wrap,
+.widms-unified-ui .current-stock-table-wrap,
+.widms-unified-ui .dispatch-table-wrap,
+.widms-unified-ui .receipt-table-wrap,
+.widms-unified-ui .correction-table-wrap {
+  background: #fff;
+  border-color: #cfd8df;
+  border-radius: 3px;
+  box-shadow: none;
+}
+.widms-unified-ui .panel > .activity-table-wrap,
+.widms-unified-ui .panel > .admin-data-table-wrap {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+}
+.widms-unified-ui table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.widms-unified-ui table thead th {
+  position: relative;
+  color: #3f5668;
+  background: #edf2f5;
+  border-bottom: 1px solid #cbd5dc;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.widms-unified-ui table thead th + th { border-left: 1px solid #e0e6ea; }
+.widms-unified-ui table tbody td {
+  color: #2e4353;
+  vertical-align: middle;
+}
+.widms-unified-ui table tbody tr:nth-child(even) td { background: #fafbfc; }
+.widms-unified-ui table tbody tr:hover td { background: #eef5fa; }
+.widms-unified-ui table tbody tr:last-child td { border-bottom: 0; }
+
+/* Keep Aid Request section titles larger than field labels after all legacy rules. */
+.widms-unified-ui .aid-requests-page .aid-request-form fieldset > legend {
+  display: block;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 0 0 10px;
+  color: #1f5f8d;
+  border: 0;
+  border-bottom: 2px solid #a9c4d8;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Official approvals need larger click targets for quick and accurate selection. */
+.widms-unified-ui .aid-requests-page .form-help {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.widms-unified-ui .aid-requests-page .official-grid { gap: 12px; }
+.widms-unified-ui .aid-requests-page .official-grid label {
+  min-height: 52px;
+  padding: 12px 14px;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.widms-unified-ui .aid-requests-page .official-grid input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+
+/* Keep Aid Request actions compact, borderless, and aligned to the form's right edge. */
+.widms-unified-ui .aid-requests-page .aid-form-actions {
+  display: flex;
+  margin: 0;
+  padding: 4px 0 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.widms-unified-ui .aid-requests-page .aid-form-actions .submit-aid-button,
+.widms-unified-ui .aid-requests-page .aid-form-actions .outline-action {
+  width: auto;
+  min-height: 40px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 575.98px) {
+  .widms-unified-ui .aid-requests-page .aid-form-actions { align-items: stretch; flex-direction: column; }
+  .widms-unified-ui .aid-requests-page .aid-form-actions .submit-aid-button,
+  .widms-unified-ui .aid-requests-page .aid-form-actions .outline-action { width: 100%; }
+}
+
+/* Make the shared sign-out action clearly visible and distinct from navigation links. */
+.widms-unified-ui .sign-out {
+  width: calc(100% - 32px);
+  min-height: 40px;
+  margin: 8px 16px 14px;
+  padding: 9px 13px;
+  color: #ffb4bb;
+  background: rgba(190, 39, 52, .1);
+  border: 1px solid rgba(239, 91, 103, .48);
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.widms-unified-ui .sign-out:hover {
+  color: #fff;
+  background: #b4232f;
+  border-color: #dc5964;
+  box-shadow: 0 2px 7px rgba(84, 12, 19, .22);
+}
+.widms-unified-ui .sign-out:focus-visible {
+  color: #fff;
+  background: #a51f2b;
+  border-color: #f17a84;
+  outline: 3px solid rgba(238, 115, 124, .38);
+  outline-offset: 2px;
 }

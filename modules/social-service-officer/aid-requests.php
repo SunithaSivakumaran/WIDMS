@@ -51,9 +51,8 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
 $subject = hasRole('subject-officer');
 
-$activePage = $subject
-    ? 'aid-distribution'
-    : 'aid-requests';
+$showRequestForm = !$subject && (string) ($_GET['page'] ?? '') === 'new-aid-request';
+$activePage = $subject ? 'aid-distribution' : ($showRequestForm ? 'new-aid-request' : 'aid-requests');
 
 $db = database();
 
@@ -1476,7 +1475,7 @@ function requestSubmitted(string $date): string
 
 <!doctype html>
 
-<html>
+<html lang="<?= htmlspecialchars(widmsLanguage(), ENT_QUOTES, 'UTF-8') ?>">
 
 <head>
 
@@ -1487,7 +1486,7 @@ function requestSubmitted(string $date): string
         content="width=device-width,initial-scale=1"
     >
 
-    <title>My Aid Requests</title>
+    <title><?= $showRequestForm ? 'New Aid Request' : 'My Aid Requests' ?> | WIDMS</title>
 
 
     <!-- Bootstrap -->
@@ -1538,7 +1537,7 @@ require $subject
 
     <header class="topbar">
 
-        <h1>My Requests</h1>
+        <h1><?= $showRequestForm ? htmlspecialchars(t('New Aid Request'), ENT_QUOTES, 'UTF-8') : htmlspecialchars(t('My Aid Requests'), ENT_QUOTES, 'UTF-8') ?></h1>
 
     </header>
 
@@ -1590,26 +1589,17 @@ require $subject
              NEW AID REQUEST FORM
         ============================================================= -->
 
+        <?php if ($showRequestForm): ?>
         <section class="aid-form-card">
-
-
-            <div class="aid-card-header">
-
-                <h2>
-                    📋 Submit New Aid Distribution Request
-                </h2>
-
-                <small>
-                    All fields marked * are required
-                </small>
-
-            </div>
 
 
             <form
                 method="post"
                 class="aid-request-form"
                 id="aid-request-form"
+                data-identification-required="<?= htmlspecialchars(t("Please select NIC or Elders' Identity Card."), ENT_QUOTES, 'UTF-8') ?>"
+                data-invalid-nic="<?= htmlspecialchars(t('Enter a valid Sri Lankan NIC.'), ENT_QUOTES, 'UTF-8') ?>"
+                data-invalid-elders-card="<?= htmlspecialchars(t("Enter a valid Elders' Identity Card number."), ENT_QUOTES, 'UTF-8') ?>"
             >
 
 
@@ -1630,7 +1620,7 @@ require $subject
 
 
                     <legend>
-                        📍 Location Details
+                        📍 <?= htmlspecialchars(t('Location Details'), ENT_QUOTES, 'UTF-8') ?>
                     </legend>
 
 
@@ -1641,7 +1631,7 @@ require $subject
 
                         <label>
 
-                            District *
+                            <?= htmlspecialchars(t('District'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <select
                                 id="district_id"
@@ -1650,7 +1640,7 @@ require $subject
                             >
 
                                 <option value="">
-                                    Select District
+                                    <?= htmlspecialchars(t('Select District'), ENT_QUOTES, 'UTF-8') ?>
                                 </option>
 
 
@@ -1678,7 +1668,7 @@ require $subject
 
                         <label>
 
-                            D.S. Division *
+                            <?= htmlspecialchars(t('D.S. Division'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <select
                                 id="ds_division_id"
@@ -1687,7 +1677,7 @@ require $subject
                             >
 
                                 <option value="">
-                                    Select DS Division
+                                    <?= htmlspecialchars(t('Select DS Division'), ENT_QUOTES, 'UTF-8') ?>
                                 </option>
 
 
@@ -1719,7 +1709,7 @@ require $subject
 
                         <label>
 
-                            G.N. Division *
+                            <?= htmlspecialchars(t('G.N. Division'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <select
                                 id="gn_division_id"
@@ -1728,7 +1718,7 @@ require $subject
                             >
 
                                 <option value="">
-                                    Select GN Division
+                                    <?= htmlspecialchars(t('Select GN Division'), ENT_QUOTES, 'UTF-8') ?>
                                 </option>
 
 
@@ -1771,7 +1761,7 @@ require $subject
 
 
                     <legend>
-                        👤 Beneficiary Details
+                        👤 <?= htmlspecialchars(t('Beneficiary Details'), ENT_QUOTES, 'UTF-8') ?>
                     </legend>
 
 
@@ -1782,12 +1772,12 @@ require $subject
 
                         <label>
 
-                            Full Name *
+                            <?= htmlspecialchars(t('Full Name'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <input
                                 name="full_name"
                                 value="<?= old('full_name') ?>"
-                                placeholder="As per NIC / Birth Certificate"
+                                placeholder="<?= htmlspecialchars(t('As per NIC / Birth Certificate'), ENT_QUOTES, 'UTF-8') ?>"
                                 maxlength="150"
                                 required
                             >
@@ -1802,7 +1792,7 @@ require $subject
                         <div class="aid-identification-block">
 
                             <label class="aid-identification-title">
-                                Identification *
+                                <?= htmlspecialchars(t('Identification'), ENT_QUOTES, 'UTF-8') ?> *
                             </label>
 
                             <div class="aid-identification-options">
@@ -1825,7 +1815,7 @@ require $subject
                                         name="use_elders_card"
                                         <?= isset($_POST['use_elders_card']) ? 'checked' : '' ?>
                                     >
-                                    <span>Elders' Identity Card</span>
+                                    <span><?= htmlspecialchars(t("Elders' Identity Card"), ENT_QUOTES, 'UTF-8') ?></span>
                                 </label>
 
                             </div>
@@ -1836,7 +1826,7 @@ require $subject
                                 class="aid-identification-error"
                                 hidden
                             >
-                                Select at least one identification method.
+                                <?= htmlspecialchars(t('Select at least one identification method.'), ENT_QUOTES, 'UTF-8') ?>
                             </small>
 
 
@@ -1846,7 +1836,7 @@ require $subject
                                 class="aid-identification-input"
                                 hidden
                             >
-                                NIC Number
+                                <?= htmlspecialchars(t('NIC Number'), ENT_QUOTES, 'UTF-8') ?>
 
                                 <input
                                     type="text"
@@ -1854,7 +1844,7 @@ require $subject
                                     name="nic"
                                     value="<?= old('nic') ?>"
                                     maxlength="20"
-                                    placeholder="e.g. 901234567V or 199012345678"
+                                    placeholder="<?= htmlspecialchars(t('e.g. 901234567V or 199012345678'), ENT_QUOTES, 'UTF-8') ?>"
                                 >
                             </label>
 
@@ -1865,7 +1855,7 @@ require $subject
                                 class="aid-identification-input"
                                 hidden
                             >
-                                Elders' Identity Card Number
+                                <?= htmlspecialchars(t("Elders' Identity Card Number"), ENT_QUOTES, 'UTF-8') ?>
 
                                 <input
                                     type="text"
@@ -1873,12 +1863,14 @@ require $subject
                                     name="elders_card_number"
                                     value="<?= old('elders_card_number') ?>"
                                     maxlength="30"
-                                    placeholder="Enter Elders' Identity Card number"
+                                    placeholder="<?= htmlspecialchars(t("Enter Elders' Identity Card number"), ENT_QUOTES, 'UTF-8') ?>"
                                 >
                             </label>
 
                         </div>
 
+                    <!-- Close the identity row before starting the demographic fields. -->
+                    </div>
 
                     <div class="aid-form-grid three-columns">
 
@@ -1887,7 +1879,7 @@ require $subject
 
                         <label>
 
-                            Date of Birth *
+                            <?= htmlspecialchars(t('Date of Birth'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <input
                                 type="date"
@@ -1903,7 +1895,7 @@ require $subject
 
                         <label>
 
-                            Gender *
+                            <?= htmlspecialchars(t('Gender'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <select
                                 name="gender"
@@ -1911,7 +1903,7 @@ require $subject
                             >
 
                                 <option value="">
-                                    Select
+                                    <?= htmlspecialchars(t('Select'), ENT_QUOTES, 'UTF-8') ?>
                                 </option>
 
 
@@ -1919,9 +1911,9 @@ require $subject
 
                                 foreach (
                                     [
-                                        'male' => 'Male',
-                                        'female' => 'Female',
-                                        'other' => 'Other'
+                                        'male' => t('Male'),
+                                        'female' => t('Female'),
+                                        'other' => t('Other')
                                     ]
                                     as $k => $label
                                 ):
@@ -1952,12 +1944,12 @@ require $subject
 
                         <label>
 
-                            Phone Number
+                            <?= htmlspecialchars(t('Phone Number'), ENT_QUOTES, 'UTF-8') ?>
 
                             <input
                                 name="phone"
                                 value="<?= old('phone') ?>"
-                                placeholder="e.g. 077-1234567"
+                                placeholder="<?= htmlspecialchars(t('e.g. 077-1234567'), ENT_QUOTES, 'UTF-8') ?>"
                                 maxlength="25"
                             >
 
@@ -1971,13 +1963,13 @@ require $subject
 
                     <label class="full-field">
 
-                        Address *
+                        <?= htmlspecialchars(t('Address'), ENT_QUOTES, 'UTF-8') ?> *
 
                         <textarea
                             name="address"
                             rows="2"
                             maxlength="255"
-                            placeholder="Full residential address..."
+                            placeholder="<?= htmlspecialchars(t('Full residential address...'), ENT_QUOTES, 'UTF-8') ?>"
                             required
                         ><?= old('address') ?></textarea>
 
@@ -1996,7 +1988,7 @@ require $subject
 
 
                     <legend>
-                        ♿ Disability &amp; Aid Requested
+                        ♿ <?= htmlspecialchars(t('Disability & Aid Requested'), ENT_QUOTES, 'UTF-8') ?>
                     </legend>
 
 
@@ -2007,7 +1999,7 @@ require $subject
 
                         <label>
 
-                            Nature of Disability *
+                            <?= htmlspecialchars(t('Nature of Disability'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <select
                                 name="disability_notes"
@@ -2015,7 +2007,7 @@ require $subject
                             >
 
                                 <option value="">
-                                    Select disability
+                                    <?= htmlspecialchars(t('Select disability'), ENT_QUOTES, 'UTF-8') ?>
                                 </option>
 
 
@@ -2049,7 +2041,7 @@ require $subject
 
 
                             <small class="form-field-help">
-                                Managed by Admin in System Configuration
+                                <?= htmlspecialchars(t('Managed by Admin in System Configuration'), ENT_QUOTES, 'UTF-8') ?>
                             </small>
 
                         </label>
@@ -2059,7 +2051,7 @@ require $subject
 
                         <label>
 
-                            Aid Requested *
+                            <?= htmlspecialchars(t('Aid Requested'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <select
                                 name="item_id"
@@ -2068,7 +2060,7 @@ require $subject
                             >
 
                                 <option value="">
-                                    Select Aid Type
+                                    <?= htmlspecialchars(t('Select Aid Type'), ENT_QUOTES, 'UTF-8') ?>
                                 </option>
 
 
@@ -2120,7 +2112,7 @@ require $subject
 
                         <label>
 
-                            Quantity *
+                            <?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <input
                                 type="number"
@@ -2145,7 +2137,7 @@ require $subject
                             hidden
                         >
 
-                            Prescription Power *
+                            <?= htmlspecialchars(t('Prescription Power'), ENT_QUOTES, 'UTF-8') ?> *
 
                             <input
                                 type="number"
@@ -2155,7 +2147,7 @@ require $subject
                                 max="30"
                                 step="0.01"
                                 value="<?= old('prescribed_power') ?>"
-                                placeholder="e.g. -2.00 or +1.50"
+                                placeholder="<?= htmlspecialchars(t('e.g. -2.00 or +1.50'), ENT_QUOTES, 'UTF-8') ?>"
                             >
 
                         </label>
@@ -2168,13 +2160,13 @@ require $subject
 
                     <label class="full-field">
 
-                        Additional Notes
+                        <?= htmlspecialchars(t('Additional Notes'), ENT_QUOTES, 'UTF-8') ?>
 
                         <textarea
                             name="notes"
                             rows="2"
                             maxlength="1000"
-                            placeholder="Any additional information..."
+                            placeholder="<?= htmlspecialchars(t('Any additional information...'), ENT_QUOTES, 'UTF-8') ?>"
                         ><?= old('notes') ?></textarea>
 
                     </label>
@@ -2192,14 +2184,13 @@ require $subject
 
 
                     <legend>
-                        ✅ Official Approvals
+                        ✅ <?= htmlspecialchars(t('Official Approvals'), ENT_QUOTES, 'UTF-8') ?>
                     </legend>
 
 
                     <p class="form-help">
 
-                        Check each official who has approved
-                        this application.
+                        <?= htmlspecialchars(t('Check each official who has approved this application.'), ENT_QUOTES, 'UTF-8') ?>
 
                     </p>
 
@@ -2219,7 +2210,7 @@ require $subject
                                     : '' ?>
                             >
 
-                            🩺 Government Medical Officer
+                            🩺 <?= htmlspecialchars(t('Government Medical Officer'), ENT_QUOTES, 'UTF-8') ?>
 
                         </label>
 
@@ -2236,7 +2227,7 @@ require $subject
                                     : '' ?>
                             >
 
-                            🏡 Grama Niladhari
+                            🏡 <?= htmlspecialchars(t('Grama Niladhari'), ENT_QUOTES, 'UTF-8') ?>
 
                         </label>
 
@@ -2253,7 +2244,7 @@ require $subject
                                     : '' ?>
                             >
 
-                            🏛 Social Services Officer
+                            🏛 <?= htmlspecialchars(t('Social Services Officer'), ENT_QUOTES, 'UTF-8') ?>
 
                         </label>
 
@@ -2270,7 +2261,7 @@ require $subject
                                     : '' ?>
                             >
 
-                            📋 Divisional Secretary
+                            📋 <?= htmlspecialchars(t('Divisional Secretary'), ENT_QUOTES, 'UTF-8') ?>
 
                         </label>
 
@@ -2297,7 +2288,7 @@ require $subject
                         class="submit-aid-button"
                     >
 
-                        Submit Aid Request
+                        <?= htmlspecialchars(t('Submit Aid Request'), ENT_QUOTES, 'UTF-8') ?>
 
                     </button>
 
@@ -2311,17 +2302,9 @@ require $subject
                         formnovalidate
                     >
 
-                        Save as Draft
+                        <?= htmlspecialchars(t('Save as Draft'), ENT_QUOTES, 'UTF-8') ?>
 
                     </button>
-
-
-                    <small>
-
-                        Submitted requests are sent
-                        to Admin for final approval
-
-                    </small>
 
 
                 </div>
@@ -2331,6 +2314,7 @@ require $subject
 
 
         </section>
+        <?php endif; ?>
 
 
 
@@ -2338,6 +2322,7 @@ require $subject
              SUBMITTED AID REQUESTS
         ============================================================= -->
 
+        <?php if (!$showRequestForm): ?>
         <section class="submitted-requests-card">
 
 
@@ -2345,11 +2330,16 @@ require $subject
 
 
                 <h2>
-                    My Submitted Requests
+                    <?= htmlspecialchars(t('My Submitted Requests'), ENT_QUOTES, 'UTF-8') ?>
                 </h2>
 
 
                 <div>
+
+                    <!-- Keep the create action beside the request-list controls. -->
+                    <a class="new-aid-request-button" href="dashboard.php?page=new-aid-request">
+                        <?= htmlspecialchars(t('New Aid Request'), ENT_QUOTES, 'UTF-8') ?>
+                    </a>
 
 
                     <!-- Search submitted requests -->
@@ -2357,7 +2347,7 @@ require $subject
                     <input
                         id="request-search"
                         type="search"
-                        placeholder="Search name or NIC..."
+                        placeholder="<?= htmlspecialchars(t('Search name or NIC...'), ENT_QUOTES, 'UTF-8') ?>"
                     >
 
 
@@ -2366,31 +2356,31 @@ require $subject
                     <select id="request-status">
 
                         <option value="">
-                            All Status
+                            <?= htmlspecialchars(t('All Status'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
                         <option value="draft">
-                            Draft
+                            <?= htmlspecialchars(t('Draft'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
                         <option value="pending">
-                            Pending
+                            <?= htmlspecialchars(t('Pending'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
                         <option value="approved">
-                            Approved
+                            <?= htmlspecialchars(t('Approved'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
                         <option value="rejected">
-                            Rejected
+                            <?= htmlspecialchars(t('Rejected'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
                         <option value="goods-requested">
-                            Goods Requested
+                            <?= htmlspecialchars(t('Goods Requested'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
                         <option value="distributed">
-                            Distributed
+                            <?= htmlspecialchars(t('Distributed'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
                     </select>
@@ -2416,27 +2406,27 @@ require $subject
 
                         <tr>
 
-                            <th>ID</th>
+                            <th><?= htmlspecialchars(t('ID'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Beneficiary</th>
+                            <th><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?></th>
 
                             <th>NIC</th>
 
-                            <th>Age</th>
+                            <th><?= htmlspecialchars(t('Age'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>District</th>
+                            <th><?= htmlspecialchars(t('District'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>DS Division</th>
+                            <th><?= htmlspecialchars(t('DS Division'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Aid Requested</th>
+                            <th><?= htmlspecialchars(t('Aid Requested'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Approvals</th>
+                            <th><?= htmlspecialchars(t('Approvals'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Submitted</th>
+                            <th><?= htmlspecialchars(t('Submitted'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Status</th>
+                            <th><?= htmlspecialchars(t('Status'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Notes</th>
+                            <th><?= htmlspecialchars(t('Notes'), ENT_QUOTES, 'UTF-8') ?></th>
 
                         </tr>
 
@@ -2452,7 +2442,7 @@ require $subject
                         <tr>
 
                             <td colspan="11">
-                                No requests yet.
+                                <?= htmlspecialchars(t('No requests yet.'), ENT_QUOTES, 'UTF-8') ?>
                             </td>
 
                         </tr>
@@ -2571,7 +2561,7 @@ require $subject
 
                                         <small class="lens-power-row">
 
-                                            Power:
+                                            <?= htmlspecialchars(t('Power:'), ENT_QUOTES, 'UTF-8') ?>
 
                                             <?= sprintf(
                                                 '%+.2f',
@@ -2662,12 +2652,10 @@ require $subject
                                         "
                                     >
 
-                                        <?= ucwords(
-                                            str_replace(
-                                                '-',
-                                                ' ',
-                                                $r['status']
-                                            )
+                                        <?= htmlspecialchars(
+                                            t(ucwords(str_replace('-', ' ', $r['status']))),
+                                            ENT_QUOTES,
+                                            'UTF-8'
                                         ) ?>
 
                                     </span>
@@ -2712,6 +2700,7 @@ require $subject
 
 
         </section>
+        <?php endif; ?>
 
 
     </main>
