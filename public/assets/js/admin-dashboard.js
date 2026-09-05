@@ -1,4 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Make every shared success and error alert dismissible, including alerts added by future pages.
+  const dismissAlert = (notification) => {
+    notification.classList.add('notification-hiding')
+    window.setTimeout(() => notification.remove(), 300)
+  }
+
+  document.querySelectorAll('.alert-success, .alert-danger').forEach((notification) => {
+    if (notification.querySelector('.notification-close')) return
+
+    notification.classList.add('widms-dismissible-alert')
+    const closeButton = document.createElement('button')
+    closeButton.className = 'notification-close'
+    closeButton.type = 'button'
+    closeButton.setAttribute('aria-label', 'Close')
+    closeButton.innerHTML = '&times;'
+    closeButton.addEventListener('click', () => dismissAlert(notification))
+    notification.appendChild(closeButton)
+  })
+
   // Avoid repeating the role when it is also being used as the profile display name.
   document.querySelectorAll('.admin-profile').forEach((profile) => {
     const name = profile.querySelector('strong')
@@ -61,6 +80,85 @@ document.addEventListener('DOMContentLoaded', () => {
     })
   })
 
+  // Add the item-specific beneficiary field controls only on the Subject Officer rule-builder form.
+  const aidConfigForm = document.querySelector('form.aid-config-form')
+  if (aidConfigForm) {
+    const action = aidConfigForm.querySelector('input[name="action"]')
+    const fields = aidConfigForm.querySelector('.aid-config-fields')
+    if (action && fields && !aidConfigForm.querySelector('[name="beneficiary_detail_required"]')) {
+      action.value = 'save-item-with-detail'
+      const detailControls = document.createElement('div')
+      detailControls.className = 'item-beneficiary-detail-config'
+      detailControls.innerHTML = `
+        <label><span>Beneficiary-specific information?</span>
+          <select name="beneficiary_detail_required"><option value="0">No</option><option value="1">Yes, require information</option></select>
+        </label>
+        <label hidden data-beneficiary-detail-label><span>Information Field Name <b class="required-mark" aria-hidden="true">*</b></span><input name="beneficiary_detail_label" maxlength="100" placeholder="e.g. Prescription Power"></label>
+        <label hidden data-beneficiary-detail-type><span>Information Type <b class="required-mark" aria-hidden="true">*</b></span><select name="beneficiary_detail_type"><option value="text">Text</option><option value="number">Number</option></select></label>`
+      fields.append(detailControls)
+      const requirement = detailControls.querySelector('[name="beneficiary_detail_required"]')
+      const labelField = detailControls.querySelector('[data-beneficiary-detail-label]')
+      const typeField = detailControls.querySelector('[data-beneficiary-detail-type]')
+      const labelInput = detailControls.querySelector('[name="beneficiary_detail_label"]')
+      const toggleDetailFields = () => {
+        const needed = requirement.value === '1'
+        labelField.hidden = !needed
+        typeField.hidden = !needed
+        labelInput.required = needed
+      }
+      requirement.addEventListener('change', toggleDetailFields)
+      toggleDetailFields()
+    }
+  }
+
+  // Existing rules load their saved item-information definition before enabling the enhanced edit submission.
+  const editRuleForm = document.querySelector('form.edit-aid-rule-form')
+  if (editRuleForm && !editRuleForm.querySelector('[name="beneficiary_detail_required"]')) {
+    const actions = editRuleForm.querySelector('.edit-rule-actions')
+    const ruleId = editRuleForm.querySelector('[name="rule_id"]')?.value
+    if (actions && ruleId) {
+      const section = document.createElement('section')
+      section.className = 'edit-rule-beneficiary-section'
+      section.innerHTML = `
+        <h3>Beneficiary Information</h3>
+        <p>Choose whether this aid item must collect a specific value from the beneficiary.</p>
+        <div class="edit-rule-grid compact">
+          <label>Beneficiary-specific information?<select name="beneficiary_detail_required"><option value="0">No</option><option value="1">Yes, require information</option></select></label>
+          <label hidden data-beneficiary-detail-label>Information Field Name<input name="beneficiary_detail_label" maxlength="100" placeholder="e.g. Prescription Power"></label>
+          <label hidden data-beneficiary-detail-type>Information Type<select name="beneficiary_detail_type"><option value="text">Text</option><option value="number">Number</option></select></label>
+        </div>`
+      actions.before(section)
+      const requirement = section.querySelector('[name="beneficiary_detail_required"]')
+      const labelField = section.querySelector('[data-beneficiary-detail-label]')
+      const typeField = section.querySelector('[data-beneficiary-detail-type]')
+      const labelInput = section.querySelector('[name="beneficiary_detail_label"]')
+      const typeInput = section.querySelector('[name="beneficiary_detail_type"]')
+      const toggle = () => {
+        const needed = requirement.value === '1'
+        labelField.hidden = !needed
+        typeField.hidden = !needed
+        labelInput.required = needed
+      }
+      requirement.addEventListener('change', toggle)
+      fetch(`item-beneficiary-field.php?rule_id=${encodeURIComponent(ruleId)}`)
+        .then((response) => response.ok ? response.json() : Promise.reject())
+        .then((field) => {
+          if (field.beneficiary_field_label) {
+            requirement.value = '1'
+            labelInput.value = field.beneficiary_field_label
+            typeInput.value = field.beneficiary_field_type === 'number' ? 'number' : 'text'
+          }
+          toggle()
+          const action = document.createElement('input')
+          action.type = 'hidden'
+          action.name = 'action'
+          action.value = 'save-rule-with-detail'
+          editRuleForm.append(action)
+        })
+        .catch(() => toggle())
+    }
+  }
+
   const sidebar = document.getElementById('admin-sidebar')
   const overlay = document.getElementById('sidebar-overlay')
   const menuButton = document.getElementById('menu-button')
@@ -113,8 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.querySelectorAll('.alert-success').forEach((notification) => {
     window.setTimeout(() => {
-      notification.classList.add('notification-hiding')
-      window.setTimeout(() => notification.remove(), 300)
+      dismissAlert(notification)
     }, 3500)
   })
 })

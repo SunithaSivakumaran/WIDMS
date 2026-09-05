@@ -21,9 +21,10 @@ return [
         ['icon' => '📦', 'label' => 'Central Stock', 'page' => 'central-stock'],
         ['icon' => '🏢', 'label' => 'Suppliers', 'page' => 'suppliers'],
     ],
-    'Config' => [
-        ['icon' => '⚙️', 'label' => 'Eligibility Rules', 'page' => 'eligibility-rules'],
-        ['icon' => '🏷️', 'label' => 'Item Categories', 'page' => 'item-categories'],
+    // Separate builder and register links so officers can enter or review rules directly.
+    'Eligibility Configuration' => [
+        ['icon' => '🛠️', 'label' => 'Eligibility Rule Builder', 'page' => 'item-categories'],
+        ['icon' => '📋', 'label' => 'Configured Eligibility Rules', 'page' => 'eligibility-rules'],
     ],
     'Monitoring' => [
         ['icon' => '📈', 'label' => 'Social Service Officer Pools', 'page' => 'officer-pools'],

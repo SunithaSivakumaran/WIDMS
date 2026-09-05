@@ -38,6 +38,10 @@ function widmsTranslations(): array
 {
     return [
         'si' => [
+            'Disability Type Management'=>'ආබාධිතභාව වර්ග කළමනාකරණය','Create and maintain the disability types used by eligibility rules.'=>'සුදුසුකම් නීති සඳහා භාවිත කරන ආබාධිතභාව වර්ග සාදා කළමනාකරණය කරන්න.','Aid Item Rule Builder'=>'ආධාර අයිතම නීති සාදනය','Select a disability type and build an aid-item eligibility rule.'=>'ආබාධිතභාව වර්ගයක් තෝරා ආධාර අයිතම සුදුසුකම් නීතියක් සාදන්න.',
+            'Manage Disability Types'=>'ආබාධිතභාව වර්ග කළමනාකරණය','Remove only disability types that are not used by an eligibility rule.'=>'සුදුසුකම් නීතියක භාවිත නොවන ආබාධිතභාව වර්ග පමණක් ඉවත් කරන්න.','No disability types are available.'=>'ආබාධිතභාව වර්ග නොමැත.','Remove this disability type permanently?'=>'මෙම ආබාධිතභාව වර්ගය ස්ථිරවම ඉවත් කරන්නද?','Disability type removed permanently.'=>'ආබාධිතභාව වර්ගය ස්ථිරවම ඉවත් කරන ලදී.',
+            'Select prohibited items'=>'තහනම් කළ යුතු අයිතම තෝරන්න','Search prohibited items'=>'තහනම් අයිතම සොයන්න','Type to search items...'=>'අයිතම සෙවීමට ටයිප් කරන්න...','No matching items found.'=>'ගැළපෙන අයිතම හමු නොවීය.','Remove'=>'ඉවත් කරන්න',
+            'Required fields'=>'අනිවාර්ය ක්ෂේත්‍ර','(Optional)'=>'(විකල්පයි)',
             'Language' => 'භාෂාව', 'English' => 'English', 'Sinhala' => 'සිංහල', 'Tamil' => 'தமிழ்',
             'Overview' => 'සමස්ත දසුන', 'Dashboard' => 'ප්‍රධාන පුවරුව', 'Pending Approvals' => 'අනුමැතිය අපේක්ෂිත',
             'User Management' => 'පරිශීලක කළමනාකරණය', 'Users' => 'පරිශීලකයින්', 'Divisions' => 'කොට්ඨාස',
@@ -62,7 +66,7 @@ function widmsTranslations(): array
             'Enter your approved WIDMS credentials to continue.' => 'ඉදිරියට යාමට ඔබගේ අනුමත WIDMS පිවිසුම් තොරතුරු ඇතුළත් කරන්න.',
             'Username' => 'පරිශීලක නාමය', 'Password' => 'මුරපදය', 'Sign In' => 'පිවිසෙන්න',
             'New to WIDMS?' => 'WIDMS සඳහා අලුත්ද?', 'Request an account' => 'ගිණුමක් ඉල්ලන්න',
-            'SSO Division Assignments'=>'SSO කොට්ඨාස පැවරුම්','Approved SSO by DS Division'=>'DS කොට්ඨාසය අනුව අනුමත SSO','Service Division'=>'සේවා කොට්ඨාසය','Unavailable: active SSO assigned'=>'ලබාගත නොහැක: සක්‍රිය SSO නිලධාරියෙකු පවරා ඇත','This division already has an active Social Service Officer.'=>'මෙම කොට්ඨාසයට දැනටමත් සක්‍රිය සමාජ සේවා නිලධාරියෙකු පවරා ඇත.',
+            'SSO Division Assignments'=>'SSO කොට්ඨාස පැවරුම්','Approved SSO by DS Division'=>'DS කොට්ඨාසය අනුව අනුමත SSO','Service Division'=>'සේවා කොට්ඨාසය','Unavailable: active SSO assigned'=>'ලබාගත නොහැක: සක්‍රිය SSO නිලධාරියෙකු පවරා ඇත','This division already has an active Social Service Officer.'=>'මෙම කොට්ඨාසයට දැනටමත් සක්‍රිය සමාජ සේවා නිලධාරියෙකු පවරා ඇත.','Delete this eligibility rule permanently?'=>'මෙම සුදුසුකම් නීතිය ස්ථිරවම මකා දමන්නද?',
             'Review active and deactivated Social Service Officer assignments.'=>'සක්‍රිය සහ අක්‍රිය කළ සමාජ සේවා නිලධාරී පැවරුම් සමාලෝචනය කරන්න.',
             'District'=>'දිස්ත්‍රික්කය','DS Division'=>'ප්‍රාදේශීය ලේකම් කොට්ඨාසය','Approved SSO'=>'අනුමත SSO','Contact'=>'සම්බන්ධතා','Status'=>'තත්ත්වය','Reason'=>'හේතුව','Action'=>'ක්‍රියාව',
             'Active'=>'සක්‍රිය','Deactivated'=>'අක්‍රිය කළ','No approved SSO'=>'අනුමත SSO නොමැත','No DS Divisions available.'=>'DS කොට්ඨාස නොමැත.',
@@ -73,6 +77,10 @@ function widmsTranslations(): array
             'Reject registration request'=>'ලියාපදිංචි ඉල්ලීම ප්‍රතික්ෂේප කරන්න','Confirm rejection'=>'ප්‍රතික්ෂේප කිරීම තහවුරු කරන්න','Deactivate Social Service Officer'=>'සමාජ සේවා නිලධාරියා අක්‍රිය කරන්න','Confirm deactivation'=>'අක්‍රිය කිරීම තහවුරු කරන්න',
         ],
         'ta' => [
+            'Disability Type Management'=>'மாற்றுத்திறன் வகை மேலாண்மை','Create and maintain the disability types used by eligibility rules.'=>'தகுதி விதிகளில் பயன்படுத்தப்படும் மாற்றுத்திறன் வகைகளை உருவாக்கி நிர்வகிக்கவும்.','Aid Item Rule Builder'=>'உதவிப் பொருள் விதி உருவாக்கி','Select a disability type and build an aid-item eligibility rule.'=>'மாற்றுத்திறன் வகையைத் தேர்ந்தெடுத்து உதவிப் பொருள் தகுதி விதியை உருவாக்கவும்.',
+            'Manage Disability Types'=>'மாற்றுத்திறன் வகைகளை நிர்வகிக்கவும்','Remove only disability types that are not used by an eligibility rule.'=>'தகுதி விதியில் பயன்படுத்தப்படாத மாற்றுத்திறன் வகைகளை மட்டும் அகற்றவும்.','No disability types are available.'=>'மாற்றுத்திறன் வகைகள் எதுவும் கிடைக்கவில்லை.','Remove this disability type permanently?'=>'இந்த மாற்றுத்திறன் வகையை நிரந்தரமாக அகற்றவா?','Disability type removed permanently.'=>'மாற்றுத்திறன் வகை நிரந்தரமாக அகற்றப்பட்டது.',
+            'Select prohibited items'=>'தடைசெய்ய வேண்டிய பொருட்களைத் தேர்ந்தெடுக்கவும்','Search prohibited items'=>'தடைசெய்யப்பட்ட பொருட்களைத் தேடவும்','Type to search items...'=>'பொருட்களைத் தேட தட்டச்சு செய்யவும்...','No matching items found.'=>'பொருந்தும் பொருட்கள் எதுவும் கிடைக்கவில்லை.','Remove'=>'அகற்று',
+            'Required fields'=>'கட்டாயப் புலங்கள்','(Optional)'=>'(விருப்பம்)',
             'Language' => 'மொழி', 'English' => 'English', 'Sinhala' => 'සිංහල', 'Tamil' => 'தமிழ்',
             'Overview' => 'கண்ணோட்டம்', 'Dashboard' => 'முகப்புப் பலகை', 'Pending Approvals' => 'நிலுவை ஒப்புதல்கள்',
             'User Management' => 'பயனர் மேலாண்மை', 'Users' => 'பயனர்கள்', 'Divisions' => 'பிரிவுகள்',
@@ -97,7 +105,7 @@ function widmsTranslations(): array
             'Enter your approved WIDMS credentials to continue.' => 'தொடர உங்கள் அங்கீகரிக்கப்பட்ட WIDMS உள்நுழைவு விவரங்களை உள்ளிடுக.',
             'Username' => 'பயனர் பெயர்', 'Password' => 'கடவுச்சொல்', 'Sign In' => 'உள்நுழைக',
             'New to WIDMS?' => 'WIDMS-க்கு புதியவரா?', 'Request an account' => 'கணக்கைக் கோருக',
-            'SSO Division Assignments'=>'SSO பிரிவு நியமனங்கள்','Approved SSO by DS Division'=>'DS பிரிவின்படி அங்கீகரிக்கப்பட்ட SSO','Service Division'=>'சேவைப் பிரிவு','Unavailable: active SSO assigned'=>'கிடைக்காது: செயலில் உள்ள SSO நியமிக்கப்பட்டுள்ளார்','This division already has an active Social Service Officer.'=>'இந்தப் பிரிவுக்கு ஏற்கனவே செயலில் உள்ள சமூக சேவை அலுவலர் நியமிக்கப்பட்டுள்ளார்.',
+            'SSO Division Assignments'=>'SSO பிரிவு நியமனங்கள்','Approved SSO by DS Division'=>'DS பிரிவின்படி அங்கீகரிக்கப்பட்ட SSO','Service Division'=>'சேவைப் பிரிவு','Unavailable: active SSO assigned'=>'கிடைக்காது: செயலில் உள்ள SSO நியமிக்கப்பட்டுள்ளார்','This division already has an active Social Service Officer.'=>'இந்தப் பிரிவுக்கு ஏற்கனவே செயலில் உள்ள சமூக சேவை அலுவலர் நியமிக்கப்பட்டுள்ளார்.','Delete this eligibility rule permanently?'=>'இந்தத் தகுதி விதியை நிரந்தரமாக நீக்கவா?',
             'Review active and deactivated Social Service Officer assignments.'=>'செயலில் உள்ள மற்றும் செயலிழக்கப்பட்ட சமூக சேவை அலுவலர் நியமனங்களை மதிப்பாய்வு செய்க.',
             'District'=>'மாவட்டம்','DS Division'=>'பிரதேச செயலகப் பிரிவு','Approved SSO'=>'அங்கீகரிக்கப்பட்ட SSO','Contact'=>'தொடர்பு','Status'=>'நிலை','Reason'=>'காரணம்','Action'=>'செயல்',
             'Active'=>'செயலில்','Deactivated'=>'செயலிழக்கப்பட்டது','No approved SSO'=>'அங்கீகரிக்கப்பட்ட SSO இல்லை','No DS Divisions available.'=>'DS பிரிவுகள் இல்லை.',
@@ -152,7 +160,21 @@ function t(string $english): string
         ],
     ];
 
-    return $sharedActions[$language][$english] ?? $aidRequest[$language][$english] ?? $aidRequestGuidance[$language][$english] ?? widmsTranslations()[$language][$english] ?? $english;
+    // Approval-guide text is shared by SSO, Subject Officer, and Admin request tables.
+    $approvalGuide = [
+        'si' => [
+            'Approval guide' => 'අනුමැති මාර්ගෝපදේශය',
+            'Approval icon meanings' => 'අනුමැති සංකේතවල අර්ථය',
+            'Not approved' => 'අනුමත නොකළ',
+        ],
+        'ta' => [
+            'Approval guide' => 'ஒப்புதல் வழிகாட்டி',
+            'Approval icon meanings' => 'ஒப்புதல் சின்னங்களின் பொருள்',
+            'Not approved' => 'அங்கீகரிக்கப்படவில்லை',
+        ],
+    ];
+
+    return $sharedActions[$language][$english] ?? $aidRequest[$language][$english] ?? $aidRequestGuidance[$language][$english] ?? $approvalGuide[$language][$english] ?? widmsTranslations()[$language][$english] ?? $english;
 }
 
 function renderLanguageSwitcher(string $className = ''): void
@@ -356,10 +378,36 @@ function widmsUiTranslationPayload(): array
         ],
     ];
 
-    $keys = array_unique(array_merge(array_keys(widmsTranslations()[$language] ?? []), $commonKeys, array_keys($socialOfficerTranslations[$language] ?? []), array_keys($stakeholderTranslations[$language] ?? []), array_keys($adminTranslations[$language] ?? []), array_keys($contactLensTranslations[$language] ?? []), array_keys($serviceDivisionTranslations[$language] ?? [])));
+    // Service-centre location guidance is separate because GN Divisions do not apply there.
+    $serviceDivisionGnTranslations = [
+        'si' => [
+            'GN Division is not applicable for service divisions.' => 'සේවා කොට්ඨාස සඳහා ග්‍රාම නිලධාරී කොට්ඨාසය අදාළ නොවේ.',
+        ],
+        'ta' => [
+            'GN Division is not applicable for service divisions.' => 'சேவைப் பிரிவுகளுக்கு கிராம அலுவலர் பிரிவு பொருந்தாது.',
+        ],
+    ];
+
+    // Subject Officer eligibility configuration uses the same terminology on forms and rule tables.
+    $eligibilityConfigTranslations = [
+        'si' => [
+            'Eligibility Configuration'=>'සුදුසුකම් වින්‍යාසය','Eligibility Rule Builder'=>'සුදුසුකම් නීති සාදනය','Build New Eligibility Rule'=>'නව සුදුසුකම් නීතියක් සාදන්න','View Configured Rules'=>'වින්‍යාස කළ නීති බලන්න','Review existing rules or open one to change all of its details.'=>'පවතින නීති සමාලෝචනය කරන්න හෝ සියලු විස්තර වෙනස් කිරීමට නීතියක් විවෘත කරන්න.',
+            'Eligibility Rule Configuration'=>'සුදුසුකම් නීති වින්‍යාසය','Build Eligibility Rule'=>'සුදුසුකම් නීතිය සාදන්න','Add a disability type first, then configure its available aid items and probation rules.'=>'පළමුව ආබාධිතභාව වර්ගයක් එක් කර, පසුව එයට ලබාගත හැකි ආධාර අයිතම සහ සීමා කාල නීති සකසන්න.',
+            'Close'=>'වසන්න','Confirm changes'=>'වෙනස්කම් තහවුරු කරන්න','You are about to update the eligibility details for'=>'ඔබ පහත අයිතමයේ සුදුසුකම් විස්තර යාවත්කාලීන කිරීමට සූදානම්ය:','Do you want to continue?'=>'ඔබට ඉදිරියට යාමට අවශ්‍යද?','Eligibility rule updated.'=>'සුදුසුකම් නීතිය සාර්ථකව යාවත්කාලීන කරන ලදී.','Disability type saved.'=>'ආබාධිතභාව වර්ගය සුරකින ලදී.','Aid item and probation rule saved.'=>'ආධාර අයිතමය සහ සීමා කාල නීතිය සුරකින ලදී.','Eligibility rule deleted permanently.'=>'සුදුසුකම් නීතිය ස්ථිරවම මකා දමන ලදී.',
+            'Build Eligibility Rules'=>'සුදුසුකම් නීති සාදන්න','Add a disability type, then configure the aid items available for it.'=>'ආබාධිතභාව වර්ගයක් එක් කර, එයට ලබාගත හැකි ආධාර අයිතම සකසන්න.','Add the first item now. Other items can be selected from its Edit page later.'=>'පළමු අයිතමය දැන් එක් කරන්න. පසුව එහි සංස්කරණ පිටුවෙන් වෙනත් අයිතම තෝරාගත හැක.','Period'=>'කාලය','Unit'=>'ඒකකය','year(s)'=>'අවුරුදු','month(s)'=>'මාස','Disability & Aid Configuration'=>'ආබාධිතභාවය සහ ආධාර වින්‍යාසය','Add Disability Type'=>'ආබාධිතභාව වර්ගයක් එක් කරන්න','Create a disability before assigning eligible aid items.'=>'සුදුසු ආධාර අයිතම පැවරීමට පෙර ආබාධිතභාව වර්ගයක් සාදන්න.','Disability Type'=>'ආබාධිතභාව වර්ගය','Add Disability'=>'ආබාධිතභාවය එක් කරන්න','Add Aid Item'=>'ආධාර අයිතමයක් එක් කරන්න','Set its probation and optionally prohibit related items.'=>'එහි සීමා කාලය සකසා, අවශ්‍ය නම් අදාළ අයිතම තහනම් කරන්න.','Item Name'=>'අයිතමයේ නම','Variety / Model'=>'ප්‍රභේදය / මාදිලිය','Probation Period'=>'සීමා කාලය','Period Unit'=>'කාල ඒකකය','Months'=>'මාස','Years'=>'අවුරුදු','Also prohibit during this period'=>'මෙම කාලය තුළ මේවාද තහනම් කරන්න','Save Aid Item'=>'ආධාර අයිතමය සුරකින්න','Configured Eligibility Rules'=>'වින්‍යාස කළ සුදුසුකම් නීති','Open a rule to view and change all of its details.'=>'සියලු විස්තර බැලීමට සහ වෙනස් කිරීමට නීතියක් විවෘත කරන්න.','Disability'=>'ආබාධිතභාවය','Probation'=>'සීමා කාලය','Other Prohibited Items'=>'වෙනත් තහනම් අයිතම','No aid eligibility rules configured.'=>'ආධාර සුදුසුකම් නීති වින්‍යාස කර නැත.','Edit'=>'සංස්කරණය','Delete'=>'මකන්න','Update'=>'යාවත්කාලීන කරන්න','None'=>'කිසිවක් නැත','Edit Eligibility Rule'=>'සුදුසුකම් නීතිය සංස්කරණය','Back to Eligibility Rules'=>'සුදුසුකම් නීති වෙත ආපසු','Review and change every detail associated with this eligibility rule.'=>'මෙම සුදුසුකම් නීතියට අදාළ සෑම විස්තරයක්ම සමාලෝචනය කර වෙනස් කරන්න.','Item and Disability'=>'අයිතමය සහ ආබාධිතභාවය','Items Prohibited During Probation'=>'සීමා කාලය තුළ තහනම් අයිතම','The same item is always prohibited automatically. Select any additional items below.'=>'එම අයිතමය සැමවිටම ස්වයංක්‍රීයව තහනම් වේ. අමතර අයිතම පහතින් තෝරන්න.','No other items are available yet.'=>'තවම වෙනත් අයිතම නොමැත.','Cancel'=>'අවලංගු කරන්න','Save Changes'=>'වෙනස්කම් සුරකින්න','Active Rule'=>'සක්‍රිය නීතිය',
+        ],
+        'ta' => [
+            'Eligibility Configuration'=>'தகுதி உள்ளமைவு','Eligibility Rule Builder'=>'தகுதி விதி உருவாக்கி','Build New Eligibility Rule'=>'புதிய தகுதி விதியை உருவாக்கவும்','View Configured Rules'=>'உள்ளமைக்கப்பட்ட விதிகளைப் பார்க்கவும்','Review existing rules or open one to change all of its details.'=>'தற்போதுள்ள விதிகளை மதிப்பாய்வு செய்யவும் அல்லது அதன் அனைத்து விவரங்களையும் மாற்ற ஒரு விதியைத் திறக்கவும்.',
+            'Eligibility Rule Configuration'=>'தகுதி விதி உள்ளமைவு','Build Eligibility Rule'=>'தகுதி விதியை உருவாக்கவும்','Add a disability type first, then configure its available aid items and probation rules.'=>'முதலில் மாற்றுத்திறன் வகையைச் சேர்த்து, பின்னர் அதற்குக் கிடைக்கும் உதவிப் பொருட்களையும் தடைக் கால விதிகளையும் உள்ளமைக்கவும்.',
+            'Close'=>'மூடு','Confirm changes'=>'மாற்றங்களை உறுதிப்படுத்தவும்','You are about to update the eligibility details for'=>'பின்வரும் பொருளின் தகுதி விவரங்களைப் புதுப்பிக்க உள்ளீர்கள்:','Do you want to continue?'=>'தொடர விரும்புகிறீர்களா?','Eligibility rule updated.'=>'தகுதி விதி வெற்றிகரமாகப் புதுப்பிக்கப்பட்டது.','Disability type saved.'=>'மாற்றுத்திறன் வகை சேமிக்கப்பட்டது.','Aid item and probation rule saved.'=>'உதவிப் பொருளும் தடைக் கால விதியும் சேமிக்கப்பட்டன.','Eligibility rule deleted permanently.'=>'தகுதி விதி நிரந்தரமாக நீக்கப்பட்டது.',
+            'Build Eligibility Rules'=>'தகுதி விதிகளை உருவாக்கவும்','Add a disability type, then configure the aid items available for it.'=>'மாற்றுத்திறன் வகையைச் சேர்த்து, அதற்குக் கிடைக்கும் உதவிப் பொருட்களை உள்ளமைக்கவும்.','Add the first item now. Other items can be selected from its Edit page later.'=>'முதல் பொருளை இப்போது சேர்க்கவும். பிற பொருட்களை பின்னர் அதன் திருத்தப் பக்கத்தில் தேர்ந்தெடுக்கலாம்.','Period'=>'காலம்','Unit'=>'அலகு','year(s)'=>'ஆண்டு(கள்)','month(s)'=>'மாதம்(கள்)','Disability & Aid Configuration'=>'மாற்றுத்திறன் மற்றும் உதவி உள்ளமைவு','Add Disability Type'=>'மாற்றுத்திறன் வகையைச் சேர்க்கவும்','Create a disability before assigning eligible aid items.'=>'தகுதியான உதவிப் பொருட்களை ஒதுக்குவதற்கு முன் மாற்றுத்திறன் வகையை உருவாக்கவும்.','Disability Type'=>'மாற்றுத்திறன் வகை','Add Disability'=>'மாற்றுத்திறனைச் சேர்க்கவும்','Add Aid Item'=>'உதவிப் பொருளைச் சேர்க்கவும்','Set its probation and optionally prohibit related items.'=>'அதன் தடைக் காலத்தை அமைத்து, விரும்பினால் தொடர்புடைய பொருட்களைத் தடுக்கவும்.','Item Name'=>'பொருளின் பெயர்','Variety / Model'=>'வகை / மாதிரி','Probation Period'=>'தடைக் காலம்','Period Unit'=>'கால அலகு','Months'=>'மாதங்கள்','Years'=>'ஆண்டுகள்','Also prohibit during this period'=>'இந்தக் காலத்தில் இவற்றையும் தடுக்கவும்','Save Aid Item'=>'உதவிப் பொருளைச் சேமிக்கவும்','Configured Eligibility Rules'=>'உள்ளமைக்கப்பட்ட தகுதி விதிகள்','Open a rule to view and change all of its details.'=>'அனைத்து விவரங்களையும் பார்க்கவும் மாற்றவும் ஒரு விதியைத் திறக்கவும்.','Disability'=>'மாற்றுத்திறன்','Probation'=>'தடைக் காலம்','Other Prohibited Items'=>'பிற தடைசெய்யப்பட்ட பொருட்கள்','No aid eligibility rules configured.'=>'உதவித் தகுதி விதிகள் எதுவும் உள்ளமைக்கப்படவில்லை.','Edit'=>'திருத்து','Delete'=>'நீக்கு','Update'=>'புதுப்பி','None'=>'எதுவுமில்லை','Edit Eligibility Rule'=>'தகுதி விதியைத் திருத்து','Back to Eligibility Rules'=>'தகுதி விதிகளுக்குத் திரும்பு','Review and change every detail associated with this eligibility rule.'=>'இந்தத் தகுதி விதியுடன் தொடர்புடைய ஒவ்வொரு விவரத்தையும் மதிப்பாய்வு செய்து மாற்றவும்.','Item and Disability'=>'பொருளும் மாற்றுத்திறனும்','Items Prohibited During Probation'=>'தடைக் காலத்தில் தடைசெய்யப்பட்ட பொருட்கள்','The same item is always prohibited automatically. Select any additional items below.'=>'அதே பொருள் எப்போதும் தானாகத் தடுக்கப்படும். கூடுதல் பொருட்களை கீழே தேர்ந்தெடுக்கவும்.','No other items are available yet.'=>'வேறு பொருட்கள் இன்னும் கிடைக்கவில்லை.','Cancel'=>'ரத்துசெய்','Save Changes'=>'மாற்றங்களைச் சேமி','Active Rule'=>'செயலில் உள்ள விதி',
+        ],
+    ];
+
+    $keys = array_unique(array_merge(array_keys(widmsTranslations()[$language] ?? []), $commonKeys, array_keys($socialOfficerTranslations[$language] ?? []), array_keys($stakeholderTranslations[$language] ?? []), array_keys($adminTranslations[$language] ?? []), array_keys($contactLensTranslations[$language] ?? []), array_keys($serviceDivisionTranslations[$language] ?? []), array_keys($serviceDivisionGnTranslations[$language] ?? []), array_keys($eligibilityConfigTranslations[$language] ?? [])));
     $payload = [];
     foreach ($keys as $key) {
-        $translated = $serviceDivisionTranslations[$language][$key] ?? $contactLensTranslations[$language][$key] ?? $adminTranslations[$language][$key] ?? $stakeholderTranslations[$language][$key] ?? $socialOfficerTranslations[$language][$key] ?? $commonTranslations[$language][$key] ?? t($key);
+        $translated = $eligibilityConfigTranslations[$language][$key] ?? $serviceDivisionGnTranslations[$language][$key] ?? $serviceDivisionTranslations[$language][$key] ?? $contactLensTranslations[$language][$key] ?? $adminTranslations[$language][$key] ?? $stakeholderTranslations[$language][$key] ?? $socialOfficerTranslations[$language][$key] ?? $commonTranslations[$language][$key] ?? t($key);
         if ($translated !== $key) {
             $payload[$key] = $translated;
         }

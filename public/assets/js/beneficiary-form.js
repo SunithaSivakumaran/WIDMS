@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const district = document.getElementById('district_id'),
     ds = document.getElementById('ds_division_id'),
     gn = document.getElementById('gn_division_id'),
+    gnRequiredIndicator = document.getElementById('gn-required-indicator'),
+    serviceDivisionNotice = document.getElementById('service-division-gn-notice'),
     dob = document.getElementById('date_of_birth'),
     age = document.getElementById('beneficiary-age')
   if (!district || !ds || !gn) return
@@ -43,18 +45,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (select.selectedOptions[0]?.disabled) select.value = ''
     select.disabled = parent === ''
   }
+
+  // Service-centre residents belong to the selected home, not to a GN Division.
+  const updateGnDivision = () => {
+    const isServiceDivision =
+      ds.selectedOptions[0]?.dataset.serviceDivision === '1'
+
+    gn.value = ''
+    filter(gn, isServiceDivision ? '' : ds.value)
+    gn.required = !isServiceDivision
+    gnRequiredIndicator?.toggleAttribute('hidden', isServiceDivision)
+    if (serviceDivisionNotice) serviceDivisionNotice.hidden = !isServiceDivision
+  }
+
   district.addEventListener('change', () => {
     ds.value = ''
     gn.value = ''
     filter(ds, district.value)
-    filter(gn, '')
+    updateGnDivision()
   })
   ds.addEventListener('change', () => {
-    gn.value = ''
-    filter(gn, ds.value)
+    updateGnDivision()
   })
   filter(ds, district.value)
-  filter(gn, ds.value)
+  updateGnDivision()
   dob?.addEventListener('change', () => {
     if (!dob.value) {
       age.textContent = 'Age: —'

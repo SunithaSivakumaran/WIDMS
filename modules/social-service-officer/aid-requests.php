@@ -91,9 +91,22 @@ $v = [
     'disability_notes' => '',
     'item_id' => '',
     'quantity' => '1',
+    'beneficiary_detail_value' => '',
     'prescribed_power' => '',
     'notes' => '',
 ];
+
+// Keep prior approval selections when an SSO reopens a request for correction.
+$approvalSelections = [
+    'medical_officer' => false,
+    'grama_niladhari' => false,
+    'social_services' => false,
+    'divisional_secretary' => false,
+];
+$useNicSelected = false;
+$useEldersCardSelected = false;
+
+$editingRequestId = filter_input(INPUT_GET, 'edit_request_id', FILTER_VALIDATE_INT) ?: 0;
 
 
 /*
@@ -140,6 +153,60 @@ try {
     $disabilityTypes = $defaultDisabilityTypes;
 }
 
+/*
+|--------------------------------------------------------------------------
+| LOAD AN EDITABLE AID REQUEST
+|--------------------------------------------------------------------------
+| Only the owning SSO may reopen a Draft or Pending request. Reviewed and
+| distributed requests stay immutable so their operational history is safe.
+|--------------------------------------------------------------------------
+*/
+if ($showRequestForm && $editingRequestId) {
+    $editRequest = $db->prepare(
+        "SELECT ar.*, b.district_id, b.ds_division_id, b.gn_division_id,
+                b.full_name, b.nic, b.elders_card_number, b.date_of_birth,
+                b.gender, b.phone, b.address, b.disability
+         FROM aid_requests ar
+         JOIN beneficiaries b ON b.id = ar.beneficiary_id
+         WHERE ar.id = :id AND ar.submitted_by = :user
+           AND ar.status IN ('draft', 'pending')"
+    );
+    $editRequest->execute(['id' => $editingRequestId, 'user' => $userId]);
+    $editRequest = $editRequest->fetch();
+
+    if (!$editRequest) {
+        $errors[] = 'This aid request can no longer be edited.';
+        $editingRequestId = 0;
+    } else {
+        $v = [
+            'district_id' => (string) $editRequest['district_id'],
+            'ds_division_id' => (string) $editRequest['ds_division_id'],
+            'gn_division_id' => (string) ($editRequest['gn_division_id'] ?? ''),
+            'full_name' => (string) $editRequest['full_name'],
+            'nic' => (string) ($editRequest['nic'] ?? ''),
+            'elders_card_number' => (string) ($editRequest['elders_card_number'] ?? ''),
+            'date_of_birth' => (string) $editRequest['date_of_birth'],
+            'gender' => (string) $editRequest['gender'],
+            'phone' => (string) ($editRequest['phone'] ?? ''),
+            'address' => (string) $editRequest['address'],
+            'disability_notes' => (string) $editRequest['disability'],
+            'item_id' => (string) $editRequest['item_id'],
+            'quantity' => (string) $editRequest['quantity'],
+            'beneficiary_detail_value' => (string) ($editRequest['beneficiary_detail_value'] ?? ''),
+            'prescribed_power' => (string) ($editRequest['prescribed_power'] ?? ''),
+            'notes' => (string) ($editRequest['notes'] ?? ''),
+        ];
+        $approvalSelections = [
+            'medical_officer' => (bool) $editRequest['medical_officer_approved'],
+            'grama_niladhari' => (bool) $editRequest['grama_niladhari_approved'],
+            'social_services' => (bool) $editRequest['social_services_approved'],
+            'divisional_secretary' => (bool) $editRequest['divisional_secretary_approved'],
+        ];
+        $useNicSelected = $v['nic'] !== '';
+        $useEldersCardSelected = $v['elders_card_number'] !== '';
+    }
+}
+
 
 /*
 |--------------------------------------------------------------------------
@@ -147,7 +214,32 @@ try {
 |--------------------------------------------------------------------------
 */
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') === 'delete') {
+    $requestId = filter_input(INPUT_POST, 'request_id', FILTER_VALIDATE_INT);
+    if (!verifyCsrfToken((string) ($_POST['csrf_token'] ?? ''))) {
+        $errors[] = 'Your session expired.';
+    } elseif (!$requestId) {
+        $errors[] = 'Select a valid aid request.';
+    } else {
+        // Delete only the current SSO's unreviewed request, never an operational record.
+        $deleteRequest = $db->prepare(
+            "DELETE FROM aid_requests
+             WHERE id = :id AND submitted_by = :user
+               AND status IN ('draft', 'pending')"
+        );
+        $deleteRequest->execute(['id' => $requestId, 'user' => $userId]);
+        if ($deleteRequest->rowCount() === 1) {
+            logActivity('Aid Requests', 'Removed editable aid request', 'AR-'.str_pad((string) $requestId, 4, '0', STR_PAD_LEFT), 'removed');
+            $_SESSION['flash_success'] = 'Aid request removed.';
+            unset($_SESSION['csrf_token']);
+            header('Location: dashboard.php?page=aid-requests');
+            exit;
+        }
+        $errors[] = 'This aid request can no longer be removed.';
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !== 'delete') {
 
     /*
     |--------------------------------------------------------------------------
@@ -167,6 +259,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $useNic = isset($_POST['use_nic']);
     $useEldersCard = isset($_POST['use_elders_card']);
+    $useNicSelected = $useNic;
+    $useEldersCardSelected = $useEldersCard;
 
     $nic = $useNic
         ? strtoupper(preg_replace('/\s+/', '', $v['nic']))
@@ -244,6 +338,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             isset($_POST['divisional_secretary']),
     ];
 
+    $approvalSelections = $signoffs;
+    $editingRequestId = filter_input(INPUT_POST, 'edit_request_id', FILTER_VALIDATE_INT) ?: 0;
+
 
     /*
     |--------------------------------------------------------------------------
@@ -260,8 +357,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
 
-    // District, DS Division and GN Division must be selected.
-    if (!$district || !$ds || !$gn) {
+    // Service centres represent a fixed residential location and intentionally have no GN Division.
+    $isServiceDivision = false;
+    if ($district && $ds) {
+        $divisionType = $db->prepare(
+            "SELECT division_type
+             FROM ds_divisions
+             WHERE id = :ds AND district_id = :district AND status = 'active'"
+        );
+        $divisionType->execute([
+            'ds' => $ds,
+            'district' => $district,
+        ]);
+        $isServiceDivision = $divisionType->fetchColumn() === 'service-centre';
+    }
+
+
+    // GN Division remains mandatory for official DS Divisions only.
+    if (!$district || !$ds || (!$isServiceDivision && !$gn)) {
         $errors[] =
             'Select District, D.S. Division, and G.N. Division.';
     }
@@ -448,23 +561,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /*
     |--------------------------------------------------------------------------
-    | Check official approvals
+    | Record official approvals
     |--------------------------------------------------------------------------
-    | All four approvals are required when submitting.
-    |
-    | They are NOT required when saving a draft.
+    | Approvals may be recorded when available, but they never block a request
+    | from being submitted for review.
     |--------------------------------------------------------------------------
     */
-
-    if (
-        !$saveDraft &&
-        !array_product(
-            array_map('intval', $signoffs)
-        )
-    ) {
-        $errors[] =
-            'All four official approvals are required before submission.';
-    }
 
 
     /*
@@ -502,33 +604,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             |--------------------------------------------------------------------------
             */
 
-            $geo = $db->prepare(
-                "SELECT gn.id
-                 FROM gn_divisions gn
-                 JOIN ds_divisions ds
-                    ON ds.id = gn.ds_division_id
-                 JOIN districts d
-                    ON d.id = ds.district_id
-
-                 WHERE gn.id = :gn
-                   AND ds.id = :ds
-                   AND d.id = :district
-                   AND gn.status = 'active'
-                   AND ds.status = 'active'
-                   AND d.status = 'active'"
+            $division = $db->prepare(
+                "SELECT division_type
+                 FROM ds_divisions
+                 WHERE id = :ds
+                   AND district_id = :district
+                   AND status = 'active'
+                 FOR UPDATE"
             );
-
-            $geo->execute([
-                'gn' => $gn,
+            $division->execute([
                 'ds' => $ds,
                 'district' => $district,
             ]);
+            $divisionType = $division->fetchColumn();
 
-
-            if (!$geo->fetchColumn()) {
+            if (!$divisionType) {
                 throw new RuntimeException(
                     'The selected location hierarchy is invalid.'
                 );
+            }
+
+            // Never attach an arbitrary GN Division to a service-centre beneficiary.
+            if ($divisionType === 'service-centre') {
+                $gn = null;
+            } else {
+                $geo = $db->prepare(
+                    "SELECT gn.id
+                     FROM gn_divisions gn
+                     JOIN ds_divisions ds
+                        ON ds.id = gn.ds_division_id
+                     JOIN districts d
+                        ON d.id = ds.district_id
+
+                     WHERE gn.id = :gn
+                       AND ds.id = :ds
+                       AND d.id = :district
+                       AND gn.status = 'active'
+                       AND ds.status = 'active'
+                       AND d.status = 'active'"
+                );
+
+                $geo->execute([
+                    'gn' => $gn,
+                    'ds' => $ds,
+                    'district' => $district,
+                ]);
+
+
+                if (!$geo->fetchColumn()) {
+                    throw new RuntimeException(
+                        'The selected location hierarchy is invalid.'
+                    );
+                }
             }
 
 
@@ -542,12 +669,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "SELECT
                     i.*,
                     c.name category_name,
-                    c.distribution_type
+                    c.distribution_type,
+                    dai.beneficiary_field_label,
+                    dai.beneficiary_field_type
 
                  FROM inventory_items i
 
                  JOIN item_categories c
                     ON c.id = i.category_id
+
+                 LEFT JOIN disability_aid_items dai
+                    ON dai.item_id = i.id AND dai.status = 'active'
 
                  WHERE i.id = :id
                    AND c.status = 'active'"
@@ -576,72 +708,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
 
-            /*
-            |--------------------------------------------------------------------------
-            | 10.3 Determine whether prescription power is required
-            |--------------------------------------------------------------------------
-            |
-            | Used for:
-            | - Contact Lens
-            | - Spectacles
-            | - Glasses
-            |--------------------------------------------------------------------------
-            */
-
-            $itemText = strtolower(
-                $aid['item_name'] . ' ' .
-                $aid['variety'] . ' ' .
-                $aid['category_name']
-            );
-
-
-            $requiresPower =
-                (
-                    str_contains($itemText, 'contact') &&
-                    str_contains($itemText, 'lens')
-                )
-                ||
-                str_contains($itemText, 'spectacle')
-                ||
-                str_contains($itemText, 'glasses');
-
-
-            $power = null;
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | Validate prescription power when required.
-            |--------------------------------------------------------------------------
-            */
-
-            if ($requiresPower) {
-
-                if (
-                    $v['prescribed_power'] === '' ||
-                    !is_numeric($v['prescribed_power'])
-                ) {
-                    throw new RuntimeException(
-                        'Prescription power is required for the selected vision aid.'
-                    );
+            /* The Subject Officer, not a hard-coded item name, controls whether this value is required. */
+            $detailLabel = trim((string) ($aid['beneficiary_field_label'] ?? ''));
+            $detailType = (string) ($aid['beneficiary_field_type'] ?? 'text');
+            $detailValue = trim($v['beneficiary_detail_value']);
+            if ($detailLabel !== '') {
+                if ($detailValue === '') {
+                    throw new RuntimeException($detailLabel . ' is required for the selected aid item.');
                 }
-
-
-                $power = round(
-                    (float) $v['prescribed_power'],
-                    2
-                );
-
-
-                if (
-                    $power < -30 ||
-                    $power > 30
-                ) {
-                    throw new RuntimeException(
-                        'Prescription power must be between -30.00 and +30.00.'
-                    );
+                if ($detailType === 'number' && !is_numeric($detailValue)) {
+                    throw new RuntimeException($detailLabel . ' must be a number.');
                 }
+                if (mb_strlen($detailValue) > 255) {
+                    throw new RuntimeException($detailLabel . ' must not exceed 255 characters.');
+                }
+            } else {
+                $detailValue = null;
             }
+
+            // Legacy power remains unused for newly configured items; their value is stored generically.
+            $power = null;
 
 
             /*
@@ -878,7 +964,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     beneficiaryEligibility(
                         $db,
                         $beneficiary,
-                        $item
+                        $item,
+                        $editingRequestId
                     );
 
 
@@ -892,54 +979,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             /*
             |--------------------------------------------------------------------------
-            | 10.8 CHECK FOR EXISTING ACTIVE AID REQUEST
-            |--------------------------------------------------------------------------
-            |
-            | Prevent multiple active requests for the same beneficiary
-            | and same item category.
-            |--------------------------------------------------------------------------
-            */
-
-            $q = $db->prepare(
-                "SELECT COUNT(*)
-
-                 FROM aid_requests ar
-
-                 JOIN inventory_items i
-                    ON i.id = ar.item_id
-
-                 WHERE ar.beneficiary_id = :beneficiary
-
-                   AND i.category_id = :category
-
-                   AND ar.status IN (
-                       'pending',
-                       'approved',
-                       'goods-requested'
-                   )"
-            );
-
-
-            $q->execute([
-                'beneficiary' =>
-                    $beneficiary,
-
-                'category' =>
-                    $aid['category_id'],
-            ]);
-
-
-            if ($q->fetchColumn()) {
-
-                throw new RuntimeException(
-                    'An active request already exists for this beneficiary and aid category.'
-                );
-            }
-
-
-            /*
-            |--------------------------------------------------------------------------
-            | 10.9 Determine aid request status
+            | 10.8 Determine aid request status
             |--------------------------------------------------------------------------
             */
 
@@ -964,6 +1004,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             |--------------------------------------------------------------------------
             */
 
+            if ($editingRequestId) {
+                // Recheck ownership and state inside the transaction before overwriting the request.
+                $editableRequest = $db->prepare(
+                    "SELECT id FROM aid_requests
+                     WHERE id = :id AND submitted_by = :user
+                       AND status IN ('draft', 'pending')
+                     FOR UPDATE"
+                );
+                $editableRequest->execute([
+                    'id' => $editingRequestId,
+                    'user' => $userId,
+                ]);
+                if (!$editableRequest->fetchColumn()) {
+                    throw new RuntimeException('This aid request can no longer be edited.');
+                }
+
+                $updateRequest = $db->prepare(
+                    "UPDATE aid_requests
+                     SET beneficiary_id = :beneficiary, item_id = :item,
+                         quantity = :qty, disability_notes = :disability,
+                         prescribed_power = :power,
+                         beneficiary_detail_label = :detail_label,
+                         beneficiary_detail_value = :detail_value, notes = :notes,
+                         medical_officer_approved = :medical,
+                         grama_niladhari_approved = :gn,
+                         social_services_approved = :social,
+                         divisional_secretary_approved = :secretary,
+                         status = :status
+                     WHERE id = :id AND submitted_by = :user
+                       AND status IN ('draft', 'pending')"
+                );
+                $updateRequest->execute([
+                    'beneficiary' => $beneficiary,
+                    'item' => $item,
+                    'qty' => $qty,
+                    'disability' => $v['disability_notes'],
+                    'power' => $power,
+                    'detail_label' => $detailLabel ?: null,
+                    'detail_value' => $detailValue,
+                    'notes' => $v['notes'] ?: null,
+                    'medical' => (int) $signoffs['medical_officer'],
+                    'gn' => (int) $signoffs['grama_niladhari'],
+                    'social' => (int) $signoffs['social_services'],
+                    'secretary' => (int) $signoffs['divisional_secretary'],
+                    'status' => $status,
+                    'id' => $editingRequestId,
+                    'user' => $userId,
+                ]);
+                $id = $editingRequestId;
+            } else {
+
             $db->prepare(
                 'INSERT INTO aid_requests(
                     beneficiary_id,
@@ -971,6 +1062,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     quantity,
                     disability_notes,
                     prescribed_power,
+                    beneficiary_detail_label,
+                    beneficiary_detail_value,
                     notes,
                     medical_officer_approved,
                     grama_niladhari_approved,
@@ -986,6 +1079,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     :qty,
                     :disability,
                     :power,
+                    :detail_label,
+                    :detail_value,
                     :notes,
                     :medical,
                     :gn,
@@ -1011,6 +1106,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'power' =>
                     $power,
 
+                'detail_label' =>
+                    $detailLabel ?: null,
+
+                'detail_value' =>
+                    $detailValue,
+
                 'notes' =>
                     $v['notes'] ?: null,
 
@@ -1033,6 +1134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $userId,
             ]);
 
+            }
+
 
             /*
             |--------------------------------------------------------------------------
@@ -1040,8 +1143,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             |--------------------------------------------------------------------------
             */
 
-            $id =
-                (int) $db->lastInsertId();
+            if (!$editingRequestId) {
+                $id =
+                    (int) $db->lastInsertId();
+            }
 
 
             /*
@@ -1062,9 +1167,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logActivity(
                 'Aid Requests',
 
-                $saveDraft
+                $editingRequestId
+                    ? 'Updated aid request'
+                    : ($saveDraft
                     ? 'Saved aid request draft'
-                    : 'Submitted aid request',
+                    : 'Submitted aid request'),
 
                 'AR-' .
                     str_pad(
@@ -1085,11 +1192,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             */
 
             $_SESSION['flash_success'] =
-                $saveDraft
+                $editingRequestId
+                    ? 'Aid request updated.'
+                    : ($saveDraft
 
                     ? 'Aid request saved as draft.'
 
-                    : 'Aid request submitted for Admin  approval.';
+                    : 'Aid request submitted for Admin approval.');
 
 
             unset($_SESSION['csrf_token']);
@@ -1189,7 +1298,8 @@ try {
         "SELECT
             ds.id,
             ds.district_id,
-            ds.name
+            ds.name,
+            ds.division_type
 
          FROM ds_divisions ds
 
@@ -1251,54 +1361,15 @@ try {
     |--------------------------------------------------------------------------
     */
 
+    // Only items configured for an active disability appear in the request form.
     $aidTypes = $db->query(
-        "SELECT
-            i.id,
-            i.item_name,
-            i.variety,
-            COALESCE(c.name, i.category) category_name,
-
-            (
-                LOWER(
-                    CONCAT(
-                        i.item_name,
-                        ' ',
-                        i.variety,
-                        ' ',
-                        COALESCE(c.name, i.category)
-                    )
-                ) LIKE '%contact%lens%'
-
-                OR LOWER(i.item_name)
-                    IN ('spectacles','glasses')
-            ) requires_power
-
-         FROM inventory_items i
-
-         LEFT JOIN item_categories c
-            ON c.id = i.category_id
-
-         WHERE i.item_name IN (
-             'Contact Lens',
-             'Spectacles',
-             'Glasses',
-             'Wheelchair',
-             'Crutches',
-             'Hearing Aid',
-             'Tricycle'
-         )
-
-         ORDER BY FIELD(
-             i.item_name,
-             'Contact Lens',
-             'Spectacles',
-             'Glasses',
-             'Wheelchair',
-             'Crutches',
-             'Hearing Aid',
-             'Tricycle'
-         ),
-         i.variety"
+        "SELECT i.id,i.item_name,i.variety,dt.name disability_name,
+                dai.beneficiary_field_label,dai.beneficiary_field_type
+         FROM disability_aid_items dai
+         JOIN disability_types dt ON dt.id=dai.disability_type_id AND dt.status='active'
+         JOIN inventory_items i ON i.id=dai.item_id
+         WHERE dai.status='active'
+         ORDER BY dt.name,i.item_name,i.variety"
     )->fetchAll();
 
 
@@ -1500,7 +1571,7 @@ function requestSubmitted(string $date): string
     <!-- WIDMS main dashboard CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css"
+        href="assets/css/admin-dashboard.css?v=11"
         rel="stylesheet"
     >
 
@@ -1605,6 +1676,10 @@ require $subject
 
                 <!-- CSRF Security Token -->
 
+                <?php if ($editingRequestId): ?>
+                    <input type="hidden" name="edit_request_id" value="<?= (int) $editingRequestId ?>">
+                <?php endif; ?>
+
                 <input
                     type="hidden"
                     name="csrf_token"
@@ -1689,6 +1764,8 @@ require $subject
 
                                         data-parent="<?= (int) $r['district_id'] ?>"
 
+                                        data-service-division="<?= $r['division_type'] === 'service-centre' ? '1' : '0' ?>"
+
                                         <?= $v['ds_division_id'] == $r['id']
                                             ? 'selected'
                                             : '' ?>
@@ -1709,7 +1786,7 @@ require $subject
 
                         <label>
 
-                            <?= htmlspecialchars(t('G.N. Division'), ENT_QUOTES, 'UTF-8') ?> *
+                            <?= htmlspecialchars(t('G.N. Division'), ENT_QUOTES, 'UTF-8') ?> <span id="gn-required-indicator">*</span>
 
                             <select
                                 id="gn_division_id"
@@ -1742,6 +1819,10 @@ require $subject
                                 <?php endforeach; ?>
 
                             </select>
+
+                            <span class="field-help" id="service-division-gn-notice" hidden>
+                                <?= htmlspecialchars(t('GN Division is not applicable for service divisions.'), ENT_QUOTES, 'UTF-8') ?>
+                            </span>
 
                         </label>
 
@@ -1802,7 +1883,7 @@ require $subject
                                         type="checkbox"
                                         id="use_nic"
                                         name="use_nic"
-                                        <?= isset($_POST['use_nic']) ? 'checked' : '' ?>
+                                        <?= $useNicSelected ? 'checked' : '' ?>
                                     >
                                     <span>NIC</span>
                                 </label>
@@ -1813,7 +1894,7 @@ require $subject
                                         type="checkbox"
                                         id="use_elders_card"
                                         name="use_elders_card"
-                                        <?= isset($_POST['use_elders_card']) ? 'checked' : '' ?>
+                                        <?= $useEldersCardSelected ? 'checked' : '' ?>
                                     >
                                     <span><?= htmlspecialchars(t("Elders' Identity Card"), ENT_QUOTES, 'UTF-8') ?></span>
                                 </label>
@@ -1828,6 +1909,9 @@ require $subject
                             >
                                 <?= htmlspecialchars(t('Select at least one identification method.'), ENT_QUOTES, 'UTF-8') ?>
                             </small>
+
+                            <!-- Live history prevents an avoidable submission when probation is active. -->
+                            <div id="eligibility-preview" class="eligibility-preview" aria-live="polite" hidden></div>
 
 
                             <!-- NIC field -->
@@ -2003,6 +2087,7 @@ require $subject
 
                             <select
                                 name="disability_notes"
+                                id="disability_notes"
                                 required
                             >
 
@@ -2070,8 +2155,13 @@ require $subject
 
                                         value="<?= (int) ($i['id'] ?? 0) ?>"
 
-                                        data-requires-power="<?= (int) (
-                                            $i['requires_power'] ?? 0
+                                        data-beneficiary-field-label="<?= htmlspecialchars($i['beneficiary_field_label'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                        data-beneficiary-field-type="<?= htmlspecialchars($i['beneficiary_field_type'] ?? 'text', ENT_QUOTES, 'UTF-8') ?>"
+
+                                        data-disability="<?= htmlspecialchars(
+                                            $i['disability_name'] ?? '',
+                                            ENT_QUOTES,
+                                            'UTF-8'
                                         ) ?>"
 
                                         <?= $v['item_id'] ==
@@ -2125,29 +2215,21 @@ require $subject
                         </label>
 
 
-                        <!--
-                            Prescription Power
-
-                            This field is hidden unless the selected
-                            aid requires prescription power.
-                        -->
+                        <!-- The selected aid item decides whether this required beneficiary value is shown. -->
 
                         <label
-                            id="power-field"
+                            id="beneficiary-detail-field"
                             hidden
                         >
 
-                            <?= htmlspecialchars(t('Prescription Power'), ENT_QUOTES, 'UTF-8') ?> *
+                            <span id="beneficiary-detail-label"></span> *
 
                             <input
-                                type="number"
-                                name="prescribed_power"
-                                id="prescribed_power"
-                                min="-30"
-                                max="30"
-                                step="0.01"
-                                value="<?= old('prescribed_power') ?>"
-                                placeholder="<?= htmlspecialchars(t('e.g. -2.00 or +1.50'), ENT_QUOTES, 'UTF-8') ?>"
+                                type="text"
+                                name="beneficiary_detail_value"
+                                id="beneficiary_detail_value"
+                                maxlength="255"
+                                value="<?= old('beneficiary_detail_value') ?>"
                             >
 
                         </label>
@@ -2205,7 +2287,7 @@ require $subject
                             <input
                                 type="checkbox"
                                 name="medical_officer"
-                                <?= isset($_POST['medical_officer'])
+                                <?= $approvalSelections['medical_officer']
                                     ? 'checked'
                                     : '' ?>
                             >
@@ -2222,7 +2304,7 @@ require $subject
                             <input
                                 type="checkbox"
                                 name="grama_niladhari"
-                                <?= isset($_POST['grama_niladhari'])
+                                <?= $approvalSelections['grama_niladhari']
                                     ? 'checked'
                                     : '' ?>
                             >
@@ -2239,7 +2321,7 @@ require $subject
                             <input
                                 type="checkbox"
                                 name="social_services"
-                                <?= isset($_POST['social_services'])
+                                <?= $approvalSelections['social_services']
                                     ? 'checked'
                                     : '' ?>
                             >
@@ -2256,7 +2338,7 @@ require $subject
                             <input
                                 type="checkbox"
                                 name="divisional_secretary"
-                                <?= isset($_POST['divisional_secretary'])
+                                <?= $approvalSelections['divisional_secretary']
                                     ? 'checked'
                                     : '' ?>
                             >
@@ -2288,7 +2370,7 @@ require $subject
                         class="submit-aid-button"
                     >
 
-                        <?= htmlspecialchars(t('Submit Aid Request'), ENT_QUOTES, 'UTF-8') ?>
+                        <?= htmlspecialchars($editingRequestId ? t('Save Changes') : t('Submit Aid Request'), ENT_QUOTES, 'UTF-8') ?>
 
                     </button>
 
@@ -2323,6 +2405,13 @@ require $subject
         ============================================================= -->
 
         <?php if (!$showRequestForm): ?>
+        <!-- A standalone guide gives the approval symbols their own clear space above the request card. -->
+        <div class="approval-legend approval-legend-standalone" aria-label="<?= htmlspecialchars(t('Approval icon meanings'), ENT_QUOTES, 'UTF-8') ?>">
+            <strong class="approval-legend-title"><?= htmlspecialchars(t('Approval guide'), ENT_QUOTES, 'UTF-8') ?></strong>
+            <span>🩺 <?= htmlspecialchars(t('Government Medical Officer'), ENT_QUOTES, 'UTF-8') ?></span><span>🏡 <?= htmlspecialchars(t('Grama Niladhari'), ENT_QUOTES, 'UTF-8') ?></span>
+            <span>🏛 <?= htmlspecialchars(t('Social Services Officer'), ENT_QUOTES, 'UTF-8') ?></span><span>📋 <?= htmlspecialchars(t('Divisional Secretary'), ENT_QUOTES, 'UTF-8') ?></span><span>❌ <?= htmlspecialchars(t('Not approved'), ENT_QUOTES, 'UTF-8') ?></span>
+        </div>
+
         <section class="submitted-requests-card">
 
 
@@ -2428,6 +2517,8 @@ require $subject
 
                             <th><?= htmlspecialchars(t('Notes'), ENT_QUOTES, 'UTF-8') ?></th>
 
+                            <th><?= htmlspecialchars(t('Action'), ENT_QUOTES, 'UTF-8') ?></th>
+
                         </tr>
 
                     </thead>
@@ -2441,7 +2532,7 @@ require $subject
 
                         <tr>
 
-                            <td colspan="11">
+                            <td colspan="12">
                                 <?= htmlspecialchars(t('No requests yet.'), ENT_QUOTES, 'UTF-8') ?>
                             </td>
 
@@ -2553,20 +2644,16 @@ require $subject
                                     ) ?>
 
 
-                                    <!-- Prescription Power -->
-
+                                    <!-- The submitted label/value comes from the Subject Officer's item configuration. -->
                                     <?php if (
-                                        $r['prescribed_power'] !== null
+                                        !empty($r['beneficiary_detail_label']) &&
+                                        $r['beneficiary_detail_value'] !== null
                                     ): ?>
 
-                                        <small class="lens-power-row">
+                                        <small class="request-beneficiary-detail">
 
-                                            <?= htmlspecialchars(t('Power:'), ENT_QUOTES, 'UTF-8') ?>
-
-                                            <?= sprintf(
-                                                '%+.2f',
-                                                (float) $r['prescribed_power']
-                                            ) ?>
+                                            <?= htmlspecialchars($r['beneficiary_detail_label'], ENT_QUOTES, 'UTF-8') ?>:
+                                            <?= htmlspecialchars($r['beneficiary_detail_value'], ENT_QUOTES, 'UTF-8') ?>
 
                                         </small>
 
@@ -2587,7 +2674,7 @@ require $subject
 
                                         <?= $r['medical_officer_approved']
                                             ? '🩺'
-                                            : '◻' ?>
+                                            : '❌' ?>
 
                                     </span>
 
@@ -2598,7 +2685,7 @@ require $subject
 
                                         <?= $r['grama_niladhari_approved']
                                             ? '🏡'
-                                            : '◻' ?>
+                                            : '❌' ?>
 
                                     </span>
 
@@ -2609,7 +2696,7 @@ require $subject
 
                                         <?= $r['social_services_approved']
                                             ? '🏛'
-                                            : '◻' ?>
+                                            : '❌' ?>
 
                                     </span>
 
@@ -2620,7 +2707,7 @@ require $subject
 
                                         <?= $r['divisional_secretary_approved']
                                             ? '📋'
-                                            : '◻' ?>
+                                            : '❌' ?>
 
                                     </span>
 
@@ -2680,6 +2767,23 @@ require $subject
 
                                 </td>
 
+                                <!-- Editable requests expose corrections before review; operational requests stay read-only. -->
+                                <td>
+                                    <?php if (in_array($r['status'], ['draft', 'pending'], true)): ?>
+                                        <div class="request-row-actions">
+                                            <a class="outline-action" href="dashboard.php?page=new-aid-request&amp;edit_request_id=<?= (int) $r['id'] ?>"><?= htmlspecialchars(t('Edit'), ENT_QUOTES, 'UTF-8') ?></a>
+                                            <form method="post" data-request-delete-form>
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                                <input type="hidden" name="request_action" value="delete">
+                                                <input type="hidden" name="request_id" value="<?= (int) $r['id'] ?>">
+                                                <button class="request-delete-button" type="submit"><?= htmlspecialchars(t('Delete'), ENT_QUOTES, 'UTF-8') ?></button>
+                                            </form>
+                                        </div>
+                                    <?php else: ?>
+                                        <span class="request-read-only">—</span>
+                                    <?php endif; ?>
+                                </td>
+
 
                             </tr>
 
@@ -2701,6 +2805,20 @@ require $subject
 
         </section>
         <?php endif; ?>
+
+        <!-- This dialog confirms permanent deletion without relying on a browser popup. -->
+        <dialog class="aid-request-delete-dialog" id="aid-request-delete-dialog">
+            <div class="aid-request-delete-card">
+                <button class="aid-request-delete-close" type="button" aria-label="<?= htmlspecialchars(t('Close'), ENT_QUOTES, 'UTF-8') ?>">&times;</button>
+                <span class="aid-request-delete-icon" aria-hidden="true">!</span>
+                <h2><?= htmlspecialchars(t('Remove Aid Request'), ENT_QUOTES, 'UTF-8') ?></h2>
+                <p><?= htmlspecialchars(t('This action permanently removes the request. Do you want to continue?'), ENT_QUOTES, 'UTF-8') ?></p>
+                <div class="aid-request-delete-actions">
+                    <button class="aid-request-delete-cancel" type="button"><?= htmlspecialchars(t('Cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button class="aid-request-delete-confirm" type="button"><?= htmlspecialchars(t('Delete'), ENT_QUOTES, 'UTF-8') ?></button>
+                </div>
+            </div>
+        </dialog>
 
 
     </main>
@@ -2724,11 +2842,12 @@ require $subject
     - Prescription field behaviour
 -->
 
-<script src="assets/js/beneficiary-form.js"></script>
+<script src="assets/js/beneficiary-form.js?v=2"></script>
 
 
 
 <script src="assets/js/aid-request-identification.js"></script>
+<script src="assets/js/aid-request-actions.js?v=1"></script>
 <script>
 /*
 |--------------------------------------------------------------------------
@@ -2741,41 +2860,55 @@ require $subject
 const item =
     document.getElementById('item_id'),
 
+    disability =
+        document.getElementById('disability_notes'),
+
     field =
-        document.getElementById('power-field'),
+        document.getElementById('beneficiary-detail-field'),
 
-    power =
-        document.getElementById('prescribed_power');
+    detailLabel =
+        document.getElementById('beneficiary-detail-label'),
 
-
-function prescriptionField() {
-
-    const required =
-        item?.selectedOptions[0]
-            ?.dataset.requiresPower === '1';
+    detailValue =
+        document.getElementById('beneficiary_detail_value');
 
 
-    field.hidden =
-        !required;
+function beneficiaryDetailField() {
+    const selected = item?.selectedOptions[0];
+    const label = selected?.dataset.beneficiaryFieldLabel || '';
+    const type = selected?.dataset.beneficiaryFieldType || 'text';
+    const required = label !== '';
 
+    field.hidden = !required;
+    detailValue.required = required;
+    detailValue.type = type === 'number' ? 'number' : 'text';
+    detailValue.step = type === 'number' ? 'any' : '';
+    detailLabel.textContent = label;
 
-    power.required =
-        required;
+    if (!required) detailValue.value = '';
+}
 
-
-    if (!required) {
-        power.value = '';
-    }
+// Keep the aid list synchronized with the configured disability-to-item rules.
+function filterAidItems() {
+    if (!item || !disability) return;
+    [...item.options].slice(1).forEach(option => {
+        const visible = disability.value !== '' && option.dataset.disability === disability.value;
+        option.hidden = !visible;
+        option.disabled = !visible;
+    });
+    if (item.selectedOptions[0]?.disabled) item.value = '';
+    beneficiaryDetailField();
 }
 
 
 item?.addEventListener(
     'change',
-    prescriptionField
+    beneficiaryDetailField
 );
 
+disability?.addEventListener('change', filterAidItems);
 
-prescriptionField();
+filterAidItems();
 
 
 

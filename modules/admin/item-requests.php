@@ -292,7 +292,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ],
                         (int) $request[
                             'item_id'
-                        ]
+                        ],
+                        (int) $request['id']
                     );
 
 
@@ -600,7 +601,7 @@ try {
     <!-- WIDMS Main CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css"
+        href="assets/css/admin-dashboard.css?v=4"
         rel="stylesheet"
     >
 
@@ -734,6 +735,14 @@ require __DIR__ .
             <!-- ========================================================
                  TABLE CONTAINER
             ========================================================= -->
+
+            <!-- The legend keeps Admin approval icons consistent with SSO and Subject Officer request tables. -->
+            <!-- Match the SSO approval guide so every reviewing role sees one responsive design. -->
+            <div class="approval-legend approval-legend-standalone" aria-label="<?= htmlspecialchars(t('Approval icon meanings'), ENT_QUOTES, 'UTF-8') ?>">
+                <strong class="approval-legend-title"><?= htmlspecialchars(t('Approval guide'), ENT_QUOTES, 'UTF-8') ?></strong>
+                <span>🩺 <?= htmlspecialchars(t('Government Medical Officer'), ENT_QUOTES, 'UTF-8') ?></span><span>🏡 <?= htmlspecialchars(t('Grama Niladhari'), ENT_QUOTES, 'UTF-8') ?></span>
+                <span>🏛 <?= htmlspecialchars(t('Social Services Officer'), ENT_QUOTES, 'UTF-8') ?></span><span>📋 <?= htmlspecialchars(t('Divisional Secretary'), ENT_QUOTES, 'UTF-8') ?></span><span>❌ <?= htmlspecialchars(t('Not approved'), ENT_QUOTES, 'UTF-8') ?></span>
+            </div>
 
             <div class="admin-data-table-wrap">
 
@@ -900,16 +909,20 @@ require __DIR__ .
                                 ) ?>
 
                                 × <?= (int) $r['quantity'] ?>
+
+                                <?php if (!empty($r['beneficiary_detail_label']) && $r['beneficiary_detail_value'] !== null): ?>
+                                    <small class="request-beneficiary-detail"><?= htmlspecialchars($r['beneficiary_detail_label'], ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars($r['beneficiary_detail_value'], ENT_QUOTES, 'UTF-8') ?></small>
+                                <?php endif; ?>
                             </td>
 
 
                             <td>
-                                <?= array_sum([
-                                    (int) $r['medical_officer_approved'],
-                                    (int) $r['grama_niladhari_approved'],
-                                    (int) $r['social_services_approved'],
-                                    (int) $r['divisional_secretary_approved']
-                                ]) ?> / 4
+                                <span class="approval-icon-set" title="Official approvals">
+                                    <?= $r['medical_officer_approved'] ? '🩺' : '❌' ?>
+                                    <?= $r['grama_niladhari_approved'] ? '🏡' : '❌' ?>
+                                    <?= $r['social_services_approved'] ? '🏛' : '❌' ?>
+                                    <?= $r['divisional_secretary_approved'] ? '📋' : '❌' ?>
+                                </span>
                             </td>
 
 

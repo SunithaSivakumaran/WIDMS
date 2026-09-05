@@ -22,14 +22,60 @@
    Success-message animation states.
    ========================================================================== */
 
-.alert-success {
+.alert-success,
+.alert-danger {
   transition:
     opacity 0.3s ease,
     transform 0.3s ease;
 }
-.alert-success.notification-hiding {
+.alert-success.notification-hiding,
+.alert-danger.notification-hiding {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+/* Keep shared success and error messages readable while providing an obvious close control. */
+.alert-success.widms-dismissible-alert,
+.alert-danger.widms-dismissible-alert {
+  position: relative;
+  padding-right: 52px;
+}
+.alert-success .notification-close,
+.alert-danger .notification-close {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  color: currentColor;
+  background: rgba(255, 255, 255, .48);
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  opacity: .72;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+.alert-success .notification-close:hover {
+  color: #fff;
+  background: #198754;
+  border-color: #198754;
+  opacity: 1;
+}
+.alert-danger .notification-close:hover {
+  color: #fff;
+  background: #b4232f;
+  border-color: #b4232f;
+  opacity: 1;
+}
+.alert-success .notification-close:focus-visible,
+.alert-danger .notification-close:focus-visible {
+  outline: 3px solid color-mix(in srgb, currentColor 25%, transparent);
+  outline-offset: 2px;
 }
 
 /* ==========================================================================
@@ -1768,6 +1814,19 @@ body.widms-unified-ui { color: #132c44; background: var(--ui-page); }
 .widms-unified-ui .form-help,
 .widms-unified-ui .approval-help,
 .widms-unified-ui .form-field-help { color: #667b8c; font-size: 11.5px; line-height: 1.5; }
+/* A warm neutral tone distinguishes a fixed service-home location from an error. */
+.widms-unified-ui #service-division-gn-notice {
+  display: block;
+  margin-top: 8px;
+  padding: 7px 9px;
+  color: #7a560d;
+  background: #fff8e8;
+  border-left: 3px solid #d5a22a;
+  border-radius: 3px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.45;
+}
 .widms-unified-ui .aid-form-actions { margin-top: 4px; padding-top: 20px; flex-wrap: wrap; gap: 10px; }
 .widms-unified-ui .aid-form-actions .submit-aid-button,
 .widms-unified-ui .aid-form-actions .outline-action {
@@ -1777,6 +1836,114 @@ body.widms-unified-ui { color: #132c44; background: var(--ui-page); }
   font-size: 14px;
   font-weight: 600;
 }
+.widms-unified-ui .request-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.widms-unified-ui .request-row-actions form { margin: 0; }
+.widms-unified-ui .request-row-actions .outline-action,
+.widms-unified-ui .request-delete-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.widms-unified-ui .request-row-actions .outline-action { display: inline-flex; align-items: center; }
+.widms-unified-ui .request-delete-button { color: #b4232f; background: #fff7f7; border: 1px solid #df8d94; }
+.widms-unified-ui .request-delete-button:hover { color: #fff; background: #b4232f; border-color: #b4232f; }
+.widms-unified-ui .request-read-only { color: #8695a0; }
+.approval-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 14px 0;
+  padding: 10px 13px;
+  color: #526c80;
+  background: #f5f9fc;
+  border: 1px solid #d7e4ed;
+  border-left: 3px solid #3e82b8;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.approval-legend-title { padding-right: 12px; color: #1e5d8f; border-right: 0; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.approval-legend span { white-space: nowrap; }
+.approval-icon-set { display: inline-flex; gap: 4px; white-space: nowrap; font-size: 15px; }
+/* The SSO guide sits outside the table card so it stays visible before the request details. */
+.approval-legend-standalone {
+  width: 100%;
+  min-height: 54px;
+  margin: 0 0 16px;
+  padding: 14px 18px;
+  background: linear-gradient(90deg, #eef6fc, #f9fbfd);
+  border-color: #c6dce9;
+  border-left-width: 5px;
+  box-shadow: 0 2px 7px rgba(31, 74, 105, .08);
+}
+/* Content-sized guide entries give longer translated labels more room before wrapping. */
+.approval-legend-standalone {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 0;
+}
+.approval-legend-standalone .approval-legend-title,
+.approval-legend-standalone span {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 13px;
+}
+.approval-legend-standalone .approval-legend-title { flex-grow: .6; padding-left: 0; }
+.approval-legend-standalone span::before {
+  content: '|';
+  margin-right: 13px;
+  color: #1e5d8f;
+  font-size: 16px;
+  font-weight: 700;
+}
+/* Translated Sinhala and Tamil labels may be longer, so guide columns wrap cleanly instead of overflowing. */
+.approval-legend-standalone .approval-legend-title,
+.approval-legend-standalone span {
+  font-size: clamp(11px, .82vw, 12.5px);
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1050px) {
+  .approval-legend-standalone { flex-wrap: wrap; gap: 8px 0; }
+  .approval-legend-standalone .approval-legend-title { flex: 0 0 100%; padding-bottom: 8px; border-bottom: 1px solid #cfdde7; }
+  .approval-legend-standalone span { flex: 1 1 33.333%; }
+}
+@media (max-width: 640px) {
+  .approval-legend-standalone span { flex-basis: 100%; }
+}
+.widms-unified-ui .aid-request-delete-dialog {
+  width: min(410px, calc(100% - 30px));
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(71, 20, 24, .28);
+}
+.widms-unified-ui .aid-request-delete-dialog::backdrop { background: rgba(22, 35, 47, .62); backdrop-filter: blur(2px); }
+.widms-unified-ui .aid-request-delete-card { position: relative; padding: 26px; text-align: center; }
+.widms-unified-ui .aid-request-delete-icon { display: grid; width: 46px; height: 46px; margin: 0 auto 13px; place-items: center; color: #fff; background: #c93642; border-radius: 50%; font-size: 25px; font-weight: 800; }
+.widms-unified-ui .aid-request-delete-card h2 { margin: 0; color: #63222a; font-size: 19px; font-weight: 650; }
+.widms-unified-ui .aid-request-delete-card p { margin: 9px 0 21px; color: #67747d; font-size: 13px; line-height: 1.55; }
+.widms-unified-ui .aid-request-delete-close { position: absolute; top: 10px; right: 11px; width: 30px; height: 30px; padding: 0; color: #9a5c62; background: transparent; border: 0; font-size: 24px; line-height: 1; }
+.widms-unified-ui .aid-request-delete-close:hover { color: #76252e; background: #fff0f1; }
+.widms-unified-ui .aid-request-delete-actions { display: flex; justify-content: center; gap: 9px; }
+.widms-unified-ui .aid-request-delete-actions button { min-width: 120px; min-height: 40px; padding: 8px 14px; border-radius: 6px; font-size: 12.5px; font-weight: 650; }
+.widms-unified-ui .aid-request-delete-cancel { color: #5d6c75; background: #fff; border: 1px solid #cbd5dc; }
+.widms-unified-ui .aid-request-delete-confirm { color: #fff; background: #c93642; border: 1px solid #c93642; }
+.widms-unified-ui .aid-request-delete-confirm:hover { background: #a82430; border-color: #a82430; }
 @media (max-width: 899.98px) {
   .widms-unified-ui .aid-requests-page {
     height: calc(100vh - 60px);
@@ -6286,6 +6453,17 @@ body.widms-unified-ui {
   }
 }
 
+/* Dynamic beneficiary details remain compact and recognizable beneath the requested aid item. */
+.item-beneficiary-detail-config { display: contents; }
+.request-beneficiary-detail {
+  display: block;
+  margin-top: 4px;
+  color: #174f7a;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 /* Keep the professional shell last so older page-specific density rules cannot
    restore the previous bright and decorative dashboard treatment. */
 body.widms-unified-ui { background: #eef1f4; }
@@ -6926,4 +7104,608 @@ body.widms-unified-ui,
   border-color: #f17a84;
   outline: 3px solid rgba(238, 115, 124, .38);
   outline-offset: 2px;
+}
+
+/* Eligibility configuration uses roomy grouped controls for long trilingual labels. */
+.widms-unified-ui .item-rule-form { align-items: end; }
+.widms-unified-ui .prohibited-items,
+.widms-unified-ui .rule-update-form fieldset {
+  display: flex;
+  min-width: 260px;
+  padding: 10px 12px;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  border: 1px solid #cbd9e4;
+  border-radius: 7px;
+  background: #f7fafc;
+}
+.widms-unified-ui .prohibited-items legend,
+.widms-unified-ui .rule-update-form legend { width: auto; margin: 0; padding: 0 4px; color: #315c7c; font-size: 13px; font-weight: 600; }
+.widms-unified-ui .prohibited-items label,
+.widms-unified-ui .rule-update-form fieldset label { display: inline-flex; width: auto; align-items: center; gap: 6px; }
+.widms-unified-ui .rule-update-form { display: grid; min-width: 300px; padding: 12px; gap: 10px; }
+.widms-unified-ui .eligibility-preview {
+  display: grid;
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px 14px;
+  gap: 5px;
+  color: #225c42;
+  background: #edf8f2;
+  border: 1px solid #abd8c2;
+  border-radius: 7px;
+}
+.widms-unified-ui .eligibility-preview[hidden] { display: none; }
+.widms-unified-ui .eligibility-preview.ineligible { color: #8f2530; background: #fff1f2; border-color: #efb5bb; }
+.widms-unified-ui .eligibility-preview span { font-size: 13px; line-height: 1.55; }
+
+/* Present eligibility configuration as two clear components: a rule builder and a review table. */
+.widms-unified-ui .configuration-builder-component,
+.widms-unified-ui .eligibility-rules-component {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #cbd8e2;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(23, 59, 87, .05);
+}
+.widms-unified-ui .configuration-builder-component > .admin-data-header,
+.widms-unified-ui .eligibility-rules-component > .admin-data-header {
+  padding: 18px 22px;
+  background: #f3f7fa;
+  border-bottom: 1px solid #cfdae3;
+}
+.widms-unified-ui .configuration-builder-component > .admin-data-header h2,
+.widms-unified-ui .eligibility-rules-component > .admin-data-header h2 {
+  font-size: 18px;
+  font-weight: 650;
+}
+.widms-unified-ui .configuration-builder-component > .admin-data-header p,
+.widms-unified-ui .eligibility-rules-component > .admin-data-header p {
+  font-size: 13px;
+  line-height: 1.5;
+}
+/* Reuse the spacious visual rhythm of the SSO aid form for eligibility-rule creation. */
+.widms-unified-ui .eligibility-build-body { padding: 6px 22px 24px; background: #f3f6f8; }
+.widms-unified-ui .eligibility-build-section { display: block; margin: 0; }
+.widms-unified-ui .eligibility-build-section > fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 24px 4px 26px;
+  border: 0;
+  border-bottom: 1px solid #cbd8e1;
+}
+.widms-unified-ui .eligibility-build-section:last-child > fieldset { padding-bottom: 4px; border-bottom: 0; }
+.widms-unified-ui .eligibility-build-section > fieldset > legend {
+  display: flex;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0 0 11px;
+  align-items: center;
+  gap: 8px;
+  color: #1f5f8d;
+  border-bottom: 2px solid #a9c4d8;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.widms-unified-ui .eligibility-build-section > fieldset > legend span { font-size: 17px; }
+.widms-unified-ui .eligibility-section-help {
+  margin: 0 0 18px;
+  color: #62798a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.widms-unified-ui .eligibility-disability-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(160px, 220px);
+  align-items: end;
+  gap: 14px;
+}
+/* Keep disability removal visible but secondary to rule creation. */
+.widms-unified-ui .disability-management-card {
+  margin: 0 0 2px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #cfdae3;
+  border-radius: 9px;
+}
+.widms-unified-ui .disability-management-card h3 {
+  margin: 0;
+  color: #1d587f;
+  font-size: 15px;
+  font-weight: 650;
+}
+.widms-unified-ui .disability-management-card p {
+  margin: 5px 0 14px;
+  color: #687d8c;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.widms-unified-ui .disability-type-list { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 9px; }
+.widms-unified-ui .disability-type-row {
+  display: flex;
+  min-height: 44px;
+  padding: 7px 8px 7px 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #294b62;
+  background: #f7fafc;
+  border: 1px solid #d5e0e7;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.widms-unified-ui .disability-type-row form { margin: 0; }
+.widms-unified-ui .disability-remove-button {
+  min-height: 30px;
+  padding: 5px 9px;
+  color: #b4232f;
+  background: #fff7f7;
+  border: 1px solid #df9ca2;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+.widms-unified-ui .disability-remove-button:hover { color: #fff; background: #b4232f; border-color: #b4232f; }
+.widms-unified-ui .disability-type-empty { grid-column: 1 / -1; }
+.widms-unified-ui .aid-config-compact-form,
+.widms-unified-ui .aid-config-form {
+  display: grid;
+  gap: 16px;
+}
+.widms-unified-ui .aid-config-compact-form label,
+.widms-unified-ui .aid-config-form label,
+.widms-unified-ui .edit-aid-rule-form label {
+  display: grid;
+  gap: 7px;
+  color: #29485f;
+  font-size: 13px;
+  font-weight: 600;
+}
+.widms-unified-ui .aid-config-compact-form input,
+.widms-unified-ui .aid-config-form input:not([type='checkbox']),
+.widms-unified-ui .aid-config-form select,
+.widms-unified-ui .edit-aid-rule-form input:not([type='checkbox']),
+.widms-unified-ui .edit-aid-rule-form select {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  background: #fff;
+}
+.widms-unified-ui .aid-config-compact-form .admin-primary-action { width: 100%; min-height: 46px; }
+.widms-unified-ui .aid-config-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  margin-bottom: 18px;
+  gap: 17px 18px;
+}
+/* Keep Aid Item entry in a clear top-to-bottom sequence rather than a dense field grid. */
+.widms-unified-ui .eligibility-aid-fields {
+  width: min(100%, 760px);
+  grid-template-columns: 1fr;
+}
+.widms-unified-ui .eligibility-aid-fields label > span { display: block; }
+.widms-unified-ui .eligibility-aid-fields label > span small {
+  color: #758896;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.widms-unified-ui .eligibility-required-note {
+  margin: -8px 0 17px;
+  color: #687d8d;
+  font-size: 12px;
+}
+.widms-unified-ui .required-mark,
+.widms-unified-ui .eligibility-required-note > span { color: #c12b38; font-weight: 700; }
+.widms-unified-ui .eligibility-build-section .prohibited-items {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 11px;
+  background: #eef4f7;
+  border-color: #c5d5e0;
+}
+.widms-unified-ui .eligibility-build-section .prohibited-items legend {
+  grid-column: 1 / -1;
+  margin-bottom: 5px;
+  color: #315f7f;
+  font-size: 14px;
+  font-weight: 650;
+}
+.widms-unified-ui .eligibility-build-section .prohibited-items small { grid-column: 1 / -1; color: #61798b; }
+.widms-unified-ui .eligibility-build-section .prohibited-items label {
+  display: flex;
+  min-height: 46px;
+  padding: 10px 12px;
+  align-items: center;
+  border: 1px solid #d6e0e7;
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 500;
+}
+.widms-unified-ui .eligibility-build-section .searchable-prohibited-fieldset {
+  display: block;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.widms-unified-ui .searchable-multi-select { width: min(100%, 760px); }
+.widms-unified-ui .multi-select-selection {
+  display: flex;
+  min-height: 42px;
+  margin-bottom: 9px;
+  padding: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  background: #fff;
+  border: 1px solid #c9d7e1;
+  border-radius: 8px;
+}
+.widms-unified-ui .multi-select-selection:empty { display: none; }
+.widms-unified-ui .multi-select-chip {
+  display: inline-flex;
+  min-height: 30px;
+  padding: 4px 5px 4px 10px;
+  align-items: center;
+  gap: 7px;
+  color: #174e73;
+  background: #e7f2f9;
+  border: 1px solid #a9c9dc;
+  border-radius: 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.widms-unified-ui .multi-select-chip-remove {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  place-items: center;
+  color: #a62431;
+  background: #fff;
+  border: 1px solid #df9ca2;
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+}
+.widms-unified-ui .multi-select-chip-remove:hover { color: #fff; background: #b4232f; border-color: #b4232f; }
+.widms-unified-ui .multi-select-input-wrap {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+}
+.widms-unified-ui .multi-select-input-wrap input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 48px 10px 13px;
+  color: #24465e;
+  background: #fff;
+  border: 1px solid #b9cad6;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.widms-unified-ui .multi-select-input-wrap input:hover { border-color: #4f8db8; background: #f9fcfe; }
+.widms-unified-ui .multi-select-input-wrap input:focus { border-color: #2876aa; box-shadow: 0 0 0 3px rgba(40, 118, 170, .12); outline: 0; }
+.widms-unified-ui .multi-select-count {
+  position: absolute;
+  right: 12px;
+  min-width: 24px;
+  padding: 2px 7px;
+  color: #fff;
+  background: #2876aa;
+  border-radius: 12px;
+  font-size: 11px;
+  text-align: center;
+}
+.widms-unified-ui .multi-select-dropdown {
+  margin-top: 8px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #b9ccd8;
+  border-radius: 9px;
+  box-shadow: 0 8px 22px rgba(24, 61, 87, .11);
+}
+.widms-unified-ui .multi-select-dropdown[hidden],
+.widms-unified-ui .multi-select-option[hidden],
+.widms-unified-ui .multi-select-no-results[hidden] { display: none !important; }
+.widms-unified-ui .multi-select-search {
+  display: grid;
+  margin: 0 0 10px;
+  gap: 6px;
+  color: #36566d;
+  font-size: 12px;
+  font-weight: 600;
+}
+.widms-unified-ui .multi-select-search input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 11px;
+  border: 1px solid #c5d3dd;
+  border-radius: 7px;
+}
+.widms-unified-ui .multi-select-options {
+  display: grid;
+  max-height: 260px;
+  padding-right: 3px;
+  gap: 7px;
+  overflow-y: auto;
+}
+.widms-unified-ui .eligibility-build-section .searchable-prohibited-fieldset .multi-select-option,
+.widms-unified-ui .edit-aid-rule-form .multi-select-option {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  margin: 0;
+  padding: 9px 11px;
+  align-items: center;
+  gap: 9px;
+  color: #29495f;
+  background: #f8fafb;
+  border: 1px solid #d4dfe7;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.widms-unified-ui .multi-select-option:hover { background: #eef6fb; border-color: #a7c4d6; }
+.widms-unified-ui .multi-select-option.selected { color: #15577f; background: #e8f3fa; border-color: #7eb1d1; }
+.widms-unified-ui .multi-select-option input { width: 18px; height: 18px; flex: 0 0 18px; }
+.widms-unified-ui .multi-select-no-results { margin: 4px 0; padding: 12px; color: #6c7f8d; text-align: center; font-size: 12.5px; }
+.widms-unified-ui .multi-select-unavailable { color: #697e8e; font-size: 12.5px; }
+.widms-unified-ui .edit-prohibited-selector { max-width: 760px; }
+.widms-unified-ui .aid-config-form input[type='checkbox'],
+.widms-unified-ui .edit-prohibited-grid input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+.widms-unified-ui .aid-config-actions { display: flex; margin-top: 18px; justify-content: flex-end; }
+.widms-unified-ui .aid-config-actions .admin-primary-action { min-width: 190px; min-height: 46px; }
+.widms-unified-ui .eligibility-rules-component { margin-top: 22px; }
+.widms-unified-ui .aid-item-builder-component { margin-top: 22px; }
+.widms-unified-ui .standalone-rules-component { margin-top: 0; }
+.widms-unified-ui .eligibility-builder-header,
+.widms-unified-ui .eligibility-rules-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.widms-unified-ui .eligibility-register-link,
+.widms-unified-ui .eligibility-builder-link {
+  display: inline-flex;
+  min-height: 40px;
+  padding: 8px 15px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.widms-unified-ui .eligibility-rules-component .admin-data-table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+.widms-unified-ui .eligibility-rules-table { min-width: 820px; }
+.widms-unified-ui .eligibility-rules-table td strong,
+.widms-unified-ui .eligibility-rules-table td small { display: block; }
+.widms-unified-ui .eligibility-rules-table td strong { font-weight: 600; }
+.widms-unified-ui .eligibility-rules-table td small { margin-top: 3px; color: #718596; }
+.widms-unified-ui .rule-row-actions { display: flex; align-items: center; gap: 8px; }
+.widms-unified-ui .rule-row-actions form { margin: 0; }
+.widms-unified-ui .rule-row-actions .outline-action,
+.widms-unified-ui .rule-row-actions .reject-button {
+  display: inline-flex;
+  min-height: 36px;
+  padding: 7px 13px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The linked rule editor uses grouped sections so every editable detail is easy to scan. */
+.widms-unified-ui .edit-aid-rule-page { max-width: 1200px; }
+.widms-unified-ui .edit-rule-heading {
+  display: flex;
+  margin-bottom: 18px;
+  padding: 20px 22px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: #eef5f9;
+  border: 1px solid #cbd9e3;
+  border-radius: 10px;
+}
+.widms-unified-ui .edit-rule-heading a {
+  display: inline-flex;
+  margin-bottom: 10px;
+  gap: 6px;
+  color: #176ca6;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+/* Distinguish navigation and cancellation while keeping both actions visually compact. */
+.widms-unified-ui .edit-rule-heading .edit-rule-back-button {
+  min-height: 36px;
+  margin-bottom: 14px;
+  padding: 7px 12px;
+  align-items: center;
+  border: 1px solid #9bbdd4;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(23, 63, 93, .05);
+}
+.widms-unified-ui .edit-rule-heading .edit-rule-back-button:hover {
+  color: #fff;
+  background: #176ca6;
+  border-color: #176ca6;
+}
+.widms-unified-ui .edit-rule-heading .edit-rule-back-button:focus-visible {
+  outline: 3px solid rgba(23, 108, 166, .2);
+  outline-offset: 2px;
+}
+.widms-unified-ui .edit-rule-heading h2 { margin: 0; color: #123955; font-size: 22px; font-weight: 650; }
+.widms-unified-ui .edit-rule-heading p { margin: 6px 0 0; color: #5c7486; font-size: 13px; }
+.widms-unified-ui .edit-aid-rule-form {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #cbd8e2;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(23, 59, 87, .05);
+}
+.widms-unified-ui .edit-aid-rule-form section { padding: 22px; border-bottom: 1px solid #d8e1e8; }
+.widms-unified-ui .edit-aid-rule-form section h3 { margin: 0 0 16px; color: #1b577f; font-size: 17px; font-weight: 650; }
+.widms-unified-ui .edit-aid-rule-form section > p { margin: -7px 0 16px; color: #607789; font-size: 12.5px; }
+.widms-unified-ui .edit-rule-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 16px; }
+.widms-unified-ui .edit-rule-grid.compact { grid-template-columns: repeat(2, minmax(180px, 280px)); }
+.widms-unified-ui .edit-prohibited-grid { display: grid; grid-template-columns: repeat(3, minmax(170px, 1fr)); gap: 10px; }
+.widms-unified-ui .edit-prohibited-grid label {
+  display: flex;
+  min-height: 46px;
+  padding: 10px 12px;
+  align-items: center;
+  border: 1px solid #d3dee7;
+  border-radius: 8px;
+  background: #f8fafb;
+  font-weight: 500;
+}
+.widms-unified-ui .edit-rule-actions {
+  display: flex;
+  padding: 18px 22px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #f5f8fa;
+}
+.widms-unified-ui .edit-rule-actions .outline-action,
+.widms-unified-ui .edit-rule-actions .admin-primary-action {
+  display: inline-flex;
+  min-width: 130px;
+  min-height: 42px;
+  padding: 9px 16px;
+  align-items: center;
+  justify-content: center;
+}
+.widms-unified-ui .edit-rule-actions .edit-rule-cancel-button {
+  color: #b4232f;
+  background: #fff7f7;
+  border-color: #df8d94;
+}
+.widms-unified-ui .edit-rule-actions .edit-rule-cancel-button:hover {
+  color: #fff;
+  background: #b4232f;
+  border-color: #b4232f;
+}
+.widms-unified-ui .edit-rule-actions .edit-rule-cancel-button:focus-visible {
+  outline: 3px solid rgba(180, 35, 47, .2);
+  outline-offset: 2px;
+}
+
+/* Confirm an existing-rule update before submission so accidental edits can be cancelled safely. */
+.widms-unified-ui .edit-rule-confirm-dialog {
+  width: min(470px, calc(100% - 32px));
+  padding: 0;
+  color: #17384f;
+  background: #fff;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(7, 31, 49, .28);
+}
+.widms-unified-ui .edit-rule-confirm-dialog::backdrop {
+  background: rgba(8, 28, 43, .55);
+  backdrop-filter: blur(2px);
+}
+.widms-unified-ui .edit-rule-confirm-card {
+  position: relative;
+  padding: 26px;
+  text-align: center;
+}
+.widms-unified-ui .edit-rule-confirm-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 14px;
+  place-items: center;
+  color: #fff;
+  background: #176ca6;
+  border-radius: 50%;
+  font-size: 22px;
+  font-weight: 700;
+}
+.widms-unified-ui .edit-rule-confirm-card h2 {
+  margin: 0;
+  color: #123955;
+  font-size: 20px;
+  font-weight: 650;
+}
+.widms-unified-ui .edit-rule-confirm-card p {
+  margin: 10px auto 22px;
+  color: #5b7181;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.widms-unified-ui .edit-rule-confirm-card p strong { color: #173f5d; font-weight: 700; }
+.widms-unified-ui .edit-rule-confirm-close {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: #647886;
+  background: transparent;
+  border: 0;
+  font-size: 24px;
+  line-height: 1;
+}
+.widms-unified-ui .edit-rule-confirm-close:hover { color: #183d58; background: #edf3f6; }
+.widms-unified-ui .edit-rule-confirm-actions { display: flex; justify-content: center; gap: 10px; }
+.widms-unified-ui .edit-rule-confirm-actions button {
+  min-width: 135px;
+  min-height: 42px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.widms-unified-ui .edit-rule-dialog-cancel { color: #b4232f; background: #fff7f7; border: 1px solid #df8d94; }
+.widms-unified-ui .edit-rule-dialog-cancel:hover { color: #fff; background: #b4232f; border-color: #b4232f; }
+.widms-unified-ui .edit-rule-dialog-save { color: #fff; background: #176ca6; border: 1px solid #176ca6; }
+.widms-unified-ui .edit-rule-dialog-save:hover { background: #125985; border-color: #125985; }
+
+@media (max-width: 767.98px) {
+  .widms-unified-ui .eligibility-build-body { padding: 4px 14px 18px; }
+  .widms-unified-ui .eligibility-build-section > fieldset { padding: 20px 0; }
+  .widms-unified-ui .eligibility-disability-row,
+  .widms-unified-ui .aid-config-fields,
+  .widms-unified-ui .disability-type-list,
+  .widms-unified-ui .aid-config-form .prohibited-items,
+  .widms-unified-ui .edit-rule-grid,
+  .widms-unified-ui .edit-rule-grid.compact,
+  .widms-unified-ui .edit-prohibited-grid { grid-template-columns: 1fr; }
+  .widms-unified-ui .edit-rule-heading { align-items: flex-start; flex-direction: column; }
+  .widms-unified-ui .edit-rule-actions { align-items: stretch; flex-direction: column-reverse; }
+  .widms-unified-ui .edit-rule-actions .outline-action,
+  .widms-unified-ui .edit-rule-actions .admin-primary-action { width: 100%; }
+  .widms-unified-ui .edit-rule-confirm-actions { align-items: stretch; flex-direction: column-reverse; }
+  .widms-unified-ui .edit-rule-confirm-actions button { width: 100%; }
+  .widms-unified-ui .eligibility-builder-header,
+  .widms-unified-ui .eligibility-rules-header { align-items: stretch; flex-direction: column; }
+  .widms-unified-ui .eligibility-register-link,
+  .widms-unified-ui .eligibility-builder-link { width: 100%; }
 }

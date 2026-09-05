@@ -11,16 +11,4 @@ CREATE TABLE IF NOT EXISTS disability_types (
     CONSTRAINT fk_disability_type_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
-SET @disability_admin := (SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1);
-
-INSERT INTO disability_types (name, created_by) VALUES
-    ('Mobility Impairment - Upper Limb', @disability_admin),
-    ('Mobility Impairment - Lower Limb', @disability_admin),
-    ('Visual Impairment', @disability_admin),
-    ('Hearing Impairment', @disability_admin),
-    ('Speech and Language Impairment', @disability_admin),
-    ('Intellectual Disability', @disability_admin),
-    ('Autism Spectrum Disorder', @disability_admin),
-    ('Multiple Disabilities', @disability_admin),
-    ('Other', @disability_admin)
-ON DUPLICATE KEY UPDATE name = VALUES(name);
+-- Disability types are intentionally not seeded; Subject Officers configure the live list.

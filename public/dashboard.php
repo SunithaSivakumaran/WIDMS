@@ -52,8 +52,10 @@ $subjectOfficerPages = [
     'correction-approval' => __DIR__ . '/../modules/admin/correction-requests.php',
     'central-stock' => __DIR__ . '/../modules/subject-officer/workspace.php',
     'suppliers' => __DIR__ . '/../modules/subject-officer/suppliers.php',
+    // Separate rule building from rule review so each workflow has a focused page.
     'eligibility-rules' => __DIR__ . '/../modules/subject-officer/eligibility-rules.php',
     'item-categories' => __DIR__ . '/../modules/subject-officer/item-categories.php',
+    'edit-aid-rule' => __DIR__ . '/../modules/subject-officer/edit-aid-rule.php',
     'officer-pools' => __DIR__ . '/../modules/subject-officer/workspace.php',
     'reports' => __DIR__ . '/../modules/subject-officer/workspace.php',
     'audit-log' => __DIR__ . '/../modules/subject-officer/workspace.php',

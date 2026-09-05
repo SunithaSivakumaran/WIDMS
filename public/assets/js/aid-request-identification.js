@@ -17,6 +17,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const error = document.getElementById('identification-error')
 
+  const preview = document.getElementById('eligibility-preview')
+
+  const item = document.getElementById('item_id')
+
   /*
   |--------------------------------------------------------------------------
   | Make sure all required HTML elements exist
@@ -114,6 +118,29 @@ document.addEventListener('DOMContentLoaded', () => {
   eldersCard.addEventListener('input', () => {
     eldersCard.setCustomValidity('')
   })
+
+  // Show previous devices and the current probation decision before submission.
+  const escapeHtml = (value) => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character])
+
+  async function checkEligibility() {
+    if (!preview || (!nic.value.trim() && !eldersCard.value.trim())) return
+    const query = new URLSearchParams({ nic: nic.value, elders_card: eldersCard.value })
+    if (item?.value) query.set('item_id', item.value)
+    try {
+      const response = await fetch(`beneficiary-eligibility.php?${query}`)
+      const result = await response.json()
+      if (!result.found) { preview.hidden = true; return }
+      const history = (result.history || []).map(entry => `${escapeHtml(entry.item_name)}${entry.variety ? ` / ${escapeHtml(entry.variety)}` : ''} — ${escapeHtml(entry.distributed_at.slice(0, 10))}`).join('<br>')
+      const decision = result.eligibility ? `<strong>${escapeHtml(result.eligibility.reason)}</strong>` : ''
+      preview.classList.toggle('ineligible', result.eligibility?.eligible === false)
+      preview.innerHTML = `<b>${escapeHtml(result.beneficiary)}</b>${history ? `<span>${escapeHtml(result.history_label)}:<br>${history}</span>` : ''}${decision}`
+      preview.hidden = false
+    } catch { preview.hidden = true }
+  }
+
+  nic.addEventListener('blur', checkEligibility)
+  eldersCard.addEventListener('blur', checkEligibility)
+  item?.addEventListener('change', checkEligibility)
 
   /*
   |--------------------------------------------------------------------------

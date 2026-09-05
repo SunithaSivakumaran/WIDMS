@@ -184,7 +184,7 @@ function monitorAge(string $dob): int
     <!-- WIDMS Main CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css"
+        href="assets/css/admin-dashboard.css?v=4"
         rel="stylesheet"
     >
 
@@ -339,6 +339,14 @@ require __DIR__ .
                  REQUEST TABLE
             ========================================================= -->
 
+            <!-- The legend explains the same approval symbols used by every request review role. -->
+            <!-- Match the SSO approval guide so every reviewing role sees one responsive design. -->
+            <div class="approval-legend approval-legend-standalone" aria-label="<?= htmlspecialchars(t('Approval icon meanings'), ENT_QUOTES, 'UTF-8') ?>">
+                <strong class="approval-legend-title"><?= htmlspecialchars(t('Approval guide'), ENT_QUOTES, 'UTF-8') ?></strong>
+                <span>🩺 <?= htmlspecialchars(t('Government Medical Officer'), ENT_QUOTES, 'UTF-8') ?></span><span>🏡 <?= htmlspecialchars(t('Grama Niladhari'), ENT_QUOTES, 'UTF-8') ?></span>
+                <span>🏛 <?= htmlspecialchars(t('Social Services Officer'), ENT_QUOTES, 'UTF-8') ?></span><span>📋 <?= htmlspecialchars(t('Divisional Secretary'), ENT_QUOTES, 'UTF-8') ?></span><span>❌ <?= htmlspecialchars(t('Not approved'), ENT_QUOTES, 'UTF-8') ?></span>
+            </div>
+
             <div class="submitted-table-wrap">
 
                 <table
@@ -358,7 +366,7 @@ require __DIR__ .
                             <th>District</th>
                             <th>DS Division</th>
                             <th>Aid Requested</th>
-                            <th>Lens Power</th>
+                            <th>Beneficiary Information</th>
                             <th>Approvals</th>
                             <th>Submitted By</th>
                             <th>Status</th>
@@ -484,16 +492,14 @@ require __DIR__ .
                                 </td>
 
 
-                                <!-- Lens Power -->
+                                <!-- The submitted field name/value is configured by the Subject Officer for this item. -->
                                 <td>
 
-                                    <?= $r['prescribed_power'] !== null
-                                        ? sprintf(
-                                            '%+.2f',
-                                            (float) $r['prescribed_power']
-                                        )
-                                        : '—'
-                                    ?>
+                                    <?php if (!empty($r['beneficiary_detail_label']) && $r['beneficiary_detail_value'] !== null): ?>
+                                        <small class="request-beneficiary-detail"><?= htmlspecialchars($r['beneficiary_detail_label'], ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars($r['beneficiary_detail_value'], ENT_QUOTES, 'UTF-8') ?></small>
+                                    <?php else: ?>
+                                        —
+                                    <?php endif; ?>
 
                                 </td>
 
@@ -501,12 +507,12 @@ require __DIR__ .
                                 <!-- Official approvals -->
                                 <td>
 
-                                    <?= array_sum([
-                                        (int) $r['medical_officer_approved'],
-                                        (int) $r['grama_niladhari_approved'],
-                                        (int) $r['social_services_approved'],
-                                        (int) $r['divisional_secretary_approved']
-                                    ]) ?> / 4
+                                    <span class="approval-icon-set" title="Official approvals">
+                                        <?= $r['medical_officer_approved'] ? '🩺' : '❌' ?>
+                                        <?= $r['grama_niladhari_approved'] ? '🏡' : '❌' ?>
+                                        <?= $r['social_services_approved'] ? '🏛' : '❌' ?>
+                                        <?= $r['divisional_secretary_approved'] ? '📋' : '❌' ?>
+                                    </span>
 
                                 </td>
 
