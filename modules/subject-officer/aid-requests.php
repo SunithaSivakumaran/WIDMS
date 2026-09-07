@@ -184,7 +184,7 @@ function monitorAge(string $dob): int
     <!-- WIDMS Main CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css?v=4"
+        href="assets/css/admin-dashboard.css?v=24"
         rel="stylesheet"
     >
 
@@ -226,7 +226,7 @@ require __DIR__ .
             >
                 &#9776;
             </button>
-            <h1>Item Request</h1>
+            <h1>Aid Request</h1>
 
         </div>
     </header> 
@@ -349,8 +349,14 @@ require __DIR__ .
 
             <div class="submitted-table-wrap">
 
+                <div class="identification-guide" aria-label="<?= htmlspecialchars(t('Identification guide'), ENT_QUOTES, 'UTF-8') ?>">
+                    <strong><?= htmlspecialchars(t('Identification guide'), ENT_QUOTES, 'UTF-8') ?></strong>
+                    <span class="identification-guide-nic">NIC</span>
+                    <span class="identification-guide-elder"><?= htmlspecialchars(t("Elders' Identity Card"), ENT_QUOTES, 'UTF-8') ?></span>
+                </div>
+
                 <table
-                    class="submitted-table request-review-table"
+                    class="submitted-table request-review-table aid-request-list-table"
                     id="monitor-table"
                 >
 
@@ -359,14 +365,12 @@ require __DIR__ .
                         <tr>
                             <th>ID</th>
                             <th>Beneficiary</th>
-                            <th>NIC</th>
-                            <th>Elders' Identity Card</th>
+                            <th><?= htmlspecialchars(t('Identification'), ENT_QUOTES, 'UTF-8') ?></th>
                             <th>Age</th>
                             <th>Address</th>
                             <th>District</th>
                             <th>DS Division</th>
                             <th>Aid Requested</th>
-                            <th>Beneficiary Information</th>
                             <th>Approvals</th>
                             <th>Submitted By</th>
                             <th>Status</th>
@@ -380,7 +384,7 @@ require __DIR__ .
                     <?php if (!$rows): ?>
 
                         <tr>
-                            <td colspan="14">
+                            <td colspan="12">
                                 No submitted aid requests.
                             </td>
                         </tr>
@@ -417,23 +421,15 @@ require __DIR__ .
                                 </td>
 
 
-                                <!-- NIC -->
-                                <td>
-
-                                    <?= htmlspecialchars(
-                                        $r['nic'] ?: '—'
-                                    ) ?>
-
-                                </td>
-
-
-                                <!-- Elders' Identity Card -->
-                                <td>
-
-                                    <?= htmlspecialchars(
-                                        $r['elders_card_number'] ?: '—'
-                                    ) ?>
-
+                                <!-- NIC appears first and Elder's ID second when both exist. -->
+                                <td class="request-identification-cell">
+                                    <?php if (!empty($r['nic'])): ?>
+                                        <span class="request-identification-value identification-nic"><small>NIC</small><?= htmlspecialchars($r['nic'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($r['elders_card_number'])): ?>
+                                        <span class="request-identification-value identification-elder"><small><?= htmlspecialchars(t("Elders' ID"), ENT_QUOTES, 'UTF-8') ?></small><?= htmlspecialchars($r['elders_card_number'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <?php endif; ?>
+                                    <?php if (empty($r['nic']) && empty($r['elders_card_number'])): ?>—<?php endif; ?>
                                 </td>
 
 
@@ -478,7 +474,11 @@ require __DIR__ .
 
 
                                 <!-- Aid -->
-                                <td>
+                                <td class="request-aid-cell">
+
+                                    <div class="request-aid-content">
+
+                                    <strong class="request-aid-name">
 
                                     <?= htmlspecialchars(
                                         $r['item_name'] .
@@ -489,17 +489,14 @@ require __DIR__ .
                                         )
                                     ) ?>
 
-                                </td>
+                                    </strong>
 
-
-                                <!-- The submitted field name/value is configured by the Subject Officer for this item. -->
-                                <td>
-
-                                    <?php if (!empty($r['beneficiary_detail_label']) && $r['beneficiary_detail_value'] !== null): ?>
-                                        <small class="request-beneficiary-detail"><?= htmlspecialchars($r['beneficiary_detail_label'], ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars($r['beneficiary_detail_value'], ENT_QUOTES, 'UTF-8') ?></small>
-                                    <?php else: ?>
-                                        —
+                                    <!-- Match the SSO layout by keeping details beneath the requested item. -->
+                                    <?php $requestDetails=json_decode((string)($r['beneficiary_details_json']??''),true);if((!is_array($requestDetails)||!$requestDetails)&&!empty($r['beneficiary_detail_label'])&&$r['beneficiary_detail_value']!==null)$requestDetails=[['label'=>$r['beneficiary_detail_label'],'type'=>'text','value'=>$r['beneficiary_detail_value'],'display_value'=>$r['beneficiary_detail_value']]];if(is_array($requestDetails)&&$requestDetails): ?>
+                                        <button type="button" class="request-extra-info-button" data-request-extra-info="<?= htmlspecialchars(json_encode($requestDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>" data-dialog-title="<?= htmlspecialchars(t('Beneficiary Details'),ENT_QUOTES,'UTF-8') ?>" data-close-label="<?= htmlspecialchars(t('Close'),ENT_QUOTES,'UTF-8') ?>"><?= htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8') ?></button>
                                     <?php endif; ?>
+
+                                    </div>
 
                                 </td>
 
@@ -587,7 +584,7 @@ require __DIR__ .
      WIDMS SHARED JAVASCRIPT
 =================================================================== -->
 
-<script src="assets/js/admin-dashboard.js"></script>
+<script src="assets/js/admin-dashboard.js?v=17"></script>
 
 
 

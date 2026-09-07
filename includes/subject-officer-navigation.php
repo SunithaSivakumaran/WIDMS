@@ -10,7 +10,7 @@ return [
         ['icon' => '👓', 'label' => 'Vision Camp / Direct Procurement', 'page' => 'vision-camp'],
         ['icon' => '🔵', 'label' => 'Contact Lens Orders', 'page' => 'contact-lens-orders'],
         ['icon' => '🗃️', 'label' => 'Beneficiaries', 'page' => 'beneficiaries'],
-        ['icon' => '📦', 'label' => 'Distribute Items', 'page' => 'distribute-items'],
+        ['icon' => '📦', 'label' => 'Distribute Aid', 'page' => 'distribute-items'],
         ['icon' => '🔄', 'label' => 'Returns', 'page' => 'returns'],
     ],
     'Requests' => [
@@ -19,7 +19,11 @@ return [
     ],
     'Procurement' => [
         ['icon' => '📦', 'label' => 'Central Stock', 'page' => 'central-stock'],
-        ['icon' => '🏢', 'label' => 'Suppliers', 'page' => 'suppliers'],
+    ],
+    'Supplier Configuration' => [
+        ['icon' => '⚙️', 'label' => 'Register & Allocate', 'page' => 'supplier-config'],
+        ['icon' => '🏢', 'label' => 'Registered Suppliers', 'page' => 'supplier-details'],
+        ['icon' => '📊', 'label' => 'Balance Summary', 'page' => 'supplier-balances'],
     ],
     // Separate builder and register links so officers can enter or review rules directly.
     'Eligibility Configuration' => [

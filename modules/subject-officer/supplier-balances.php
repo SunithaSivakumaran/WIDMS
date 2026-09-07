@@ -1,0 +1,6 @@
+<?php
+declare(strict_types=1);
+
+requireRole('subject-officer');
+$supplierPageMode = 'balances';
+require __DIR__ . '/../../includes/supplier-management-page.php';

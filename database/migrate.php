@@ -17,6 +17,17 @@ $files=[
  'migration_clear_remaining_inventory.sql',
  'migration_service_division_gn_optional.sql',
  'migration_item_beneficiary_details.sql',
+ 'migration_remove_unwanted_seed_items.sql',
+ 'migration_remove_hardcoded_suppliers.sql',
+ 'migration_supplier_validity.sql',
+ 'migration_supplier_deactivation_reason.sql',
+ 'migration_supplier_item_validity.sql',
+ 'migration_supplier_product_deactivation.sql',
+ 'migration_supplier_agreement_history.sql',
+ 'migration_vision_impairment_defaults.sql',
+ 'migration_stock_receipt_power.sql',
+ 'migration_stock_receipt_power_breakdown.sql',
+ 'migration_stock_receipt_check_number.sql',
 ];
 $db=database();
 foreach($files as $file){

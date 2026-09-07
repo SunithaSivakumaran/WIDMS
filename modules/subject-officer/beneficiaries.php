@@ -2,8 +2,7 @@
 declare(strict_types=1); requireRole('subject-officer'); require_once __DIR__.'/../../config/database.php'; require_once __DIR__.'/../../includes/activity.php';
 $activePage='beneficiaries';$errors=[];$success=(string)($_SESSION['flash_success']??'');unset($_SESSION['flash_success']);$districts=$dsDivisions=$gnDivisions=$requests=$beneficiaries=[];
 $values=['district_id'=>'','ds_division_id'=>'','gn_division_id'=>'','full_name'=>'','nic'=>'','date_of_birth'=>'','gender'=>'','phone'=>'','address'=>'','disability'=>''];
-$defaultDisabilityTypes=['Mobility Impairment - Upper Limb','Mobility Impairment - Lower Limb','Visual Impairment','Hearing Impairment','Speech and Language Impairment','Intellectual Disability','Autism Spectrum Disorder','Multiple Disabilities','Other'];
-try{$disabilityTypes=database()->query("SELECT name FROM disability_types WHERE status='active' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);}catch(PDOException $e){error_log($e->getMessage());$disabilityTypes=$defaultDisabilityTypes;}
+try{$disabilityTypes=database()->query("SELECT name FROM disability_types WHERE status='active' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);}catch(PDOException $e){error_log($e->getMessage());$disabilityTypes=[];$errors[]='Disability types are temporarily unavailable. Please try again shortly.';}
 if($_SERVER['REQUEST_METHOD']==='POST'){
  foreach(array_keys($values) as $key)$values[$key]=trim((string)($_POST[$key]??''));
  $districtId=filter_var($values['district_id'],FILTER_VALIDATE_INT);$dsId=filter_var($values['ds_division_id'],FILTER_VALIDATE_INT);$gnId=filter_var($values['gn_division_id'],FILTER_VALIDATE_INT);

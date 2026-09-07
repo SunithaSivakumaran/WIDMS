@@ -24,6 +24,9 @@ document.body.appendChild(reasonDialog);
 let activeTrigger = null;
 const reasonInput = reasonDialog.querySelector('textarea');
 const reasonError = reasonDialog.querySelector('.reason-dialog-error');
+const reasonLabel = reasonDialog.querySelector('.reason-dialog-label');
+const cancelButton = reasonDialog.querySelector('.reason-dialog-cancel');
+const confirmButton = reasonDialog.querySelector('.reason-dialog-confirm');
 
 // Close explicitly because dynamically created dialog forms behave differently across browsers.
 function closeReasonDialog() {
@@ -39,12 +42,18 @@ reasonDialog.addEventListener('cancel', (event) => {
     event.preventDefault();
     closeReasonDialog();
 });
+reasonDialog.addEventListener('click', (event) => {
+    if (event.target === reasonDialog) closeReasonDialog();
+});
 
 document.querySelectorAll('[data-reason-trigger]').forEach((trigger) => {
     trigger.addEventListener('click', () => {
         activeTrigger = trigger;
         reasonDialog.querySelector('h2').textContent = trigger.dataset.dialogTitle;
-        reasonDialog.querySelector('.reason-dialog-confirm').textContent = trigger.dataset.dialogConfirm;
+        confirmButton.textContent = trigger.dataset.dialogConfirm;
+        reasonLabel.textContent = trigger.dataset.reasonLabel || 'Reason';
+        reasonError.textContent = trigger.dataset.reasonRequired || 'A reason is required.';
+        cancelButton.textContent = trigger.dataset.cancelLabel || 'Cancel';
         reasonInput.value = '';
         reasonError.hidden = true;
         reasonDialog.showModal();
@@ -52,7 +61,7 @@ document.querySelectorAll('[data-reason-trigger]').forEach((trigger) => {
     });
 });
 
-reasonDialog.querySelector('.reason-dialog-confirm').addEventListener('click', () => {
+confirmButton.addEventListener('click', () => {
     const reason = reasonInput.value.trim();
     if (reason === '') {
         reasonError.hidden = false;

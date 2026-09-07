@@ -43,7 +43,7 @@ try {
     $itemsToDispatch = count($pendingDispatches);
 
     $receiptStatement = database()->prepare(
-        'SELECT r.id, r.quantity, r.created_at, s.company_name, i.item_name, i.variety
+        'SELECT r.id, r.quantity, r.power, r.created_at, s.company_name, i.item_name, i.variety
          FROM stock_receipts r JOIN suppliers s ON s.id = r.supplier_id JOIN inventory_items i ON i.id = r.item_id
          WHERE r.received_by = :user_id ORDER BY r.created_at DESC LIMIT 10'
     );
@@ -52,11 +52,12 @@ try {
         $recentActivities[] = [
             'created_at' => $receipt['created_at'],
             'action' => sprintf(
-                'Batch BAT-%04d recorded — %d %s%s from %s',
+                'Batch BAT-%04d recorded — %d %s%s%s from %s',
                 $receipt['id'],
                 $receipt['quantity'],
                 $receipt['item_name'],
                 $receipt['variety'] !== '' ? ' (' . $receipt['variety'] . ')' : '',
+                isset($receipt['power']) && $receipt['power'] !== null ? ' at ' . sprintf('%+.2f', (float) $receipt['power']) : '',
                 $receipt['company_name']
             ),
             'by' => 'Me',

@@ -24,15 +24,5 @@ ON DUPLICATE KEY UPDATE
     setting_group = VALUES(setting_group),
     description = VALUES(description);
 
-INSERT INTO suppliers (company_name) VALUES
-('ABC Medical Co. Ltd'),
-('Vision Care Co. Ltd'),
-('HealthTech Pvt Ltd')
-ON DUPLICATE KEY UPDATE company_name = VALUES(company_name);
-
-INSERT INTO inventory_items (item_name, category, variety) VALUES
-('Wheelchair', 'Mobility Aid', 'Standard'),
-('Glasses', 'Vision Aid', 'Standard'),
-('Hearing Aid', 'Medical Aid', 'Behind-the-ear'),
-('Crutches', 'Mobility Aid', 'Adjustable')
-ON DUPLICATE KEY UPDATE category = VALUES(category);
+-- Default inventory items are intentionally not seeded. Subject Officers create
+-- the live disability aid items and their eligibility rules in the application.

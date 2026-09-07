@@ -48,13 +48,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Select a valid disability type.';
         } else {
             try {
+                $statement = database()->prepare('SELECT is_system FROM disability_types WHERE id=:id');
+                $statement->execute(['id' => $disabilityId]);
+                if ((int) $statement->fetchColumn() === 1) {
+                    throw new RuntimeException('Built-in disability types cannot be deactivated.');
+                }
                 $statement = database()->prepare("UPDATE disability_types SET status=IF(status='active','inactive','active') WHERE id=:id");
                 $statement->execute(['id' => $disabilityId]);
                 header('Location: dashboard.php?page=system-config&saved=1#disability-types');
                 exit;
-            } catch (PDOException $exception) {
+            } catch (Throwable $exception) {
                 error_log($exception->getMessage());
-                $error = 'Unable to update the disability type.';
+                $error = $exception instanceof RuntimeException ? $exception->getMessage() : 'Unable to update the disability type.';
             }
         }
     } elseif (!isset($allowedSettings[$key])) {
@@ -102,7 +107,7 @@ try {
     foreach ($rows as $row) {
         $settings[$row['setting_group']][] = $row;
     }
-    $disabilityTypes = database()->query("SELECT id,name,status FROM disability_types ORDER BY status='active' DESC,name")->fetchAll();
+    $disabilityTypes = database()->query("SELECT id,name,status,is_system FROM disability_types ORDER BY is_system DESC,status='active' DESC,name")->fetchAll();
 } catch (PDOException $exception) {
     error_log($exception->getMessage());
     $error = 'Unable to load system settings. Make sure MySQL is running.';
@@ -142,7 +147,7 @@ function renderSetting(array $setting): void
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>System Configuration | WIDMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=38" rel="stylesheet">
 </head>
 <body>
     <?php require __DIR__ . '/../../includes/admin-sidebar.php'; ?>
@@ -162,7 +167,7 @@ function renderSetting(array $setting): void
         <main class="dashboard-content config-page">
             <div class="config-warning">⚠️ These settings affect system-wide behavior. Changes take effect immediately without redeployment.</div>
             <?php if ($success): ?><div class="config-success" role="status">Setting saved successfully.</div><?php endif; ?>
-            <?php if ($error !== ''): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+            <?php if ($error !== ''): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars(t($error), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
 
             <div class="config-grid">
                 <section class="config-card">
@@ -193,12 +198,16 @@ function renderSetting(array $setting): void
                         <?php if ($disabilityTypes === []): ?><p class="dashboard-empty-state">No disability types configured.</p><?php else: foreach ($disabilityTypes as $type): ?>
                             <div class="disability-type-row">
                                 <span><?= htmlspecialchars($type['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                <?php if ((int) $type['is_system'] === 1): ?>
+                                    <span class="disability-status active"><?= htmlspecialchars(t('Built-in'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <?php else: ?>
                                 <form method="post" action="dashboard.php?page=system-config#disability-types">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                     <input type="hidden" name="action" value="toggle-disability">
                                     <input type="hidden" name="disability_id" value="<?= (int) $type['id'] ?>">
                                     <button type="submit" class="disability-status <?= $type['status'] === 'active' ? 'active' : 'inactive' ?>"><?= $type['status'] === 'active' ? 'Active' : 'Inactive' ?></button>
                                 </form>
+                                <?php endif; ?>
                             </div>
                         <?php endforeach; endif; ?>
                     </div>

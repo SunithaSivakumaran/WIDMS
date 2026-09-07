@@ -17,9 +17,11 @@ $adminPages = [
     'vision-camp-requests' => __DIR__ . '/../modules/admin/vision-camp-requests.php',
     'contact-lens-orders' => __DIR__ . '/../modules/admin/contact-lens-orders.php',
     'item-requests' => __DIR__ . '/../modules/admin/item-requests.php',
-    'beneficiaries' => __DIR__ . '/../modules/admin/beneficiaries.php',
     'central-stock' => __DIR__ . '/../modules/admin/central-stock.php',
     'suppliers' => __DIR__ . '/../modules/admin/suppliers.php',
+    'supplier-config' => __DIR__ . '/../modules/admin/suppliers.php',
+    'supplier-details' => __DIR__ . '/../modules/admin/supplier-details.php',
+    'supplier-balances' => __DIR__ . '/../modules/admin/supplier-balances.php',
     'payments' => __DIR__ . '/../modules/admin/payments.php',
     'officer-pools' => __DIR__ . '/../modules/admin/officer-pools.php',
     'reports' => __DIR__ . '/../modules/admin/reports.php',
@@ -52,6 +54,9 @@ $subjectOfficerPages = [
     'correction-approval' => __DIR__ . '/../modules/admin/correction-requests.php',
     'central-stock' => __DIR__ . '/../modules/subject-officer/workspace.php',
     'suppliers' => __DIR__ . '/../modules/subject-officer/suppliers.php',
+    'supplier-config' => __DIR__ . '/../modules/subject-officer/suppliers.php',
+    'supplier-details' => __DIR__ . '/../modules/subject-officer/supplier-details.php',
+    'supplier-balances' => __DIR__ . '/../modules/subject-officer/supplier-balances.php',
     // Separate rule building from rule review so each workflow has a focused page.
     'eligibility-rules' => __DIR__ . '/../modules/subject-officer/eligibility-rules.php',
     'item-categories' => __DIR__ . '/../modules/subject-officer/item-categories.php',
@@ -66,6 +71,7 @@ $requestedPage = (string) ($_GET['page'] ?? 'dashboard');
 $storeKeeperPages = [
     'dashboard' => __DIR__ . '/../modules/store-keeper/dashboard.php',
     'receive-items' => __DIR__ . '/../modules/store-keeper/receive-items.php',
+    'receipt-history' => __DIR__ . '/../modules/store-keeper/receipt-history.php',
     'current-stock' => __DIR__ . '/../modules/store-keeper/current-stock.php',
     'correction-requests' => __DIR__ . '/../modules/store-keeper/correction-requests.php',
     'approved-dispatches' => __DIR__ . '/../modules/store-keeper/approved-dispatches.php',
@@ -96,4 +102,8 @@ if ($language !== 'en') {
     $dashboardHtml = str_replace('</body>', widmsUiTranslationAssetsHtml() . '</body>', $dashboardHtml);
 }
 
+// Delegated fallback for every dashboard module: it also works when a module
+// serves an older cached copy of the shared JavaScript bundle.
+$alertDismissFallback = '<script>(function(){document.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest(".notification-close"):null;if(!b)return;var n=b.closest(".alert-success,.alert-danger");if(n){e.preventDefault();e.stopPropagation();n.hidden=true;n.style.display="none";if(n.parentNode)n.parentNode.removeChild(n);}},true);}());</script>';
+$dashboardHtml = str_replace('</body>', $alertDismissFallback . '</body>', $dashboardHtml);
 echo $dashboardHtml;

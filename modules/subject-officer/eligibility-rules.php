@@ -37,12 +37,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $db->beginTransaction();
             $statement = $db->prepare(
-                'SELECT item_id FROM disability_aid_items WHERE id=:id FOR UPDATE'
+                'SELECT item_id,is_system FROM disability_aid_items WHERE id=:id FOR UPDATE'
             );
             $statement->execute(['id' => $ruleId]);
-            $itemId = (int) $statement->fetchColumn();
-            if (!$itemId) {
+            $ruleRecord = $statement->fetch();
+            $itemId = (int) ($ruleRecord['item_id'] ?? 0);
+            if (!$ruleRecord || !$itemId) {
                 throw new RuntimeException('The selected rule no longer exists.');
+            }
+            if ((int) $ruleRecord['is_system'] === 1) {
+                throw new RuntimeException('Built-in aid items cannot be deleted.');
             }
 
             // Permanently remove the rule while retaining inventory referenced by historical records.
@@ -89,6 +93,7 @@ try {
     $rules = $db->query(
         "SELECT dai.id,
                 dai.item_id,
+                dai.is_system,
                 dai.restriction_months,
                 dt.name AS disability_name,
                 i.item_name,
@@ -116,7 +121,7 @@ try {
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Configured Eligibility Rules | WIDMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=38" rel="stylesheet">
 </head>
 <body>
 <?php require __DIR__ . '/../../includes/subject-officer-sidebar.php'; ?>
@@ -170,12 +175,16 @@ try {
                                 <td>
                                     <div class="rule-row-actions">
                                         <a class="outline-action" href="dashboard.php?page=edit-aid-rule&amp;rule_id=<?= (int) $rule['id'] ?>">Edit</a>
+                                        <?php if ((int) $rule['is_system'] !== 1): ?>
                                         <form method="post" onsubmit="return confirm('<?= htmlspecialchars(t('Delete this eligibility rule permanently?'), ENT_QUOTES, 'UTF-8') ?>')">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                             <input type="hidden" name="action" value="delete-rule">
                                             <input type="hidden" name="rule_id" value="<?= (int) $rule['id'] ?>">
                                             <button class="reject-button" type="submit">Delete</button>
                                         </form>
+                                        <?php else: ?>
+                                            <span class="disability-system-badge"><?= htmlspecialchars(t('Built-in'), ENT_QUOTES, 'UTF-8') ?></span>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

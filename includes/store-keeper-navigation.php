@@ -6,7 +6,8 @@ return [
         ['icon' => '📊', 'label' => 'Dashboard', 'page' => 'dashboard'],
     ],
     'Inventory' => [
-        ['icon' => '📥', 'label' => 'Receive Items', 'page' => 'receive-items'],
+        ['icon' => '📥', 'label' => 'Receive Aid', 'page' => 'receive-items'],
+        ['icon' => '🧾', 'label' => 'Receipt History', 'page' => 'receipt-history'],
         ['icon' => '📦', 'label' => 'Current Stock', 'page' => 'current-stock'],
     ],
     'Dispatch' => [

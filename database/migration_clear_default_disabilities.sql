@@ -12,12 +12,13 @@ SET @clear_default_disabilities := NOT EXISTS (
 );
 
 -- Remove dependent rules first while preserving users, beneficiaries, and geography.
-DELETE p FROM disability_item_prohibitions p
-JOIN disability_aid_items dai ON dai.id=p.disability_aid_item_id
-WHERE @clear_default_disabilities=1;
-
-DELETE FROM disability_aid_items WHERE @clear_default_disabilities=1;
-DELETE FROM disability_types WHERE @clear_default_disabilities=1;
+-- Default disability seed data is disabled; Subject Officers manage the live disability list.
+-- DELETE p FROM disability_item_prohibitions p
+-- JOIN disability_aid_items dai ON dai.id=p.disability_aid_item_id
+-- WHERE @clear_default_disabilities=1;
+--
+-- DELETE FROM disability_aid_items WHERE @clear_default_disabilities=1;
+-- DELETE FROM disability_types WHERE @clear_default_disabilities=1;
 
 INSERT IGNORE INTO widms_data_migrations (migration_key)
 VALUES ('2026-09-clear-default-disabilities');

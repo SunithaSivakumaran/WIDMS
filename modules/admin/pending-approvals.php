@@ -168,7 +168,7 @@ try {
         <div class="approval-tabs" role="tablist" aria-label="Approval categories">
             <button class="approval-tab active" type="button" role="tab" data-tab="registrations" aria-selected="true">User Registrations <span class="tab-count red"><?= count($registrations) ?></span></button>
             <!-- These queues already have complete pages, so navigation is clearer than empty placeholder panels. -->
-            <a class="approval-tab" href="dashboard.php?page=item-requests">Item Requests <span class="tab-count yellow"><?= $pendingItemRequests ?></span></a>
+        <a class="approval-tab" href="dashboard.php?page=item-requests&amp;view=pending">Pending Aid Requests <span class="tab-count yellow"><?= $pendingItemRequests ?></span></a>
             <a class="approval-tab" href="dashboard.php?page=goods-requests">Stock Release <span class="tab-count yellow"><?= $pendingStockReleases ?></span></a>
         </div>
         <section class="approval-tab-panel active" data-panel="registrations">

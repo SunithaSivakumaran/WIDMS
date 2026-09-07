@@ -27,7 +27,7 @@ $profileImage = !empty($_SESSION['profile_image']) ? htmlspecialchars((string) $
         <?php foreach ($navigation as $section => $items): ?>
             <p class="nav-heading"><?= htmlspecialchars(t($section), ENT_QUOTES, 'UTF-8') ?></p>
             <?php foreach ($items as $item): ?>
-                <a href="<?= in_array($item['page'], ['dashboard', 'receive-items', 'current-stock', 'correction-requests', 'approved-dispatches', 'recent-dispatches'], true) ? 'dashboard.php' . ($item['page'] === 'dashboard' ? '' : '?page=' . urlencode($item['page'])) : '#' ?>"
+                <a href="<?= in_array($item['page'], ['dashboard', 'receive-items', 'receipt-history', 'current-stock', 'correction-requests', 'approved-dispatches', 'recent-dispatches'], true) ? 'dashboard.php' . ($item['page'] === 'dashboard' ? '' : '?page=' . urlencode($item['page'])) : '#' ?>"
                    class="nav-link<?= $item['page'] === $activePage ? ' active' : '' ?>">
                     <span class="nav-icon" aria-hidden="true"><?= $item['icon'] ?></span>
                     <span><?= htmlspecialchars(t($item['label']), ENT_QUOTES, 'UTF-8') ?></span>

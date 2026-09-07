@@ -92,6 +92,7 @@ $v = [
     'item_id' => '',
     'quantity' => '1',
     'beneficiary_detail_value' => '',
+    'beneficiary_details_json' => '',
     'prescribed_power' => '',
     'notes' => '',
 ];
@@ -107,27 +108,6 @@ $useNicSelected = false;
 $useEldersCardSelected = false;
 
 $editingRequestId = filter_input(INPUT_GET, 'edit_request_id', FILTER_VALIDATE_INT) ?: 0;
-
-
-/*
-|--------------------------------------------------------------------------
-| 6. DEFAULT DISABILITY TYPES
-|--------------------------------------------------------------------------
-| These are used if the disability_types database table cannot be read.
-|--------------------------------------------------------------------------
-*/
-
-$defaultDisabilityTypes = [
-    'Mobility Impairment - Upper Limb',
-    'Mobility Impairment - Lower Limb',
-    'Visual Impairment',
-    'Hearing Impairment',
-    'Speech and Language Impairment',
-    'Intellectual Disability',
-    'Autism Spectrum Disorder',
-    'Multiple Disabilities',
-    'Other',
-];
 
 
 /*
@@ -149,8 +129,8 @@ try {
 
     error_log($e->getMessage());
 
-    // Use default values if database values cannot be loaded.
-    $disabilityTypes = $defaultDisabilityTypes;
+    $disabilityTypes = [];
+    $errors[] = 'Disability types are temporarily unavailable. Please try again shortly.';
 }
 
 /*
@@ -193,6 +173,7 @@ if ($showRequestForm && $editingRequestId) {
             'item_id' => (string) $editRequest['item_id'],
             'quantity' => (string) $editRequest['quantity'],
             'beneficiary_detail_value' => (string) ($editRequest['beneficiary_detail_value'] ?? ''),
+            'beneficiary_details_json' => (string) ($editRequest['beneficiary_details_json'] ?? ''),
             'prescribed_power' => (string) ($editRequest['prescribed_power'] ?? ''),
             'notes' => (string) ($editRequest['notes'] ?? ''),
         ];
@@ -670,6 +651,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     i.*,
                     c.name category_name,
                     c.distribution_type,
+                    dai.id eligibility_rule_id,
                     dai.beneficiary_field_label,
                     dai.beneficiary_field_type
 
@@ -708,23 +690,131 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             }
 
 
-            /* The Subject Officer, not a hard-coded item name, controls whether this value is required. */
-            $detailLabel = trim((string) ($aid['beneficiary_field_label'] ?? ''));
-            $detailType = (string) ($aid['beneficiary_field_type'] ?? 'text');
-            $detailValue = trim($v['beneficiary_detail_value']);
-            if ($detailLabel !== '') {
-                if ($detailValue === '') {
-                    throw new RuntimeException($detailLabel . ' is required for the selected aid item.');
-                }
-                if ($detailType === 'number' && !is_numeric($detailValue)) {
-                    throw new RuntimeException($detailLabel . ' must be a number.');
-                }
-                if (mb_strlen($detailValue) > 255) {
-                    throw new RuntimeException($detailLabel . ' must not exceed 255 characters.');
-                }
-            } else {
-                $detailValue = null;
+            // The Subject Officer's configured field list controls all required values and images.
+            $fieldQuery = $db->prepare(
+                'SELECT id, field_label, field_type
+                 FROM disability_aid_item_fields
+                 WHERE disability_aid_item_id = :rule
+                 ORDER BY display_order, id'
+            );
+            $fieldQuery->execute(['rule' => (int) $aid['eligibility_rule_id']]);
+            $detailFields = $fieldQuery->fetchAll();
+            $submittedDetails = [];
+            $detailLabel = null;
+            $detailValue = null;
+            $previousDetails = [];
+
+            if ($editingRequestId) {
+                $previousQuery = $db->prepare(
+                    'SELECT beneficiary_details_json
+                     FROM aid_requests
+                     WHERE id = :id AND submitted_by = :user'
+                );
+                $previousQuery->execute(['id' => $editingRequestId, 'user' => $userId]);
+                $previousDetails = json_decode((string) $previousQuery->fetchColumn(), true) ?: [];
             }
+
+            foreach ($detailFields as $fieldIndex => $configuredField) {
+                $fieldId = (int) $configuredField['id'];
+                $fieldKey = (string) $fieldId;
+                $fieldLabel = (string) $configuredField['field_label'];
+                $fieldType = (string) $configuredField['field_type'];
+                $fieldValue = '';
+                $displayValue = '';
+
+                // Match existing values by stable field ID. Older requests did
+                // not contain it, so retain label/type and position fallbacks.
+                $previous = [];
+                foreach ($previousDetails as $candidate) {
+                    if (!is_array($candidate)) {
+                        continue;
+                    }
+                    $sameId = (int) ($candidate['field_id'] ?? 0) === $fieldId;
+                    $sameLegacyField =
+                        !isset($candidate['field_id']) &&
+                        (string) ($candidate['label'] ?? '') === $fieldLabel &&
+                        (string) ($candidate['type'] ?? 'text') === $fieldType;
+                    if ($sameId || $sameLegacyField) {
+                        $previous = $candidate;
+                        break;
+                    }
+                }
+                if (!$previous && isset($previousDetails[$fieldIndex]) && is_array($previousDetails[$fieldIndex])) {
+                    $previous = $previousDetails[$fieldIndex];
+                }
+
+                if (in_array($fieldType, ['image', 'pdf'], true)) {
+                    $upload = $_FILES['beneficiary_documents'] ?? null;
+                    $error = $upload['error'][$fieldKey] ?? UPLOAD_ERR_NO_FILE;
+                    if ($error === UPLOAD_ERR_NO_FILE &&
+                        ($previous['type'] ?? '') === $fieldType &&
+                        !empty($previous['value'])) {
+                        $fieldValue = (string) $previous['value'];
+                        $displayValue = (string) ($previous['display_value'] ?? $fieldValue);
+                    } else {
+                        if ($error !== UPLOAD_ERR_OK) {
+                            throw new RuntimeException($fieldLabel . ' file is required for the selected aid item.');
+                        }
+                        if ((int) ($upload['size'][$fieldKey] ?? 0) > 5 * 1024 * 1024) {
+                            throw new RuntimeException($fieldLabel . ' file must be 5 MB or smaller.');
+                        }
+                        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name'][$fieldKey]);
+                        $extensions = $fieldType === 'pdf'
+                            ? ['application/pdf' => 'pdf']
+                            : ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+                        if (!isset($extensions[$mime])) {
+                            throw new RuntimeException(
+                                $fieldLabel . ($fieldType === 'pdf'
+                                    ? ' must be a PDF document.'
+                                    : ' must be a JPG, PNG, or WebP image.')
+                            );
+                        }
+                        $directory = __DIR__ . '/../../public/uploads/aid-documents';
+                        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+                            throw new RuntimeException('The aid-document folder could not be created.');
+                        }
+                        $filename = 'aid-' . bin2hex(random_bytes(12)) . '.' . $extensions[$mime];
+                        if (!move_uploaded_file($upload['tmp_name'][$fieldKey], $directory . '/' . $filename)) {
+                            throw new RuntimeException($fieldLabel . ' file could not be saved.');
+                        }
+                        $fieldValue = 'uploads/aid-documents/' . $filename;
+                        $displayValue = (string) ($upload['name'][$fieldKey] ?? $filename);
+                    }
+                } else {
+                    $fieldValue = trim((string) ($_POST['beneficiary_details'][$fieldKey] ?? ''));
+                    if ($fieldValue === '') {
+                        throw new RuntimeException($fieldLabel . ' is required for the selected aid item.');
+                    }
+                    if ($fieldType === 'number' && !is_numeric($fieldValue)) {
+                        throw new RuntimeException($fieldLabel . ' must be a number.');
+                    }
+                    // Optical power must retain an explicit positive or
+                    // negative sign wherever the beneficiary value appears.
+                    if ($fieldType === 'number' && mb_strtolower(trim($fieldLabel)) === 'power') {
+                        $fieldValue = sprintf('%+.2f', (float) $fieldValue);
+                    }
+                    if ($fieldType === 'date' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fieldValue)) {
+                        throw new RuntimeException($fieldLabel . ' must be a valid date.');
+                    }
+                    if (mb_strlen($fieldValue) > 255) {
+                        throw new RuntimeException($fieldLabel . ' must not exceed 255 characters.');
+                    }
+                    $displayValue = $fieldValue;
+                }
+
+                $submittedDetails[] = [
+                    'field_id' => $fieldId,
+                    'label' => $fieldLabel,
+                    'type' => $fieldType,
+                    'value' => $fieldValue,
+                    'display_value' => $displayValue,
+                ];
+                if ($fieldIndex === 0) {
+                    $detailLabel = $fieldLabel;
+                    $detailValue = $displayValue;
+                }
+            }
+            $detailsJson=$submittedDetails?json_encode($submittedDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES):null;
 
             // Legacy power remains unused for newly configured items; their value is stored generically.
             $power = null;
@@ -736,6 +826,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             */
 
             $beneficiary = 0;
+
+            // Keep an edit attached to its original beneficiary. Identifiers
+            // that already exist are permanent; a missing second identifier
+            // can still be added to the same beneficiary.
+            if ($editingRequestId) {
+                $editingBeneficiary = $db->prepare(
+                    "SELECT b.id, b.nic, b.elders_card_number
+                     FROM aid_requests ar
+                     JOIN beneficiaries b ON b.id = ar.beneficiary_id
+                     WHERE ar.id = :request AND ar.submitted_by = :user
+                       AND ar.status IN ('draft', 'pending')
+                     FOR UPDATE"
+                );
+                $editingBeneficiary->execute([
+                    'request' => $editingRequestId,
+                    'user' => $userId,
+                ]);
+                $savedIdentification = $editingBeneficiary->fetch();
+                if (!$savedIdentification) {
+                    throw new RuntimeException('This aid request can no longer be edited.');
+                }
+
+                $beneficiary = (int) $savedIdentification['id'];
+                if (!empty($savedIdentification['nic'])) {
+                    $nic = (string) $savedIdentification['nic'];
+                    $useNic = true;
+                }
+                if (!empty($savedIdentification['elders_card_number'])) {
+                    $eldersCardNumber = (string) $savedIdentification['elders_card_number'];
+                    $useEldersCard = true;
+                }
+
+                // A newly added identifier must not already belong to a
+                // different beneficiary record.
+                if (empty($savedIdentification['nic']) && $useNic && $nic !== null) {
+                    $identifierConflict = $db->prepare(
+                        'SELECT id FROM beneficiaries
+                         WHERE nic = :value AND id <> :beneficiary
+                         LIMIT 1 FOR UPDATE'
+                    );
+                    $identifierConflict->execute([
+                        'value' => $nic,
+                        'beneficiary' => $beneficiary,
+                    ]);
+                    if ($identifierConflict->fetchColumn()) {
+                        throw new RuntimeException(
+                            'This NIC already belongs to another beneficiary.'
+                        );
+                    }
+                }
+                if (empty($savedIdentification['elders_card_number']) &&
+                    $useEldersCard &&
+                    $eldersCardNumber !== null) {
+                    $identifierConflict = $db->prepare(
+                        'SELECT id FROM beneficiaries
+                         WHERE elders_card_number = :value AND id <> :beneficiary
+                         LIMIT 1 FOR UPDATE'
+                    );
+                    $identifierConflict->execute([
+                        'value' => $eldersCardNumber,
+                        'beneficiary' => $beneficiary,
+                    ]);
+                    if ($identifierConflict->fetchColumn()) {
+                        throw new RuntimeException(
+                            'This Elder\'s Identity Card already belongs to another beneficiary.'
+                        );
+                    }
+                }
+            }
 
     $conditions = [];
     $params = [];
@@ -812,6 +971,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                         ds_division_id = :ds,
                         gn_division_id = :gn,
                         full_name = :name,
+                        nic = :nic,
+                        elders_card_number = :elders_card,
                         date_of_birth = :dob,
                         gender = :gender,
                         phone = :phone,
@@ -832,6 +993,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
 
                     'name' =>
                         $v['full_name'],
+
+                    'nic' =>
+                        $nic,
+
+                    'elders_card' =>
+                        $eldersCardNumber,
 
                     'dob' =>
                         $v['date_of_birth'],
@@ -1026,7 +1193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                          quantity = :qty, disability_notes = :disability,
                          prescribed_power = :power,
                          beneficiary_detail_label = :detail_label,
-                         beneficiary_detail_value = :detail_value, notes = :notes,
+                         beneficiary_detail_value = :detail_value,
+                         beneficiary_details_json = :details_json, notes = :notes,
                          medical_officer_approved = :medical,
                          grama_niladhari_approved = :gn,
                          social_services_approved = :social,
@@ -1043,6 +1211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     'power' => $power,
                     'detail_label' => $detailLabel ?: null,
                     'detail_value' => $detailValue,
+                    'details_json' => $detailsJson,
                     'notes' => $v['notes'] ?: null,
                     'medical' => (int) $signoffs['medical_officer'],
                     'gn' => (int) $signoffs['grama_niladhari'],
@@ -1064,6 +1233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     prescribed_power,
                     beneficiary_detail_label,
                     beneficiary_detail_value,
+                    beneficiary_details_json,
                     notes,
                     medical_officer_approved,
                     grama_niladhari_approved,
@@ -1081,6 +1251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     :power,
                     :detail_label,
                     :detail_value,
+                    :details_json,
                     :notes,
                     :medical,
                     :gn,
@@ -1111,6 +1282,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
 
                 'detail_value' =>
                     $detailValue,
+
+                'details_json' =>
+                    $detailsJson,
 
                 'notes' =>
                     $v['notes'] ?: null,
@@ -1363,7 +1537,7 @@ try {
 
     // Only items configured for an active disability appear in the request form.
     $aidTypes = $db->query(
-        "SELECT i.id,i.item_name,i.variety,dt.name disability_name,
+        "SELECT i.id,i.item_name,i.variety,dt.name disability_name,dai.id eligibility_rule_id,
                 dai.beneficiary_field_label,dai.beneficiary_field_type
          FROM disability_aid_items dai
          JOIN disability_types dt ON dt.id=dai.disability_type_id AND dt.status='active'
@@ -1371,6 +1545,26 @@ try {
          WHERE dai.status='active'
          ORDER BY dt.name,i.item_name,i.variety"
     )->fetchAll();
+    $fieldRows = $db->query(
+        'SELECT id, disability_aid_item_id, field_label, field_type
+         FROM disability_aid_item_fields
+         ORDER BY disability_aid_item_id, display_order, id'
+    )->fetchAll();
+    $fieldsByRule = [];
+    foreach ($fieldRows as $fieldRow) {
+        $fieldsByRule[(int) $fieldRow['disability_aid_item_id']][] = [
+            'id' => (int) $fieldRow['id'],
+            'label' => $fieldRow['field_label'],
+            'type' => $fieldRow['field_type'],
+        ];
+    }
+    foreach ($aidTypes as &$aidType) {
+        $aidType['beneficiary_fields'] = json_encode(
+            $fieldsByRule[(int) $aidType['eligibility_rule_id']] ?? [],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+    }
+    unset($aidType);
 
 
     /*
@@ -1391,6 +1585,7 @@ try {
             ar.*,
             b.full_name,
             b.nic,
+            b.elders_card_number,
             b.date_of_birth,
             d.name district_name,
             ds.name division_name,
@@ -1571,7 +1766,7 @@ function requestSubmitted(string $date): string
     <!-- WIDMS main dashboard CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css?v=11"
+        href="assets/css/admin-dashboard.css?v=24"
         rel="stylesheet"
     >
 
@@ -1666,6 +1861,7 @@ require $subject
 
             <form
                 method="post"
+                enctype="multipart/form-data"
                 class="aid-request-form"
                 id="aid-request-form"
                 data-identification-required="<?= htmlspecialchars(t("Please select NIC or Elders' Identity Card."), ENT_QUOTES, 'UTF-8') ?>"
@@ -1685,6 +1881,7 @@ require $subject
                     name="csrf_token"
                     value="<?= htmlspecialchars(csrfToken()) ?>"
                 >
+                <input type="hidden" id="existing-beneficiary-details" name="beneficiary_details_json" value="<?= htmlspecialchars($v['beneficiary_details_json'], ENT_QUOTES, 'UTF-8') ?>" data-legacy-value="<?= htmlspecialchars($v['beneficiary_detail_value'], ENT_QUOTES, 'UTF-8') ?>">
 
 
                 <!-- ====================================================
@@ -1879,27 +2076,39 @@ require $subject
                             <div class="aid-identification-options">
 
                                 <label class="aid-identification-choice">
+                                    <?php if ($editingRequestId && $v['nic'] !== ''): ?>
+                                        <input type="hidden" name="use_nic" value="1">
+                                    <?php endif; ?>
                                     <input
                                         type="checkbox"
                                         id="use_nic"
                                         name="use_nic"
                                         <?= $useNicSelected ? 'checked' : '' ?>
+                                        <?= $editingRequestId && $v['nic'] !== '' ? 'disabled aria-disabled="true"' : '' ?>
                                     >
                                     <span>NIC</span>
                                 </label>
 
 
                                 <label class="aid-identification-choice">
+                                    <?php if ($editingRequestId && $v['elders_card_number'] !== ''): ?>
+                                        <input type="hidden" name="use_elders_card" value="1">
+                                    <?php endif; ?>
                                     <input
                                         type="checkbox"
                                         id="use_elders_card"
                                         name="use_elders_card"
                                         <?= $useEldersCardSelected ? 'checked' : '' ?>
+                                        <?= $editingRequestId && $v['elders_card_number'] !== '' ? 'disabled aria-disabled="true"' : '' ?>
                                     >
                                     <span><?= htmlspecialchars(t("Elders' Identity Card"), ENT_QUOTES, 'UTF-8') ?></span>
                                 </label>
 
                             </div>
+
+                            <?php if ($editingRequestId && ($v['nic'] !== '' || $v['elders_card_number'] !== '')): ?>
+                                <small class="identification-lock-help"><?= htmlspecialchars(t('Saved identification cannot be removed. You can still add the other identification type.'), ENT_QUOTES, 'UTF-8') ?></small>
+                            <?php endif; ?>
 
 
                             <small
@@ -1929,6 +2138,7 @@ require $subject
                                     value="<?= old('nic') ?>"
                                     maxlength="20"
                                     placeholder="<?= htmlspecialchars(t('e.g. 901234567V or 199012345678'), ENT_QUOTES, 'UTF-8') ?>"
+                                    <?= $editingRequestId && $v['nic'] !== '' ? 'readonly' : '' ?>
                                 >
                             </label>
 
@@ -1948,6 +2158,7 @@ require $subject
                                     value="<?= old('elders_card_number') ?>"
                                     maxlength="30"
                                     placeholder="<?= htmlspecialchars(t("Enter Elders' Identity Card number"), ENT_QUOTES, 'UTF-8') ?>"
+                                    <?= $editingRequestId && $v['elders_card_number'] !== '' ? 'readonly' : '' ?>
                                 >
                             </label>
 
@@ -2155,8 +2366,7 @@ require $subject
 
                                         value="<?= (int) ($i['id'] ?? 0) ?>"
 
-                                        data-beneficiary-field-label="<?= htmlspecialchars($i['beneficiary_field_label'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                        data-beneficiary-field-type="<?= htmlspecialchars($i['beneficiary_field_type'] ?? 'text', ENT_QUOTES, 'UTF-8') ?>"
+                                        data-beneficiary-fields="<?= htmlspecialchars($i['beneficiary_fields'] ?? '[]', ENT_QUOTES, 'UTF-8') ?>"
 
                                         data-disability="<?= htmlspecialchars(
                                             $i['disability_name'] ?? '',
@@ -2215,24 +2425,8 @@ require $subject
                         </label>
 
 
-                        <!-- The selected aid item decides whether this required beneficiary value is shown. -->
-
-                        <label
-                            id="beneficiary-detail-field"
-                            hidden
-                        >
-
-                            <span id="beneficiary-detail-label"></span> *
-
-                            <input
-                                type="text"
-                                name="beneficiary_detail_value"
-                                id="beneficiary_detail_value"
-                                maxlength="255"
-                                value="<?= old('beneficiary_detail_value') ?>"
-                            >
-
-                        </label>
+                        <!-- The selected item supplies its configured beneficiary fields. -->
+                        <div id="beneficiary-detail-fields" class="beneficiary-request-fields" hidden></div>
 
 
                     </div>
@@ -2412,6 +2606,12 @@ require $subject
             <span>🏛 <?= htmlspecialchars(t('Social Services Officer'), ENT_QUOTES, 'UTF-8') ?></span><span>📋 <?= htmlspecialchars(t('Divisional Secretary'), ENT_QUOTES, 'UTF-8') ?></span><span>❌ <?= htmlspecialchars(t('Not approved'), ENT_QUOTES, 'UTF-8') ?></span>
         </div>
 
+        <div class="identification-guide" aria-label="<?= htmlspecialchars(t('Identification guide'), ENT_QUOTES, 'UTF-8') ?>">
+            <strong><?= htmlspecialchars(t('Identification guide'), ENT_QUOTES, 'UTF-8') ?></strong>
+            <span class="identification-guide-nic">NIC</span>
+            <span class="identification-guide-elder"><?= htmlspecialchars(t("Elders' Identity Card"), ENT_QUOTES, 'UTF-8') ?></span>
+        </div>
+
         <section class="submitted-requests-card">
 
 
@@ -2486,7 +2686,7 @@ require $subject
 
 
                 <table
-                    class="submitted-table"
+                    class="submitted-table aid-request-list-table"
                     id="submitted-requests-table"
                 >
 
@@ -2499,7 +2699,7 @@ require $subject
 
                             <th><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>NIC</th>
+                            <th><?= htmlspecialchars(t('Identification'), ENT_QUOTES, 'UTF-8') ?></th>
 
                             <th><?= htmlspecialchars(t('Age'), ENT_QUOTES, 'UTF-8') ?></th>
 
@@ -2581,14 +2781,16 @@ require $subject
                                 </td>
 
 
-                                <!-- Beneficiary NIC -->
+                                <!-- NIC appears first and Elder's ID second when both exist. -->
 
-                                <td>
-
-                                    <?= htmlspecialchars(
-                                        $r['nic'] ?: '—'
-                                    ) ?>
-
+                                <td class="request-identification-cell">
+                                    <?php if (!empty($r['nic'])): ?>
+                                        <span class="request-identification-value identification-nic"><small>NIC</small><?= htmlspecialchars($r['nic'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($r['elders_card_number'])): ?>
+                                        <span class="request-identification-value identification-elder"><small><?= htmlspecialchars(t("Elders' ID"), ENT_QUOTES, 'UTF-8') ?></small><?= htmlspecialchars($r['elders_card_number'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <?php endif; ?>
+                                    <?php if (empty($r['nic']) && empty($r['elders_card_number'])): ?>—<?php endif; ?>
                                 </td>
 
 
@@ -2627,7 +2829,11 @@ require $subject
 
                                 <!-- Aid Item -->
 
-                                <td>
+                                <td class="request-aid-cell">
+
+                                    <div class="request-aid-content">
+
+                                    <strong class="request-aid-name">
 
                                     <?= htmlspecialchars(
 
@@ -2643,29 +2849,22 @@ require $subject
 
                                     ) ?>
 
+                                    </strong>
 
-                                    <!-- The submitted label/value comes from the Subject Officer's item configuration. -->
-                                    <?php if (
-                                        !empty($r['beneficiary_detail_label']) &&
-                                        $r['beneficiary_detail_value'] !== null
-                                    ): ?>
 
-                                        <small class="request-beneficiary-detail">
-
-                                            <?= htmlspecialchars($r['beneficiary_detail_label'], ENT_QUOTES, 'UTF-8') ?>:
-                                            <?= htmlspecialchars($r['beneficiary_detail_value'], ENT_QUOTES, 'UTF-8') ?>
-
-                                        </small>
-
+                                    <!-- Keep the table compact; all configured values open in a shared detail dialog. -->
+                                    <?php $requestDetails=json_decode((string)($r['beneficiary_details_json']??''),true);if((!is_array($requestDetails)||!$requestDetails)&&!empty($r['beneficiary_detail_label'])&&$r['beneficiary_detail_value']!==null)$requestDetails=[['label'=>$r['beneficiary_detail_label'],'type'=>'text','value'=>$r['beneficiary_detail_value'],'display_value'=>$r['beneficiary_detail_value']]];if(is_array($requestDetails)&&$requestDetails): ?>
+                                        <button type="button" class="request-extra-info-button" data-request-extra-info="<?= htmlspecialchars(json_encode($requestDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>" data-dialog-title="<?= htmlspecialchars(t('Beneficiary Details'),ENT_QUOTES,'UTF-8') ?>" data-close-label="<?= htmlspecialchars(t('Close'),ENT_QUOTES,'UTF-8') ?>"><?= htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8') ?></button>
                                     <?php endif; ?>
 
+                                    </div>
 
                                 </td>
 
 
                                 <!-- Official Approval Indicators -->
 
-                                <td>
+                                <td class="request-approvals-cell">
 
 
                                     <span
@@ -2717,7 +2916,7 @@ require $subject
 
                                 <!-- Submitted Date -->
 
-                                <td>
+                                <td class="request-submitted-cell">
 
                                     <?= requestSubmitted(
                                         $r['created_at']
@@ -2728,7 +2927,7 @@ require $subject
 
                                 <!-- Request Status -->
 
-                                <td>
+                                <td class="request-status-cell">
 
                                     <span
                                         class="
@@ -2752,7 +2951,7 @@ require $subject
 
                                 <!-- Notes / Admin Rejection Reason -->
 
-                                <td>
+                                <td class="request-notes-cell">
 
                                     <?= htmlspecialchars(
 
@@ -2768,7 +2967,7 @@ require $subject
                                 </td>
 
                                 <!-- Editable requests expose corrections before review; operational requests stay read-only. -->
-                                <td>
+                                <td class="request-action-cell">
                                     <?php if (in_array($r['status'], ['draft', 'pending'], true)): ?>
                                         <div class="request-row-actions">
                                             <a class="outline-action" href="dashboard.php?page=new-aid-request&amp;edit_request_id=<?= (int) $r['id'] ?>"><?= htmlspecialchars(t('Edit'), ENT_QUOTES, 'UTF-8') ?></a>
@@ -2832,7 +3031,7 @@ require $subject
      WIDMS SHARED DASHBOARD JAVASCRIPT
 =================================================================== -->
 
-<script src="assets/js/admin-dashboard.js"></script>
+<script src="assets/js/admin-dashboard.js?v=17"></script>
 
 
 <!--
@@ -2842,7 +3041,7 @@ require $subject
     - Prescription field behaviour
 -->
 
-<script src="assets/js/beneficiary-form.js?v=2"></script>
+<script src="assets/js/beneficiary-form.js?v=3"></script>
 
 
 
@@ -2863,29 +3062,90 @@ const item =
     disability =
         document.getElementById('disability_notes'),
 
-    field =
-        document.getElementById('beneficiary-detail-field'),
+    fieldsContainer =
+        document.getElementById('beneficiary-detail-fields'),
 
-    detailLabel =
-        document.getElementById('beneficiary-detail-label'),
-
-    detailValue =
-        document.getElementById('beneficiary_detail_value');
+    existingDetailsInput =
+        document.getElementById('existing-beneficiary-details');
 
 
 function beneficiaryDetailField() {
     const selected = item?.selectedOptions[0];
-    const label = selected?.dataset.beneficiaryFieldLabel || '';
-    const type = selected?.dataset.beneficiaryFieldType || 'text';
-    const required = label !== '';
-
-    field.hidden = !required;
-    detailValue.required = required;
-    detailValue.type = type === 'number' ? 'number' : 'text';
-    detailValue.step = type === 'number' ? 'any' : '';
-    detailLabel.textContent = label;
-
-    if (!required) detailValue.value = '';
+    let fields = [];
+    try { fields = JSON.parse(selected?.dataset.beneficiaryFields || '[]'); } catch (_) { fields = []; }
+    let existingDetails = [];
+    try { existingDetails = JSON.parse(existingDetailsInput?.value || '[]'); } catch (_) { existingDetails = []; }
+    if (!existingDetails.length && existingDetailsInput?.dataset.legacyValue) existingDetails = [{ value: existingDetailsInput.dataset.legacyValue, display_value: existingDetailsInput.dataset.legacyValue }];
+    if (!fieldsContainer) return;
+    fieldsContainer.hidden = fields.length === 0;
+    fieldsContainer.innerHTML = '';
+    fields.forEach((configuredField, index) => {
+        const fieldKey = String(configuredField.id ?? index);
+        const existing = existingDetails.find(detail =>
+            (configuredField.id && Number(detail.field_id || 0) === Number(configuredField.id)) ||
+            (!detail.field_id && detail.label === configuredField.label && (detail.type || 'text') === configuredField.type)
+        ) || existingDetails[index] || {};
+        const label = document.createElement('label');
+        const caption = document.createElement('span');
+        const typeName = ({ text: 'Text', number: 'Number', date: 'Date', image: 'Image file', pdf: 'PDF document' })[configuredField.type] || 'Text';
+        caption.textContent = `${configuredField.label} (${typeName}) *`;
+        const input = document.createElement('input');
+        input.required = !(['image', 'pdf'].includes(configuredField.type) && existing.value);
+        input.name = ['image', 'pdf'].includes(configuredField.type) ? `beneficiary_documents[${fieldKey}]` : `beneficiary_details[${fieldKey}]`;
+        if (configuredField.type === 'image' || configuredField.type === 'pdf') {
+            input.type = 'file'; input.accept = configuredField.type === 'pdf' ? 'application/pdf,.pdf' : 'image/jpeg,image/png,image/webp';
+            const preview = document.createElement('div'); preview.className = 'beneficiary-document-preview';
+            input.addEventListener('change', () => {
+                preview.innerHTML = '';
+                const selectedFile = input.files?.[0];
+                if (!selectedFile) return;
+                const fileUrl = URL.createObjectURL(selectedFile);
+                if (configuredField.type === 'image') { const image = document.createElement('img'); image.src = fileUrl; image.alt = `${configuredField.label} preview`; preview.append(image); }
+                else { const link = document.createElement('a'); link.href = fileUrl; link.target = '_blank'; link.rel = 'noopener'; link.className = 'beneficiary-file-chip'; link.textContent = `PDF · ${selectedFile.name}`; preview.append(link); }
+            });
+            if (existing.value) {
+                const saved = document.createElement('a'); saved.href = existing.value; saved.target = '_blank'; saved.rel = 'noopener'; saved.className = 'saved-beneficiary-document'; saved.textContent = `${configuredField.type === 'pdf' ? 'PDF' : 'Image'} · ${existing.display_value || 'View saved file'}`;
+                if (configuredField.type === 'image') { const savedImage = document.createElement('img'); savedImage.src = existing.value; savedImage.alt = `Saved ${configuredField.label}`; preview.append(savedImage); }
+                label.append(caption, input, saved, preview);
+            } else label.append(caption, input, preview);
+        } else {
+            const isPower = configuredField.type === 'number' && configuredField.label.trim().toLocaleLowerCase() === 'power';
+            if (isPower) {
+                // Keep the optical sign visibly in front of the magnitude.
+                const savedPower = String(existing.value || '');
+                const signedValue = document.createElement('input');
+                signedValue.type = 'hidden';
+                signedValue.name = `beneficiary_details[${fieldKey}]`;
+                const signedControl = document.createElement('span');
+                signedControl.className = 'signed-power-control';
+                const sign = document.createElement('select');
+                sign.className = 'signed-power-sign';
+                sign.setAttribute('aria-label', `${configuredField.label} sign`);
+                sign.innerHTML = '<option value="+">+</option><option value="-">−</option>';
+                sign.value = savedPower.trim().startsWith('-') ? '-' : '+';
+                input.type = 'number';
+                input.name = '';
+                input.min = '0';
+                input.step = '0.01';
+                input.inputMode = 'decimal';
+                input.placeholder = '0.00';
+                input.value = savedPower === '' ? '' : String(Math.abs(Number(savedPower)));
+                const synchronizePower = () => { signedValue.value = input.value === '' ? '' : `${sign.value}${input.value}`; };
+                sign.addEventListener('change', synchronizePower);
+                input.addEventListener('input', synchronizePower);
+                synchronizePower();
+                signedControl.append(sign, input, signedValue);
+                label.append(caption, signedControl);
+            } else {
+                input.type = configuredField.type === 'number' ? 'number' : configuredField.type === 'date' ? 'date' : 'text';
+                input.maxLength = 255;
+                input.value = existing.value || '';
+                if (configuredField.type === 'number') input.step = 'any';
+                label.append(caption, input);
+            }
+        }
+        fieldsContainer.append(label);
+    });
 }
 
 // Keep the aid list synchronized with the configured disability-to-item rules.

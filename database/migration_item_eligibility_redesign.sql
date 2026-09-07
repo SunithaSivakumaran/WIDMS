@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS disability_aid_items (
     disability_type_id INT UNSIGNED NOT NULL,
     item_id INT UNSIGNED NOT NULL,
     restriction_months INT UNSIGNED NOT NULL DEFAULT 0,
+    is_system TINYINT(1) NOT NULL DEFAULT 0,
     status ENUM('active','inactive') NOT NULL DEFAULT 'active',
     created_by INT UNSIGNED NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

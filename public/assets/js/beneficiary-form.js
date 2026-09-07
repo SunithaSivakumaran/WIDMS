@@ -47,11 +47,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Service-centre residents belong to the selected home, not to a GN Division.
-  const updateGnDivision = () => {
+  const updateGnDivision = (resetSelection = false) => {
     const isServiceDivision =
       ds.selectedOptions[0]?.dataset.serviceDivision === '1'
 
-    gn.value = ''
+    // Keep the beneficiary's saved GN Division when an edit form first loads.
+    // Clear it only after the user changes the parent location, or when the
+    // selected division is a service centre where GN Division is inapplicable.
+    if (resetSelection || isServiceDivision) gn.value = ''
     filter(gn, isServiceDivision ? '' : ds.value)
     gn.required = !isServiceDivision
     gnRequiredIndicator?.toggleAttribute('hidden', isServiceDivision)
@@ -62,14 +65,15 @@ document.addEventListener('DOMContentLoaded', () => {
     ds.value = ''
     gn.value = ''
     filter(ds, district.value)
-    updateGnDivision()
+    updateGnDivision(true)
   })
   ds.addEventListener('change', () => {
-    updateGnDivision()
+    updateGnDivision(true)
   })
   filter(ds, district.value)
-  updateGnDivision()
+  updateGnDivision(false)
   dob?.addEventListener('change', () => {
+    if (!age) return
     if (!dob.value) {
       age.textContent = 'Age: —'
       return

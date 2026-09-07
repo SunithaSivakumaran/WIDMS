@@ -20,6 +20,7 @@ try {
     $stockItems = database()->query(
         "SELECT i.id, i.item_name, i.category, i.variety, i.quantity,
                 COUNT(r.id) AS receipt_count,
+                GROUP_CONCAT(CASE WHEN r.power IS NOT NULL THEN CONCAT(IF(r.power >= 0, '+', ''), FORMAT(r.power, 2), ' × ', r.quantity) END ORDER BY r.power SEPARATOR ', ') AS power_summary,
                 COALESCE(SUM(r.paid_amount), 0) AS total_paid,
                 COALESCE(SUM(r.balance_amount), 0) AS total_balance
          FROM inventory_items i
@@ -64,15 +65,16 @@ $paymentLabels = [
         <section class="current-stock-card">
             <div class="current-stock-header"><h2>Central Stock Inventory</h2></div>
             <div class="current-stock-table-wrap"><table class="current-stock-table">
-                <thead><tr><th>Item</th><th>Category</th><th>Variety</th><th>In Stock</th><th>Payment Status</th><th>Alert</th></tr></thead>
+                <thead><tr><th>Aid</th><th>Category</th><th>Variety</th><th>In Stock</th><th>Power batches</th><th>Payment Status</th><th>Alert</th></tr></thead>
                 <tbody>
-                <?php if ($stockItems === []): ?><tr><td colspan="6" class="empty-table">No inventory items found.</td></tr>
+                <?php if ($stockItems === []): ?><tr><td colspan="7" class="empty-table">No inventory items found.</td></tr>
                 <?php else: foreach ($stockItems as $item): $paymentStatus = inventoryPaymentStatus($item); $isLow = (int) $item['quantity'] <= $lowStockThreshold; ?>
                     <tr>
                         <td><strong><?= htmlspecialchars($item['item_name'], ENT_QUOTES, 'UTF-8') ?></strong></td>
                         <td><?= htmlspecialchars($item['category'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($item['variety'] ?: 'Standard', ENT_QUOTES, 'UTF-8') ?></td>
                         <td><strong><?= (int) $item['quantity'] ?></strong></td>
+                        <td><?= $item['power_summary'] ? htmlspecialchars($item['power_summary'], ENT_QUOTES, 'UTF-8') : '—' ?></td>
                         <td><span class="payment-badge <?= $paymentStatus ?>"><?= htmlspecialchars($paymentLabels[$paymentStatus], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= $isLow ? '<span class="low-alert">⚠ Low</span>' : '—' ?></td>
                     </tr>
