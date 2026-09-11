@@ -660,15 +660,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                  JOIN item_categories c
                     ON c.id = i.category_id
 
-                 LEFT JOIN disability_aid_items dai
-                    ON dai.item_id = i.id AND dai.status = 'active'
+                 JOIN disability_aid_items dai
+                    ON dai.item_id = i.id
+                   AND dai.status = 'active'
+
+                 JOIN disability_types configured_disability
+                    ON configured_disability.id = dai.disability_type_id
+                   AND configured_disability.status = 'active'
+                   AND LOWER(TRIM(configured_disability.name)) COLLATE utf8mb4_unicode_ci =
+                       LOWER(TRIM(CONVERT(:disability USING utf8mb4))) COLLATE utf8mb4_unicode_ci
 
                  WHERE i.id = :id
                    AND c.status = 'active'"
             );
 
             $q->execute([
-                'id' => $item
+                'id' => $item,
+                'disability' => $v['disability_notes'],
             ]);
 
             $aid = $q->fetch();
@@ -680,10 +688,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             |--------------------------------------------------------------------------
             */
 
-            if (
-                !$aid ||
-                $aid['distribution_type'] !== 'request-based'
-            ) {
+            if (!$aid) {
+                throw new RuntimeException(
+                    'The selected aid is not configured for the selected disability. Choose an aid shown for that disability.'
+                );
+            }
+            if ($aid['distribution_type'] !== 'request-based') {
                 throw new RuntimeException(
                     'Select a request-based aid type.'
                 );
@@ -1542,6 +1552,9 @@ try {
          FROM disability_aid_items dai
          JOIN disability_types dt ON dt.id=dai.disability_type_id AND dt.status='active'
          JOIN inventory_items i ON i.id=dai.item_id
+         JOIN item_categories c ON c.id=i.category_id
+                              AND c.status='active'
+                              AND c.distribution_type='request-based'
          WHERE dai.status='active'
          ORDER BY dt.name,i.item_name,i.variety"
     )->fetchAll();
@@ -1815,15 +1828,7 @@ require $subject
              SUCCESS MESSAGE
         ============================================================= -->
 
-        <?php if ($success): ?>
-
-            <div class="alert alert-success">
-
-                <?= htmlspecialchars($success) ?>
-
-            </div>
-
-        <?php endif; ?>
+        <?php renderSuccessMessage($success); ?>
 
 
         <!-- ============================================================
@@ -2374,8 +2379,8 @@ require $subject
                                             'UTF-8'
                                         ) ?>"
 
-                                        <?= $v['item_id'] ==
-                                            ($i['id'] ?? null)
+                                        <?= $v['item_id'] == ($i['id'] ?? null)
+                                            && mb_strtolower(trim((string) ($i['disability_name'] ?? ''))) === mb_strtolower(trim((string) $v['disability_notes']))
                                             ? 'selected'
                                             : '' ?>
                                     >
@@ -3151,8 +3156,9 @@ function beneficiaryDetailField() {
 // Keep the aid list synchronized with the configured disability-to-item rules.
 function filterAidItems() {
     if (!item || !disability) return;
+    const selectedDisability = disability.value.trim().toLocaleLowerCase();
     [...item.options].slice(1).forEach(option => {
-        const visible = disability.value !== '' && option.dataset.disability === disability.value;
+        const visible = selectedDisability !== '' && option.dataset.disability.trim().toLocaleLowerCase() === selectedDisability;
         option.hidden = !visible;
         option.disabled = !visible;
     });

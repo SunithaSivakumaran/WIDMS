@@ -146,7 +146,7 @@ $statusLabels = ['fully-paid' => 'Fully Paid', 'partially-paid' => 'Partially Pa
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Receive Aid | WIDMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css?v=26" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=42" rel="stylesheet">
 </head>
 <body class="store-page store-receive-page">
 <?php require __DIR__ . '/../../includes/store-keeper-sidebar.php'; ?>
@@ -179,5 +179,5 @@ $statusLabels = ['fully-paid' => 'Fully Paid', 'partially-paid' => 'Partially Pa
 
     </main>
 </div>
-<script src="assets/js/admin-dashboard.js"></script><script src="assets/js/receive-items.js?v=13"></script>
+<script src="assets/js/admin-dashboard.js"></script><script src="assets/js/receive-items.js?v=16"></script>
 </body></html>

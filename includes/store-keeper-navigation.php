@@ -7,7 +7,7 @@ return [
     ],
     'Inventory' => [
         ['icon' => '📥', 'label' => 'Receive Aid', 'page' => 'receive-items'],
-        ['icon' => '🧾', 'label' => 'Receipt History', 'page' => 'receipt-history'],
+        ['icon' => '🧾', 'label' => 'History', 'page' => 'receipt-history'],
         ['icon' => '📦', 'label' => 'Current Stock', 'page' => 'current-stock'],
     ],
     'Dispatch' => [
@@ -16,5 +16,6 @@ return [
     ],
     'Requests' => [
         ['icon' => '📝', 'label' => 'Correction Requests', 'page' => 'correction-requests'],
+        ['icon' => '📋', 'label' => 'Request History', 'page' => 'request-history'],
     ],
 ];

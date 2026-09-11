@@ -15,11 +15,11 @@ return [
         ['icon' => '📦', 'label' => 'Goods Requests', 'page' => 'goods-requests'],
         ['icon' => '👓', 'label' => 'Vision Camp Requests', 'page' => 'vision-camp-requests'],
         ['icon' => '🔵', 'label' => 'Contact Lens Orders', 'page' => 'contact-lens-orders'],
-        ['icon' => '🔄', 'label' => 'Correction Requests', 'page' => 'correction-requests'],
+        ['icon' => '✅', 'label' => 'Reviewed Correction Requests', 'page' => 'reviewed-correction-requests'],
     ],
     'Procurement' => [
-        ['icon' => '📦', 'label' => 'Central Stock', 'page' => 'central-stock'],
-        ['icon' => '💳', 'label' => 'Payments', 'page' => 'payments'],
+        ['icon' => '📦', 'label' => 'Current Stock', 'page' => 'current-stock'],
+        ['icon' => '🧾', 'label' => 'Payment History', 'page' => 'receipt-history'],
     ],
     'Supplier Configuration' => [
         ['icon' => '⚙️', 'label' => 'Register & Allocate', 'page' => 'supplier-config'],

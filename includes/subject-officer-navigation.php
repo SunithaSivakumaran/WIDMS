@@ -15,10 +15,9 @@ return [
     ],
     'Requests' => [
         ['icon' => '📋', 'label' => 'Aid Requests (Monitor)', 'page' => 'aid-requests'],
-        ['icon' => '✅', 'label' => 'Correction Approval', 'page' => 'correction-approval'],
     ],
     'Procurement' => [
-        ['icon' => '📦', 'label' => 'Central Stock', 'page' => 'central-stock'],
+        ['icon' => '📦', 'label' => 'Current Stock', 'page' => 'current-stock'],
     ],
     'Supplier Configuration' => [
         ['icon' => '⚙️', 'label' => 'Register & Allocate', 'page' => 'supplier-config'],

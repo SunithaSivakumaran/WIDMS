@@ -103,7 +103,7 @@ if ($loggedActivities !== []) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Store Keeper Dashboard | WIDMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=42" rel="stylesheet">
 </head>
 <body class="store-page store-dashboard">
 <?php require __DIR__ . '/../../includes/store-keeper-sidebar.php'; ?>
@@ -123,7 +123,7 @@ if ($loggedActivities !== []) {
         <section class="dashboard-grid">
             <article class="panel activity-panel">
                 <div class="panel-header"><h2>📋 Recent Activity</h2></div>
-                <div class="activity-table-wrap"><table class="activity-table">
+                <div class="activity-table-wrap store-table-card"><table class="activity-table">
                     <thead><tr><th>Time</th><th>Action</th><th>By</th><th>Status</th></tr></thead>
                     <tbody>
                     <?php if ($recentActivities === []): ?><tr><td colspan="4" class="text-center text-secondary py-4">No activity recorded yet.</td></tr>

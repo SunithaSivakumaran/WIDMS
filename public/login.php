@@ -56,27 +56,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Sign in to the Welfare Inventory and Distribution Management System">
-    <title>Sign In | WIDMS</title>
+    <title><?= htmlspecialchars(t('Sign In'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/login.css?v=3" rel="stylesheet">
 </head>
 <body>
     <main class="login-page auth-layout">
         <!-- The brand panel gives users context before they enter the secure system. -->
-        <aside class="auth-showcase" aria-label="About WIDMS">
+        <aside class="auth-showcase" aria-label="<?= htmlspecialchars(t('About WIDMS'), ENT_QUOTES, 'UTF-8') ?>">
             <?php renderLanguageSwitcher('auth-language'); ?>
-            <div class="showcase-badge">Southern Province</div>
+            <div class="showcase-badge"><?= htmlspecialchars(t('Southern Province'), ENT_QUOTES, 'UTF-8') ?></div>
             <div class="showcase-content">
-                <p class="showcase-kicker">Welfare services, connected</p>
-                <h2>Support reaches people faster when every step is visible.</h2>
-                <p>Manage welfare inventory, requests, approvals and distributions through one secure workspace.</p>
-                <div class="showcase-features" aria-label="System benefits">
-                    <span>Secure access</span>
-                    <span>Clear approvals</span>
-                    <span>Reliable records</span>
+                <p class="showcase-kicker"><?= htmlspecialchars(t('Welfare services, connected'), ENT_QUOTES, 'UTF-8') ?></p>
+                <h2><?= htmlspecialchars(t('Support reaches people faster when every step is visible.'), ENT_QUOTES, 'UTF-8') ?></h2>
+                <p><?= htmlspecialchars(t('Manage welfare inventory, requests, approvals and distributions through one secure workspace.'), ENT_QUOTES, 'UTF-8') ?></p>
+                <div class="showcase-features" aria-label="<?= htmlspecialchars(t('System benefits'), ENT_QUOTES, 'UTF-8') ?>">
+                    <span><?= htmlspecialchars(t('Secure access'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span><?= htmlspecialchars(t('Clear approvals'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span><?= htmlspecialchars(t('Reliable records'), ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
             </div>
-            <p class="showcase-footer">Welfare Inventory &amp; Distribution Management System</p>
+            <p class="showcase-footer"><?= htmlspecialchars(t('Welfare Inventory & Distribution Management System'), ENT_QUOTES, 'UTF-8') ?></p>
         </aside>
         <section class="login-card" aria-labelledby="login-title">
             <?php renderLanguageSwitcher('mobile-language'); ?>
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <img class="brand-mark" src="assets/images/client-logo.jpeg" alt="WIDMS logo">
                 <div>
                     <p class="brand-name mb-0">WIDMS</p>
-                    <p class="brand-description mb-0">Welfare Inventory &amp; Distribution Management</p>
+                    <p class="brand-description mb-0"><?= htmlspecialchars(t('Welfare Inventory & Distribution Management'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
             </header>
 
@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <?php if ($error !== ''): ?>
                     <div class="alert alert-danger py-2" role="alert">
-                        <?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?>
+                        <?= htmlspecialchars(t($error), ENT_QUOTES, 'UTF-8') ?>
                     </div>
                 <?php endif; ?>
 

@@ -153,27 +153,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Request an Account | WIDMS</title>
+    <title><?= htmlspecialchars(t('Request an account'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/login.css?v=3" rel="stylesheet">
 </head>
 <body>
 <main class="login-page signup-page auth-layout">
     <!-- The brand panel keeps account registration visually connected to WIDMS. -->
-    <aside class="auth-showcase signup-showcase" aria-label="About WIDMS registration">
+    <aside class="auth-showcase signup-showcase" aria-label="<?= htmlspecialchars(t('About WIDMS registration'), ENT_QUOTES, 'UTF-8') ?>">
         <?php renderLanguageSwitcher('auth-language'); ?>
-        <div class="showcase-badge">Join WIDMS</div>
+        <div class="showcase-badge"><?= htmlspecialchars(t('Join WIDMS'), ENT_QUOTES, 'UTF-8') ?></div>
         <div class="showcase-content">
-            <p class="showcase-kicker">One coordinated service</p>
-            <h2>Create access for your role in the welfare distribution network.</h2>
-            <p>Your request is reviewed by an administrator before the account becomes active.</p>
+            <p class="showcase-kicker"><?= htmlspecialchars(t('One coordinated service'), ENT_QUOTES, 'UTF-8') ?></p>
+            <h2><?= htmlspecialchars(t('Create access for your role in the welfare distribution network.'), ENT_QUOTES, 'UTF-8') ?></h2>
+            <p><?= htmlspecialchars(t('Your request is reviewed by an administrator before the account becomes active.'), ENT_QUOTES, 'UTF-8') ?></p>
             <ol class="signup-steps">
-                <li><span>1</span>Enter your official details</li>
-                <li><span>2</span>Select your assigned role</li>
-                <li><span>3</span>Wait for administrator approval</li>
+                <li><span>1</span><?= htmlspecialchars(t('Enter your official details'), ENT_QUOTES, 'UTF-8') ?></li>
+                <li><span>2</span><?= htmlspecialchars(t('Select your assigned role'), ENT_QUOTES, 'UTF-8') ?></li>
+                <li><span>3</span><?= htmlspecialchars(t('Wait for administrator approval'), ENT_QUOTES, 'UTF-8') ?></li>
             </ol>
         </div>
-        <p class="showcase-footer">Secure registration for authorized officers</p>
+        <p class="showcase-footer"><?= htmlspecialchars(t('Secure registration for authorized officers'), ENT_QUOTES, 'UTF-8') ?></p>
     </aside>
     <section class="login-card signup-card" aria-labelledby="signup-title">
         <?php renderLanguageSwitcher('mobile-language'); ?>
@@ -181,13 +181,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <img class="brand-mark" src="assets/images/client-logo.jpeg" alt="WIDMS logo">
             <div>
                 <p class="brand-name mb-0">WIDMS</p>
-                <p class="brand-description mb-0">Welfare Inventory &amp; Distribution Management</p>
+                <p class="brand-description mb-0"><?= htmlspecialchars(t('Welfare Inventory & Distribution Management'), ENT_QUOTES, 'UTF-8') ?></p>
             </div>
         </header>
         <div class="intro">
-            <p class="form-kicker">Officer registration</p>
-            <h1 id="signup-title">Request an account</h1>
-            <p>Complete your details. An administrator will review your request before access is granted.</p>
+            <p class="form-kicker"><?= htmlspecialchars(t('Officer registration'), ENT_QUOTES, 'UTF-8') ?></p>
+            <h1 id="signup-title"><?= htmlspecialchars(t('Request an account'), ENT_QUOTES, 'UTF-8') ?></h1>
+            <p><?= htmlspecialchars(t('Complete your details. An administrator will review your request before access is granted.'), ENT_QUOTES, 'UTF-8') ?></p>
         </div>
 
         <?php if ($errors !== []): ?>
@@ -196,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <?php foreach ($errors as $error): ?>
                 <li>
-                    <?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars(t($error), ENT_QUOTES, 'UTF-8') ?>
                 </li>
                 <?php endforeach; ?>
                 
@@ -206,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <?php if ($success !== ''): ?>
         <div class="alert alert-success" role="status">
-            <?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?>
+            <?= htmlspecialchars(t($success), ENT_QUOTES, 'UTF-8') ?>
         </div>
         <?php endif; ?>
 
@@ -214,41 +214,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
             <div class="signup-grid">
                 <div class="full-width">
-                    <label class="form-label" for="full_name">Full name</label>
+                    <label class="form-label" for="full_name"><?= htmlspecialchars(t('Full name'), ENT_QUOTES, 'UTF-8') ?></label>
                     <input class="form-control" id="full_name" name="full_name" maxlength="100" value="<?= htmlspecialchars($values['full_name'], ENT_QUOTES, 'UTF-8') ?>" required>
                 </div>
                 <div>
-                    <label class="form-label" for="email">Email address</label>
+                    <label class="form-label" for="email"><?= htmlspecialchars(t('Email address'), ENT_QUOTES, 'UTF-8') ?></label>
                     <input class="form-control" type="email" id="email" name="email" maxlength="120" value="<?= htmlspecialchars($values['email'], ENT_QUOTES, 'UTF-8') ?>" required>
                 </div>
                 <div>
-                    <label class="form-label" for="phone">Phone number</label>
+                    <label class="form-label" for="phone"><?= htmlspecialchars(t('Phone Number'), ENT_QUOTES, 'UTF-8') ?></label>
                     <input class="form-control" type="tel" id="phone" name="phone" maxlength="25" value="<?= htmlspecialchars($values['phone'], ENT_QUOTES, 'UTF-8') ?>" required>
                 </div>
                 <div>
-                    <label class="form-label" for="password">Password</label>
+                    <label class="form-label" for="password"><?= htmlspecialchars(t('Password'), ENT_QUOTES, 'UTF-8') ?></label>
                     <input class="form-control" type="password" id="password" name="password" minlength="8" autocomplete="new-password" required>
                 </div>
                 <div>
-                    <label class="form-label" for="confirm_password">Confirm password</label>
+                    <label class="form-label" for="confirm_password"><?= htmlspecialchars(t('Confirm password'), ENT_QUOTES, 'UTF-8') ?></label>
                     <input class="form-control" type="password" id="confirm_password" name="confirm_password" minlength="8" autocomplete="new-password" required>
                 </div>
                 <div class="full-width">
-                    <label class="form-label" for="role">Requested role</label>
+                    <label class="form-label" for="role"><?= htmlspecialchars(t('Requested role'), ENT_QUOTES, 'UTF-8') ?></label>
                     <select class="form-select" id="role" name="role" required>
-                        <option value="">Select a role</option>
+                        <option value=""><?= htmlspecialchars(t('Select a role'), ENT_QUOTES, 'UTF-8') ?></option>
 
                         <?php foreach ($roles as $value => $label): ?>
                         <option value="<?= $value ?>" <?= $values['role'] === $value ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                            <?= htmlspecialchars(t($label), ENT_QUOTES, 'UTF-8') ?>
                         </option><?php endforeach; ?>
 
                     </select>
                 </div>
                 <div id="division-field" <?= $values['role'] === 'social-service-officer' ? '' : 'hidden' ?>>
-                    <label class="form-label" for="district_id">District</label>
+                    <label class="form-label" for="district_id"><?= htmlspecialchars(t('District'), ENT_QUOTES, 'UTF-8') ?></label>
                     <select class="form-select" id="district_id" name="district_id">
-                        <option value="">Select a district</option>
+                        <option value=""><?= htmlspecialchars(t('Select a district'), ENT_QUOTES, 'UTF-8') ?></option>
                         <?php foreach ($districts as $district): ?>
                         <option value="<?= (int) $district['id'] ?>" <?= $values['district_id'] === (string) $district['id'] ? 'selected' : '' ?>>
                             <?= htmlspecialchars($district['name'], ENT_QUOTES, 'UTF-8') ?>
@@ -257,9 +257,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </select>
                 </div>
                 <div id="ds-division-field" <?= $values['role'] === 'social-service-officer' ? '' : 'hidden' ?>>
-                    <label class="form-label" for="ds_division_id">DS Division</label>
+                    <label class="form-label" for="ds_division_id"><?= htmlspecialchars(t('DS Division'), ENT_QUOTES, 'UTF-8') ?></label>
                     <select class="form-select" id="ds_division_id" name="ds_division_id">
-                        <option value="">Select a DS Division</option>
+                        <option value=""><?= htmlspecialchars(t('Select a DS Division'), ENT_QUOTES, 'UTF-8') ?></option>
                         <?php foreach ($dsDivisions as $dsDivision): ?>
                         <option value="<?= (int) $dsDivision['id'] ?>" data-district="<?= (int) $dsDivision['district_id'] ?>" data-occupied="<?= (int) $dsDivision['has_active_sso'] ?>" <?= $values['ds_division_id'] === (string) $dsDivision['id'] ? 'selected' : '' ?> <?= (int) $dsDivision['has_active_sso'] === 1 ? 'disabled' : '' ?>>
                             <?= htmlspecialchars(
@@ -272,11 +272,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </option>
                         <?php endforeach; ?>
                     </select>
-                    <p class="field-help">Required only for Social Service Officers.</p>
+                    <p class="field-help"><?= htmlspecialchars(t('Required only for Social Service Officers.'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
             </div>
-            <button class="btn btn-primary sign-in-button w-100 mt-3" type="submit">Send request</button>
-            <p class="signup-prompt mb-0">Already registered? <a href="login.php">Back to sign in</a></p>
+            <button class="btn btn-primary sign-in-button w-100 mt-3" type="submit"><?= htmlspecialchars(t('Send request'), ENT_QUOTES, 'UTF-8') ?></button>
+            <p class="signup-prompt mb-0"><?= htmlspecialchars(t('Already registered?'), ENT_QUOTES, 'UTF-8') ?> <a href="login.php"><?= htmlspecialchars(t('Back to sign in'), ENT_QUOTES, 'UTF-8') ?></a></p>
         </form>
     </section>
 </main>

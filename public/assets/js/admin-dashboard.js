@@ -12,6 +12,231 @@ document.addEventListener('click', (event) => {
   if (notification.parentNode) notification.parentNode.removeChild(notification)
 }, true)
 
+// Shared popup shell for dashboard data cards loaded from a page endpoint.
+window.openWidmsDataModal = (url, { modalClass = 'history-modal', errorMessage = 'Unable to load details.' } = {}) =>
+  fetch(url)
+    .then((response) => {
+      if (!response.ok) throw new Error('Request failed')
+      return response.text()
+    })
+    .then((html) => {
+      const card = new DOMParser().parseFromString(html, 'text/html').querySelector('.admin-data-card')
+      if (!card) throw new Error('Card not found')
+
+      const modal = document.createElement('div')
+      modal.className = modalClass
+      const shell = document.createElement('div')
+      shell.className = 'history-modal-card'
+      const close = document.createElement('button')
+      close.type = 'button'
+      close.className = 'history-modal-close'
+      close.setAttribute('aria-label', 'Close')
+      close.textContent = '×'
+      shell.append(close, card)
+      modal.append(shell)
+      document.body.append(modal)
+
+      close.addEventListener('click', () => modal.remove())
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) modal.remove()
+      })
+      return modal
+    })
+    .catch(() => {
+      const modal = document.createElement('div')
+      modal.className = modalClass
+      const shell = document.createElement('div')
+      shell.className = 'history-modal-card'
+      const close = document.createElement('button')
+      close.type = 'button'
+      close.className = 'history-modal-close'
+      close.setAttribute('aria-label', 'Close')
+      close.textContent = '×'
+      const message = document.createElement('p')
+      message.textContent = errorMessage
+      shell.append(close, message)
+      modal.append(shell)
+      document.body.append(modal)
+      close.addEventListener('click', () => modal.remove())
+      return modal
+    })
+
+const mountDashboardNotificationCenter = (actions) => {
+  const trigger = actions.querySelector('.notification-button')
+  if (!trigger || actions.querySelector('.admin-notification-panel')) return
+  const uiText = (text) => window.WIDMS_TRANSLATIONS?.[text] || text
+
+  trigger.classList.add('admin-notification-trigger')
+  trigger.setAttribute('aria-haspopup', 'dialog')
+  trigger.setAttribute('aria-expanded', 'false')
+
+  const badge = document.createElement('span')
+  badge.className = 'admin-notification-badge'
+  badge.hidden = true
+  trigger.appendChild(badge)
+
+  const panel = document.createElement('section')
+  panel.className = 'admin-notification-panel'
+  panel.setAttribute('aria-label', uiText('Notifications'))
+  panel.hidden = true
+  panel.innerHTML = `
+    <header><div><strong>Notifications</strong><small>Items requiring your attention</small></div><span data-notification-total>0 pending</span></header>
+    <div class="admin-notification-list" data-notification-list><p class="admin-notification-loading">Loading notifications…</p></div>
+    <a class="admin-notification-view-all" href="dashboard.php?page=dashboard">Open dashboard</a>`
+  panel.querySelector('header strong').textContent = uiText('Notifications')
+  panel.querySelector('header small').textContent = uiText('Items requiring your attention')
+  panel.querySelector('.admin-notification-loading').textContent = uiText('Loading notifications…')
+  panel.querySelector('.admin-notification-view-all').textContent = uiText('Open dashboard')
+  actions.appendChild(panel)
+
+  const list = panel.querySelector('[data-notification-list]')
+  const totalLabel = panel.querySelector('[data-notification-total]')
+  let knownKeys = new Set()
+  let initialLoadComplete = false
+
+  const showLiveToast = (item, additionalCount) => {
+    document.querySelector('.admin-live-notification')?.remove()
+    const toast = document.createElement('aside')
+    toast.className = 'admin-live-notification'
+    toast.setAttribute('role', 'status')
+    const content = document.createElement('div')
+    const label = document.createElement('small')
+    label.textContent = additionalCount > 0 ? `${additionalCount + 1} ${uiText('New requests received')}` : uiText('New request received')
+    const title = document.createElement('strong')
+    title.textContent = item.title
+    content.append(label, title)
+    const link = document.createElement('a')
+    link.href = item.url
+    link.textContent = uiText('Review')
+    const close = document.createElement('button')
+    close.type = 'button'
+    close.setAttribute('aria-label', 'Dismiss notification')
+    close.innerHTML = '&times;'
+    close.addEventListener('click', () => toast.remove())
+    toast.append(content, link, close)
+    document.body.appendChild(toast)
+    window.setTimeout(() => toast.remove(), 9000)
+  }
+
+  const renderNotifications = (payload) => {
+    const items = Array.isArray(payload.items) ? payload.items : []
+    const count = Number.isFinite(Number(payload.count)) ? Number(payload.count) : items.length
+    const nextKeys = new Set(items.map((item) => String(item.key || '')))
+
+    if (initialLoadComplete) {
+      const newItems = items.filter((item) => item.key && !knownKeys.has(String(item.key)))
+      if (newItems.length > 0) showLiveToast(newItems[0], newItems.length - 1)
+    }
+    knownKeys = nextKeys
+    initialLoadComplete = true
+
+    badge.hidden = count < 1
+    badge.textContent = count > 9 ? '9+' : String(count)
+    trigger.setAttribute('aria-label', count === 1 ? 'Notifications, 1 pending request' : `Notifications, ${count} pending requests`)
+    totalLabel.textContent = `${count} ${uiText('Pending')}`
+    list.replaceChildren()
+
+    if (items.length === 0) {
+      const empty = document.createElement('p')
+      empty.className = 'admin-notification-empty'
+      empty.textContent = uiText('There are no requests waiting for review.')
+      list.appendChild(empty)
+      return
+    }
+
+    items.forEach((item) => {
+      const link = document.createElement('a')
+      link.className = 'admin-notification-item'
+      link.href = item.url
+      const category = document.createElement('span')
+      category.textContent = item.category
+      const title = document.createElement('strong')
+      title.textContent = item.title
+      const detail = document.createElement('p')
+      detail.textContent = item.detail
+      const meta = document.createElement('small')
+      meta.textContent = `${item.submitted_by} · ${item.created_label}`
+      link.append(category, title, detail, meta)
+      list.appendChild(link)
+    })
+  }
+
+  const loadNotifications = () => fetch('admin-notifications.php', {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  })
+    .then((response) => {
+      if (!response.ok) throw new Error('Notification request failed')
+      return response.json()
+    })
+    .then(renderNotifications)
+    .catch(() => {
+      if (!initialLoadComplete) {
+        list.replaceChildren()
+        const error = document.createElement('p')
+        error.className = 'admin-notification-empty'
+        error.textContent = uiText('Notifications are temporarily unavailable.')
+        list.appendChild(error)
+      }
+    })
+
+  const closePanel = () => {
+    panel.hidden = true
+    trigger.setAttribute('aria-expanded', 'false')
+  }
+  // Never preserve an open notification dropdown across navigation or a
+  // browser back/forward-cache restore. This safeguard applies to every role.
+  closePanel()
+  window.addEventListener('pagehide', closePanel)
+  window.addEventListener('pageshow', closePanel)
+  trigger.addEventListener('click', (event) => {
+    event.stopPropagation()
+    panel.hidden = !panel.hidden
+    trigger.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true')
+    if (!panel.hidden) loadNotifications()
+  })
+  panel.addEventListener('click', (event) => event.stopPropagation())
+  document.addEventListener('click', closePanel)
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !panel.hidden) {
+      closePanel()
+      trigger.focus()
+    }
+  })
+
+  loadNotifications()
+  window.clearInterval(window.widmsAdminNotificationTimer)
+  window.widmsAdminNotificationTimer = window.setInterval(loadNotifications, 30000)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') loadNotifications()
+  })
+}
+
+const focusAdminNotificationTarget = () => {
+  if (!window.location.hash) return
+  const targetId = decodeURIComponent(window.location.hash.slice(1))
+  let target = document.getElementById(targetId)
+
+  if (!target && /^goods-request-\d+$/.test(targetId)) {
+    const requestId = Number(targetId.replace(/\D/g, ''))
+    const requestCode = `GR-${String(requestId).padStart(4, '0')}`
+    target = [...document.querySelectorAll('table tbody tr')]
+      .find((row) => row.firstElementChild?.textContent.trim() === requestCode)
+    if (target) {
+      target.id = targetId
+      target.classList.add('admin-notification-target')
+      target.tabIndex = -1
+    }
+  }
+
+  if (!target) return
+  window.setTimeout(() => {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.focus({ preventScroll: true })
+  }, 120)
+}
+
 const initializeWidmsDashboard = () => {
   // Make every shared success and error alert dismissible, including alerts added by future pages.
   const dismissAlert = (notification) => {
@@ -20,6 +245,16 @@ const initializeWidmsDashboard = () => {
   }
 
   document.querySelectorAll('.alert-success, .alert-danger').forEach((notification) => {
+    if (notification.classList.contains('alert-success')) {
+      notification.classList.add('widms-success-message')
+      if (!notification.querySelector('.widms-success-message-icon')) {
+        const successIcon = document.createElement('span')
+        successIcon.className = 'widms-success-message-icon'
+        successIcon.setAttribute('aria-hidden', 'true')
+        successIcon.textContent = '✓'
+        notification.prepend(successIcon)
+      }
+    }
     if (notification.querySelector('.notification-close')) return
 
     notification.classList.add('widms-dismissible-alert')
@@ -85,6 +320,7 @@ const initializeWidmsDashboard = () => {
           ? 'role-social'
           : 'role-admin'
     document.body.classList.add('widms-unified-ui', roleClass)
+    mountDashboardNotificationCenter(actions)
 
     const search = actions.querySelector('input[type="search"]')
     search?.addEventListener('input', () => {
@@ -298,6 +534,9 @@ const initializeWidmsDashboard = () => {
       dismissAlert(notification)
     }, 3500)
   })
+
+  focusAdminNotificationTarget()
+  window.addEventListener('hashchange', focusAdminNotificationTarget)
 }
 
 // The script can also be injected after DOMContentLoaded by dashboard pages.

@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
 CREATE TABLE IF NOT EXISTS correction_requests (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     record_reference VARCHAR(100) NOT NULL,
-    error_type ENUM('wrong-quantity', 'wrong-supplier', 'wrong-date', 'wrong-cost', 'wrong-item', 'other') NOT NULL,
+    error_type ENUM('wrong-unit-cost', 'wrong-quantity', 'wrong-bill-number', 'wrong-supplier', 'wrong-date', 'wrong-cost', 'wrong-item', 'wrong-payment-amount', 'wrong-check-number', 'wrong-payment-date', 'other') NOT NULL,
     current_value TEXT NOT NULL,
     proposed_correction TEXT NOT NULL,
     request_reason TEXT NOT NULL,

@@ -5,6 +5,7 @@ requireRole('admin');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/activity.php';
+require_once __DIR__ . '/../../includes/admin-approval-tabs.php';
 
 $activePage = 'pending-approvals';
 $notice = '';
@@ -13,6 +14,7 @@ $loadError = '';
 $registrations = [];
 $pendingItemRequests = 0;
 $pendingStockReleases = 0;
+$pendingCorrectionRequests = 0;
 $roleLabels = [
     'subject-officer' => ['Subject Officer', 'green'],
     'store-keeper' => ['Store Keeper', 'yellow'],
@@ -141,6 +143,9 @@ try {
     $pendingStockReleases = (int) $connection
         ->query("SELECT COUNT(*) FROM goods_requests WHERE status='pending-admin-approval'")
         ->fetchColumn();
+    $pendingCorrectionRequests = (int) $connection
+        ->query("SELECT COUNT(*) FROM correction_requests WHERE status='pending'")
+        ->fetchColumn();
 } catch (PDOException $exception) {
     error_log($exception->getMessage());
     $loadError = 'Registration requests are unavailable. Import database/migration_registration_requests.sql first.';
@@ -162,54 +167,61 @@ try {
         <div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="Open navigation">☰</button><h1>Pending Approvals</h1></div>
         <div class="topbar-actions"><label class="search-box"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search anything..." aria-label="Search"></label><button class="notification-button" type="button" aria-label="Notifications">●</button></div>
     </header>
-    <main class="dashboard-content approvals-page">
+    <main class="dashboard-content approvals-page admin-correction-review-page registration-review-page">
         <?php if ($notice !== ''): ?><div class="alert alert-<?= $noticeType ?>" role="status"><?= htmlspecialchars($notice, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
         <?php if ($loadError !== ''): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($loadError, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
-        <div class="approval-tabs" role="tablist" aria-label="Approval categories">
-            <button class="approval-tab active" type="button" role="tab" data-tab="registrations" aria-selected="true">User Registrations <span class="tab-count red"><?= count($registrations) ?></span></button>
-            <!-- These queues already have complete pages, so navigation is clearer than empty placeholder panels. -->
-        <a class="approval-tab" href="dashboard.php?page=item-requests&amp;view=pending">Pending Aid Requests <span class="tab-count yellow"><?= $pendingItemRequests ?></span></a>
-            <a class="approval-tab" href="dashboard.php?page=goods-requests">Stock Release <span class="tab-count yellow"><?= $pendingStockReleases ?></span></a>
-        </div>
+        <?php renderAdminApprovalTabs([
+            'registrations' => count($registrations),
+            'aid' => $pendingItemRequests,
+            'stock' => $pendingStockReleases,
+            'corrections' => $pendingCorrectionRequests,
+        ], 'registrations'); ?>
         <section class="approval-tab-panel active" data-panel="registrations">
-            <?php if ($registrations !== []): ?><div class="approval-alert">⚠ <?= count($registrations) ?> user registration request<?= count($registrations) === 1 ? '' : 's' ?> require your review.</div><?php endif; ?>
-            <article class="approval-card <?= $registrations === [] ? 'mt-4' : '' ?>">
-                <h2>User Registration Requests</h2>
+            <div class="admin-data-card admin-correction-review-card">
+                <div class="admin-correction-list">
                 <?php if ($registrations === [] && $loadError === ''): ?>
-                    <p class="p-4 mb-0 text-secondary">There are no pending registration requests.</p>
+                    <div class="empty-corrections"><strong><?= htmlspecialchars(t('No pending user registration requests'), ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars(t('New registration requests will appear here for approval.'), ENT_QUOTES, 'UTF-8') ?></span></div>
                 <?php elseif ($registrations !== []): ?>
-                <div class="approval-table-wrap"><table class="approval-table registration-table">
-                    <thead><tr><th>Applicant</th><th>Role</th><th>Contact</th><th>Division</th><th>Submitted</th><th>Action</th></tr></thead>
-                    <tbody><?php foreach ($registrations as $registration): $role = $roleLabels[$registration['role']] ?? [$registration['role'], 'blue']; ?>
-                    <tr>
-                        <td><strong><?= htmlspecialchars($registration['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></td>
-                        <td><span class="role-label <?= $role[1] ?>"><?= htmlspecialchars($role[0], ENT_QUOTES, 'UTF-8') ?></span></td>
-                        <td><?= htmlspecialchars($registration['email'], ENT_QUOTES, 'UTF-8') ?><br><small><?= htmlspecialchars($registration['phone'], ENT_QUOTES, 'UTF-8') ?></small></td>
-                        <!-- Admin needs the assigned DS Division here; district remains stored for validation and reporting. -->
-                        <td><?= htmlspecialchars(
-                            $registration['ds_division_name'] ?: ($registration['division'] ?: '—'),
-                            ENT_QUOTES,
-                            'UTF-8'
-                        ) ?></td>
-                        <td><?= date('d M Y H:i', strtotime($registration['created_at'])) ?></td>
-                        <td class="approval-actions">
-                            <form method="post" action="dashboard.php?page=pending-approvals" class="registration-decision-form">
+                    <?php foreach ($registrations as $registration): $role = $roleLabels[$registration['role']] ?? [$registration['role'], 'blue']; ?>
+                        <article id="registration-request-<?= (int) $registration['id'] ?>" class="admin-correction-item admin-notification-target" tabindex="-1">
+                            <div class="correction-summary">
+                                <div>
+                                    <div class="correction-reference-line">
+                                        <strong>REG-<?= str_pad((string) $registration['id'], 3, '0', STR_PAD_LEFT) ?></strong>
+                                        <span><?= htmlspecialchars($registration['full_name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                        <span class="role-label <?= htmlspecialchars($role[1], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(t($role[0]), ENT_QUOTES, 'UTF-8') ?></span>
+                                    </div>
+                                    <p class="correction-submission-meta"><?= htmlspecialchars(t('Submitted on'), ENT_QUOTES, 'UTF-8') ?> <?= date('d M Y, H:i', strtotime($registration['created_at'])) ?></p>
+                                </div>
+                                <span class="correction-status pending"><?= htmlspecialchars(t('Pending'), ENT_QUOTES, 'UTF-8') ?></span>
+                            </div>
+                            <dl class="correction-details registration-card-details">
+                                <div><dt><?= htmlspecialchars(t('Email Address'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($registration['email'], ENT_QUOTES, 'UTF-8') ?></dd></div>
+                                <div><dt><?= htmlspecialchars(t('Phone Number'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($registration['phone'], ENT_QUOTES, 'UTF-8') ?></dd></div>
+                                <div><dt><?= htmlspecialchars(t('District'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($registration['district_name'] ?: '—', ENT_QUOTES, 'UTF-8') ?></dd></div>
+                                <div><dt><?= htmlspecialchars(t('DS Division'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($registration['ds_division_name'] ?: ($registration['division'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></dd></div>
+                            </dl>
+                            <form method="post" action="dashboard.php?page=pending-approvals" class="admin-decision-form registration-decision-form">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="request_id" value="<?= (int) $registration['id'] ?>">
-                                <!-- Rejection reason is collected in a dialog only when Reject is selected. -->
-                                <input type="hidden" name="decision_reason" value="">
-                                <div class="decision-button-row"><button name="decision" value="approved" class="approve-button" type="submit">✓ <?= htmlspecialchars(t('Approve'), ENT_QUOTES, 'UTF-8') ?></button><button class="reject-button" type="button" data-reason-trigger data-submit-name="decision" data-submit-value="rejected" data-dialog-title="<?= htmlspecialchars(t('Reject registration request'), ENT_QUOTES, 'UTF-8') ?>" data-dialog-confirm="<?= htmlspecialchars(t('Confirm rejection'), ENT_QUOTES, 'UTF-8') ?>" data-reason-field="decision_reason">✕ <?= htmlspecialchars(t('Reject'), ENT_QUOTES, 'UTF-8') ?></button></div>
+                                <label><?= htmlspecialchars(t('Admin note'), ENT_QUOTES, 'UTF-8') ?><textarea name="decision_reason" rows="2" placeholder="<?= htmlspecialchars(t('Required when rejecting the request'), ENT_QUOTES, 'UTF-8') ?>"></textarea></label>
+                                <div class="correction-decision-footer registration-decision-footer">
+                                    <small><?= htmlspecialchars(t('Approving creates an active account with the requested role and assigned division.'), ENT_QUOTES, 'UTF-8') ?></small>
+                                    <div class="correction-decision-actions">
+                                        <button name="decision" value="approved" class="approve-button" type="submit">✓ <?= htmlspecialchars(t('Approve'), ENT_QUOTES, 'UTF-8') ?></button>
+                                        <button name="decision" value="rejected" class="reject-button" type="submit">✕ <?= htmlspecialchars(t('Reject'), ENT_QUOTES, 'UTF-8') ?></button>
+                                    </div>
+                                </div>
                             </form>
-                        </td>
-                    </tr><?php endforeach; ?></tbody>
-                </table></div>
+                    </article>
+                    <?php endforeach; ?>
                 <?php endif; ?>
-            </article>
+                </div>
+            </div>
         </section>
     </main>
 </div>
 <script src="assets/js/admin-dashboard.js"></script>
 <script src="assets/js/pending-approvals.js"></script>
-<script src="assets/js/admin-reason-dialog.js?v=1"></script>
 </body>
 </html>

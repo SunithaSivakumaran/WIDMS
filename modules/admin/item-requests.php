@@ -27,6 +27,7 @@ requireRole('admin');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/eligibility.php';
+require_once __DIR__ . '/../../includes/admin-approval-tabs.php';
 
 
 /*
@@ -519,12 +520,16 @@ $rows = array_values(array_filter(
 $pendingItemRequests = (int) $db->query("SELECT COUNT(*) FROM aid_requests WHERE status='pending'")->fetchColumn();
 $pendingUserRegistrations = 0;
 $pendingStockReleases = 0;
+$pendingCorrectionRequests = 0;
 try {
     $pendingUserRegistrations = (int) $db
         ->query("SELECT COUNT(*) FROM registration_requests WHERE status='pending'")
         ->fetchColumn();
     $pendingStockReleases = (int) $db
         ->query("SELECT COUNT(*) FROM goods_requests WHERE status='pending-admin-approval'")
+        ->fetchColumn();
+    $pendingCorrectionRequests = (int) $db
+        ->query("SELECT COUNT(*) FROM correction_requests WHERE status='pending'")
         ->fetchColumn();
 } catch (PDOException $e) {
     error_log($e->getMessage());
@@ -535,7 +540,7 @@ try {
 
 <!doctype html>
 
-<html lang="en">
+<html lang="<?= htmlspecialchars(widmsLanguage(), ENT_QUOTES, 'UTF-8') ?>">
 
 <head>
 
@@ -548,9 +553,7 @@ try {
     >
 
 
-    <title>
-        Aid Requests | WIDMS
-    </title>
+    <title><?= htmlspecialchars(t($pendingView ? 'Pending Aid Requests' : 'Reviewed Aid Requests'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
 
 
     <!-- Bootstrap CSS -->
@@ -564,14 +567,14 @@ try {
     <!-- WIDMS Main CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css?v=24"
+        href="assets/css/admin-dashboard.css?v=65"
         rel="stylesheet"
     >
 
 </head>
 
 
-<body>
+<body<?= $pendingView ? ' class="admin-aid-pending-page"' : '' ?>>
 
 
 <?php
@@ -628,7 +631,7 @@ require __DIR__ .
     ================================================================= -->
 
     <main
-        class="dashboard-content admin-operation-page"
+        class="dashboard-content admin-operation-page admin-item-requests-page<?= $pendingView ? ' admin-correction-review-page aid-request-card-page' : '' ?>"
     >
 
 
@@ -636,26 +639,15 @@ require __DIR__ .
              SUCCESS MESSAGE
         ============================================================= -->
 
-        <?php if ($success): ?>
-
-            <div class="alert alert-success">
-
-                <?= htmlspecialchars(
-                    $success,
-                    ENT_QUOTES,
-                    'UTF-8'
-                ) ?>
-
-            </div>
-
-        <?php endif; ?>
+        <?php renderSuccessMessage($success); ?>
 
         <?php if ($pendingView): ?>
-        <nav class="approval-tabs" aria-label="<?= htmlspecialchars(t('Approval categories'), ENT_QUOTES, 'UTF-8') ?>">
-            <a class="approval-tab" href="dashboard.php?page=pending-approvals"><?= htmlspecialchars(t('User Registrations'), ENT_QUOTES, 'UTF-8') ?> <span class="tab-count red"><?= $pendingUserRegistrations ?></span></a>
-            <a class="approval-tab active" href="dashboard.php?page=item-requests&amp;view=pending" aria-current="page"><?= htmlspecialchars(t('Pending Aid Requests'), ENT_QUOTES, 'UTF-8') ?> <span class="tab-count yellow"><?= $pendingItemRequests ?></span></a>
-            <a class="approval-tab" href="dashboard.php?page=goods-requests"><?= htmlspecialchars(t('Stock Release'), ENT_QUOTES, 'UTF-8') ?> <span class="tab-count yellow"><?= $pendingStockReleases ?></span></a>
-        </nav>
+        <?php renderAdminApprovalTabs([
+            'registrations' => $pendingUserRegistrations,
+            'aid' => $pendingItemRequests,
+            'stock' => $pendingStockReleases,
+            'corrections' => $pendingCorrectionRequests,
+        ], 'aid'); ?>
         <?php endif; ?>
 
 
@@ -666,7 +658,7 @@ require __DIR__ .
 
         <?php if ($errors): ?>
 
-            <div class="alert alert-danger">
+            <div class="alert alert-danger" role="alert">
 
                 <?= htmlspecialchars(
                     implode(' ', $errors),
@@ -684,6 +676,77 @@ require __DIR__ .
              AID DISTRIBUTION REQUESTS
         ============================================================= -->
 
+        <?php if ($pendingView): ?>
+        <section class="admin-data-card admin-correction-review-card" aria-label="<?= htmlspecialchars(t('Pending aid requests'), ENT_QUOTES, 'UTF-8') ?>">
+            <div class="admin-correction-list">
+                <?php if (!$rows): ?>
+                    <div class="empty-corrections"><strong><?= htmlspecialchars(t('No pending aid requests'), ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars(t('New aid requests will appear here for approval.'), ENT_QUOTES, 'UTF-8') ?></span></div>
+                <?php else: foreach ($rows as $r): ?>
+                    <?php
+                    $requestDetails = json_decode((string) ($r['beneficiary_details_json'] ?? ''), true);
+                    if ((!is_array($requestDetails) || !$requestDetails) && !empty($r['beneficiary_detail_label']) && $r['beneficiary_detail_value'] !== null) {
+                        $requestDetails = [['label' => $r['beneficiary_detail_label'], 'type' => 'text', 'value' => $r['beneficiary_detail_value'], 'display_value' => $r['beneficiary_detail_value']]];
+                    }
+                    $identification = !empty($r['nic'])
+                        ? 'NIC · ' . $r['nic']
+                        : (!empty($r['elders_card_number']) ? t("Elders' ID") . ' · ' . $r['elders_card_number'] : '—');
+                    $aidLabel = $r['item_name'] . ($r['variety'] ? ' — ' . $r['variety'] : '') . ' × ' . (int) $r['quantity'];
+                    ?>
+                    <article id="aid-request-<?= (int) $r['id'] ?>" class="admin-correction-item admin-notification-target" tabindex="-1">
+                        <div class="correction-summary">
+                            <div>
+                                <div class="correction-reference-line">
+                                    <strong>AR-<?= str_pad((string) $r['id'], 4, '0', STR_PAD_LEFT) ?></strong>
+                                    <span><?= htmlspecialchars($r['full_name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                </div>
+                                <p class="correction-submission-meta"><?= htmlspecialchars(t('Submitted by'), ENT_QUOTES, 'UTF-8') ?> <strong><?= htmlspecialchars($r['submitter_name'], ENT_QUOTES, 'UTF-8') ?></strong> · <?= date('d-m-Y, H:i', strtotime($r['created_at'])) ?></p>
+                            </div>
+                            <span class="correction-status pending"><?= htmlspecialchars(t('Pending'), ENT_QUOTES, 'UTF-8') ?></span>
+                        </div>
+                        <dl class="correction-details aid-request-card-details">
+                            <div class="aid-card-requested"><dt><?= htmlspecialchars(t('Aid Requested'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($aidLabel, ENT_QUOTES, 'UTF-8') ?><?php if (is_array($requestDetails) && $requestDetails): ?><button type="button" class="request-extra-info-button" data-request-extra-info="<?= htmlspecialchars(json_encode($requestDetails, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?>" data-dialog-title="<?= htmlspecialchars(t('Beneficiary Details'), ENT_QUOTES, 'UTF-8') ?>" data-close-label="<?= htmlspecialchars(t('Close'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(t('View details'), ENT_QUOTES, 'UTF-8') ?></button><?php endif; ?></dd></div>
+                            <div><dt><?= htmlspecialchars(t('Identification'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($identification, ENT_QUOTES, 'UTF-8') ?></dd></div>
+                            <div><dt><?= htmlspecialchars(t('Age'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= (int) $r['age'] ?></dd></div>
+                            <div><dt><?= htmlspecialchars(t('District'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($r['district_name'], ENT_QUOTES, 'UTF-8') ?></dd></div>
+                            <div><dt><?= htmlspecialchars(t('DS Division'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($r['division_name'], ENT_QUOTES, 'UTF-8') ?></dd></div>
+                            <div class="aid-card-address"><dt><?= htmlspecialchars(t('Address'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($r['address'], ENT_QUOTES, 'UTF-8') ?></dd></div>
+                            <div class="aid-card-approvals">
+                                <dt><?= htmlspecialchars(t('Official Approvals'), ENT_QUOTES, 'UTF-8') ?></dt>
+                                <dd>
+                                    <ul class="aid-card-approval-list" aria-label="<?= htmlspecialchars(t('Official approval status'), ENT_QUOTES, 'UTF-8') ?>">
+                                        <?php foreach ([
+                                            ['medical_officer_approved', '🩺', 'Government Medical Officer'],
+                                            ['grama_niladhari_approved', '🏡', 'Grama Niladhari'],
+                                            ['social_services_approved', '🏛', 'Social Services Officer'],
+                                            ['divisional_secretary_approved', '📋', 'Divisional Secretary'],
+                                        ] as [$approvalField, $approvalIcon, $approvalLabel]): ?>
+                                            <?php $isApproved = !empty($r[$approvalField]); ?>
+                                            <li class="<?= $isApproved ? 'is-approved' : 'is-missing' ?>">
+                                                <span aria-hidden="true"><?= $isApproved ? $approvalIcon : '×' ?></span>
+                                                <div><strong><?= htmlspecialchars(t($approvalLabel), ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars(t($isApproved ? 'Approved' : 'Not approved'), ENT_QUOTES, 'UTF-8') ?></small></div>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </dd>
+                            </div>
+                        </dl>
+                        <form method="post" class="admin-decision-form goods-decision-form">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="request_id" value="<?= (int) $r['id'] ?>">
+                            <label><?= htmlspecialchars(t('Admin note'), ENT_QUOTES, 'UTF-8') ?><textarea name="rejection_reason" rows="2" placeholder="<?= htmlspecialchars(t('Required when rejecting the request'), ENT_QUOTES, 'UTF-8') ?>"></textarea></label>
+                            <div class="correction-decision-footer">
+                                <small><?= htmlspecialchars(t('Review the beneficiary, requested aid, and official approvals before making a decision.'), ENT_QUOTES, 'UTF-8') ?></small>
+                                <div class="correction-decision-actions">
+                                    <button type="submit" name="decision" value="approve" class="approve-button"><?= htmlspecialchars(t('Approve'), ENT_QUOTES, 'UTF-8') ?></button>
+                                    <button type="submit" name="decision" value="reject" class="reject-button"><?= htmlspecialchars(t('Reject'), ENT_QUOTES, 'UTF-8') ?></button>
+                                </div>
+                            </div>
+                        </form>
+                    </article>
+                <?php endforeach; endif; ?>
+            </div>
+        </section>
+        <?php else: ?>
         <section class="admin-data-card">
 
 
@@ -720,31 +783,31 @@ require __DIR__ .
                     <thead>
 
                         <tr>
-                            <th>ID</th>
+                            <th><?= htmlspecialchars(t('ID'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Beneficiary</th>
+                            <th><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?></th>
 
                             <th><?= htmlspecialchars(t('Identification'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Age</th>
+                            <th><?= htmlspecialchars(t('Age'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Address</th>
+                            <th><?= htmlspecialchars(t('Address'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>District</th>
+                            <th><?= htmlspecialchars(t('District'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>DS Division</th>
+                            <th><?= htmlspecialchars(t('DS Division'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Aid Requested</th>
+                            <th><?= htmlspecialchars(t('Aid Requested'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Approvals</th>
+                            <th><?= htmlspecialchars(t('Approvals'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Submitted By</th>
+                            <th><?= htmlspecialchars(t('Submitted By'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Date</th>
+                            <th><?= htmlspecialchars(t('Date'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Status</th>
+                            <th><?= htmlspecialchars(t('Status'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>Action</th>
+                            <th><?= htmlspecialchars(t('Action'), ENT_QUOTES, 'UTF-8') ?></th>
                         </tr>
 
                     </thead>
@@ -770,7 +833,7 @@ require __DIR__ .
                                 class="admin-empty-row"
                             >
 
-                                No aid distribution requests available.
+                                <?= htmlspecialchars(t('No aid distribution requests available.'), ENT_QUOTES, 'UTF-8') ?>
 
                             </td>
 
@@ -783,7 +846,7 @@ require __DIR__ .
                         <?php foreach ($rows as $r): ?>
 
 
-                            <tr>
+                            <tr id="aid-request-<?= (int) $r['id'] ?>" class="admin-notification-target" tabindex="-1">
                             <td>
                                 AR-<?= str_pad(
                                     (string) $r['id'],
@@ -869,7 +932,7 @@ require __DIR__ .
 
 
                             <td class="request-approvals-cell">
-                                <span class="approval-icon-set" title="Official approvals">
+                                <span class="approval-icon-set" title="<?= htmlspecialchars(t('Official Approvals'), ENT_QUOTES, 'UTF-8') ?>">
                                     <?= $r['medical_officer_approved'] ? '🩺' : '❌' ?>
                                     <?= $r['grama_niladhari_approved'] ? '🏡' : '❌' ?>
                                     <?= $r['social_services_approved'] ? '🏛' : '❌' ?>
@@ -889,7 +952,7 @@ require __DIR__ .
 
                             <td class="request-submitted-cell">
                                 <?= date(
-                                    'd M Y',
+                                    'd-m-Y',
                                     strtotime($r['created_at'])
                                 ) ?>
                             </td>
@@ -904,12 +967,10 @@ require __DIR__ .
                                         'UTF-8'
                                     ) ?>"
                                 >
-                                    <?= ucwords(
-                                        str_replace(
-                                            '-',
-                                            ' ',
-                                            $r['status']
-                                        )
+                                    <?= htmlspecialchars(
+                                        t(ucwords(str_replace('-', ' ', $r['status']))),
+                                        ENT_QUOTES,
+                                        'UTF-8'
                                     ) ?>
                                 </span>
                             </td>
@@ -948,7 +1009,7 @@ require __DIR__ .
                                             value="approve"
                                             class="approve-button"
                                         >
-                                            Approve
+                                            <?= htmlspecialchars(t('Approve'), ENT_QUOTES, 'UTF-8') ?>
                                         </button>
 
                                         <button
@@ -999,6 +1060,7 @@ require __DIR__ .
 
 
         </section>
+        <?php endif; ?>
 
 
     </main>
@@ -1013,7 +1075,6 @@ require __DIR__ .
 =================================================================== -->
 
 <script src="assets/js/admin-dashboard.js?v=17"></script>
-<script src="assets/js/admin-reason-dialog.js?v=2"></script>
 
 
 </body>

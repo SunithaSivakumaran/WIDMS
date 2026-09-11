@@ -11,7 +11,7 @@ $activePage = 'recent-dispatches';
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Recently Dispatched | WIDMS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=42" rel="stylesheet">
 </head>
 <body class="store-page store-dispatch-page">
 <?php require __DIR__ . '/../../includes/store-keeper-sidebar.php'; ?>
@@ -20,7 +20,7 @@ $activePage = 'recent-dispatches';
     <main class="dashboard-content dispatch-page">
         <section class="dispatch-card">
             <div class="dispatch-card-header"><h2>Recently Dispatched</h2></div>
-            <div class="dispatch-table-wrap"><table class="dispatch-table">
+            <div class="dispatch-table-wrap store-table-card"><table class="dispatch-table">
                 <thead><tr><th>Request ID</th><th>Item</th><th>Variety</th><th>Qty</th><th>Division</th><th>Dispatched By</th></tr></thead>
                 <tbody></tbody>
             </table></div>

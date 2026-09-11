@@ -11,7 +11,7 @@ function beneficiaryEligibility(PDO $db,int $beneficiaryId,int $itemId,int $excl
     $q=$db->prepare("SELECT b.id,b.disability,i.item_name,i.variety,dai.id rule_id,dai.restriction_months
         FROM beneficiaries b
         -- Existing databases can have different collations for these two text columns.
-        JOIN disability_types dt ON LOWER(dt.name) COLLATE utf8mb4_unicode_ci=LOWER(b.disability) COLLATE utf8mb4_unicode_ci AND dt.status='active'
+        JOIN disability_types dt ON LOWER(TRIM(dt.name)) COLLATE utf8mb4_unicode_ci=LOWER(TRIM(b.disability)) COLLATE utf8mb4_unicode_ci AND dt.status='active'
         JOIN disability_aid_items dai ON dai.disability_type_id=dt.id AND dai.item_id=:item AND dai.status='active'
         JOIN inventory_items i ON i.id=dai.item_id
         WHERE b.id=:beneficiary AND b.status='active' LIMIT 1");
@@ -44,7 +44,7 @@ function beneficiaryEligibility(PDO $db,int $beneficiaryId,int $itemId,int $excl
         JOIN inventory_items received ON received.id=d.item_id
         JOIN beneficiaries b ON b.id=d.beneficiary_id
         -- Keep historic-distribution checks compatible with the configured disability collation.
-        JOIN disability_types dt ON LOWER(dt.name) COLLATE utf8mb4_unicode_ci=LOWER(b.disability) COLLATE utf8mb4_unicode_ci
+        JOIN disability_types dt ON LOWER(TRIM(dt.name)) COLLATE utf8mb4_unicode_ci=LOWER(TRIM(b.disability)) COLLATE utf8mb4_unicode_ci
         JOIN disability_aid_items source_rule ON source_rule.disability_type_id=dt.id AND source_rule.item_id=d.item_id AND source_rule.status='active'
         LEFT JOIN disability_item_prohibitions blocked ON blocked.disability_aid_item_id=source_rule.id AND blocked.prohibited_item_id=:requested_item
         WHERE d.beneficiary_id=:beneficiary

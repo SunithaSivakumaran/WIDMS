@@ -17,9 +17,13 @@ document.addEventListener('DOMContentLoaded', () => {
   checkField.innerHTML = 'Check Number <span class="required-mark">*</span><input type="text" name="check_number" id="check_number" maxlength="100" placeholder="Enter check number"><small>Required for paid or partially paid receipts.</small>'
   paymentStatus.closest('label').after(checkField)
   const checkNumber = checkField.querySelector('input')
+  checkField.hidden = paymentStatus.value === 'unpaid'
   const paidAmountField = document.getElementById('paid-amount-field')
   const paidAmount = document.getElementById('paid_amount')
+  paidAmountField.hidden = paymentStatus.value !== 'partially-paid'
   const balanceAmount = document.getElementById('balance_amount')
+  const balanceField = balanceAmount.closest('label')
+  balanceField.id = 'balance-field'
   const supplier = document.getElementById('supplier_id')
   const item = document.getElementById('item_id')
   const itemHelp = document.getElementById('item-help')
@@ -125,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
       paid = Math.max(0, Number(paidAmount.value) || 0)
     totalCost.value = total.toFixed(2)
     balanceAmount.value = Math.max(0, total - paid).toFixed(2)
+    balanceField.hidden = paymentStatus.value === 'fully-paid'
     paidAmountField.hidden = paymentStatus.value !== 'partially-paid'
     paidAmount.required = paymentStatus.value === 'partially-paid'
     checkField.hidden = paymentStatus.value === 'unpaid'
