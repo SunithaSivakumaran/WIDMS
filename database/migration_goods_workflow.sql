@@ -2,9 +2,11 @@ USE widms;
 
 CREATE TABLE IF NOT EXISTS goods_requests (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    request_batch_ref VARCHAR(40) NULL,
     item_id INT UNSIGNED NOT NULL,
     quantity INT UNSIGNED NOT NULL,
     destination_ds_division_id INT UNSIGNED NOT NULL,
+    destination_sso_id INT UNSIGNED NULL,
     justification VARCHAR(1000) NOT NULL,
     status ENUM('pending-admin-approval','approved-awaiting-dispatch','dispatched','rejected') NOT NULL DEFAULT 'pending-admin-approval',
     rejection_reason VARCHAR(500) NULL,
@@ -13,15 +15,19 @@ CREATE TABLE IF NOT EXISTS goods_requests (
     approved_at DATETIME NULL,
     dispatched_by INT UNSIGNED NULL,
     dispatched_at DATETIME NULL,
+    allocated_to_sso_at DATETIME NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_goods_item FOREIGN KEY (item_id) REFERENCES inventory_items(id),
     CONSTRAINT fk_goods_destination FOREIGN KEY (destination_ds_division_id) REFERENCES ds_divisions(id),
+    CONSTRAINT fk_goods_destination_sso FOREIGN KEY (destination_sso_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_goods_requester FOREIGN KEY (requested_by) REFERENCES users(id),
     CONSTRAINT fk_goods_approver FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_goods_dispatcher FOREIGN KEY (dispatched_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_goods_status (status),
-    INDEX idx_goods_destination (destination_ds_division_id)
+    INDEX idx_goods_destination (destination_ds_division_id),
+    INDEX idx_goods_request_batch_ref (request_batch_ref),
+    INDEX idx_goods_destination_sso (destination_sso_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS division_inventory (

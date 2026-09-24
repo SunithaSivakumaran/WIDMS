@@ -4,15 +4,33 @@ declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only.\n"); }
 require_once __DIR__.'/../config/database.php';
 $db=database();$failures=[];
-$tables=['users','suppliers','inventory_items','stock_receipts','supplier_payments','activity_logs','districts','ds_divisions','gn_divisions','item_categories','eligibility_rules','beneficiaries','beneficiary_registration_requests','goods_requests','goods_request_aid_requests','goods_fulfillments','division_inventory','officer_pools','pool_allocations','aid_requests','distributions','item_returns','vision_camps','vision_camp_beneficiaries','vision_camp_attendees','vision_camp_handovers','lens_units','lens_unit_history','lens_requests','contact_lens_stock','contact_lens_orders','contact_lens_order_history','contact_lens_order_stock_matches','contact_lens_bulk_orders','contact_lens_bulk_order_items','contact_lens_units','contact_lens_unit_history','correction_requests'];
+$tables=[
+ 'users','registration_requests','system_settings','user_notifications','notification_reads',
+ 'suppliers','supplier_authorized_items','inventory_items','stock_receipts','supplier_payments',
+ 'activity_logs','districts','ds_divisions','gn_divisions','item_categories','eligibility_rules',
+ 'disability_types','disability_aid_items','disability_item_prohibitions','disability_aid_item_fields',
+ 'beneficiaries','beneficiary_registration_requests','goods_requests','goods_request_aid_requests',
+ 'goods_fulfillments','division_inventory','officer_pools','pool_allocations','aid_requests',
+ 'admin_direct_releases',
+ 'distributions','item_returns','vision_camps','vision_camp_beneficiaries','vision_camp_attendees',
+ 'vision_camp_handovers','lens_units','lens_unit_history','lens_requests','contact_lens_stock',
+ 'contact_lens_orders','contact_lens_order_history','contact_lens_order_stock_matches',
+ 'contact_lens_bulk_orders','contact_lens_bulk_order_items','contact_lens_units',
+ 'contact_lens_unit_history','correction_requests','widms_schema_migrations','widms_data_migrations',
+ 'notification_sms_state','notification_sms_outbox','notification_sms_candidates'
+];
 foreach($tables as $table){try{$db->query("SELECT 1 FROM `$table` LIMIT 1");echo "[OK] $table\n";}catch(PDOException $e){$failures[]="Missing/unreadable table: $table";}}
 $columns=[
+ 'users'=>['salary_number','email'],
+ 'registration_requests'=>['sms_status','sms_error_code','sms_gateway_reference','sms_sent_at','salary_number'],
  'goods_requests'=>['aid_request_id','released_to_subject_id','received_at'],
  'vision_camps'=>['social_service_officer_id'],
  'contact_lens_orders'=>['original_power','power_changed','stock_check_result'],
  'officer_pools'=>['ds_division_id','returned'],
  'correction_requests'=>['stock_receipt_id'],
  'aid_requests'=>['prescribed_power','goods_request_ref'],
+ 'inventory_items'=>['is_returnable'],
+ 'item_returns'=>['returned_by_name'],
 ];
 foreach($columns as $table=>$requiredColumns){
  $available=$db->query("SHOW COLUMNS FROM `$table`")->fetchAll(PDO::FETCH_COLUMN);
@@ -21,6 +39,8 @@ foreach($columns as $table=>$requiredColumns){
  }
 }
 $checks=[
+ 'Every user has a phone number'=>"SELECT COUNT(*) FROM users WHERE phone IS NULL OR NOT (phone REGEXP '[0-9]' AND CHAR_LENGTH(TRIM(phone))>=7)",
+ 'Every registration has a phone number'=>"SELECT COUNT(*) FROM registration_requests WHERE phone IS NULL OR NOT (phone REGEXP '[0-9]' AND CHAR_LENGTH(TRIM(phone))>=7)",
  'Officer pool balances are non-negative'=>"SELECT COUNT(*) FROM officer_pools WHERE allocated-distributed+reused<0",
  'Division inventory is non-negative'=>"SELECT COUNT(*) FROM division_inventory WHERE quantity<0",
  'Central inventory is non-negative'=>"SELECT COUNT(*) FROM inventory_items WHERE quantity<0",
@@ -29,6 +49,7 @@ $checks=[
  'Dispatched goods have named Subject Officers'=>"SELECT COUNT(*) FROM goods_requests WHERE status='dispatched' AND released_to_subject_id IS NULL",
  'SSO handovers have an assigned SSO'=>"SELECT COUNT(*) FROM goods_fulfillments WHERE status='pending-sso-handover' AND sso_id IS NULL",
  'Contact lens fulfillments have precise matches'=>"SELECT COUNT(*) FROM goods_fulfillments f JOIN aid_requests ar ON ar.id=f.aid_request_id JOIN inventory_items i ON i.id=ar.item_id JOIN item_categories c ON c.id=i.category_id WHERE LOWER(CONCAT(i.item_name,' ',i.variety,' ',c.name)) LIKE '%contact%lens%' AND (ar.prescribed_power IS NULL OR f.lens_unit_identifier IS NULL)",
+ 'Admin direct distributions have linked history'=>"SELECT COUNT(*) FROM admin_direct_releases adr JOIN aid_requests ar ON ar.id=adr.aid_request_id LEFT JOIN distributions d ON d.aid_request_id=ar.id AND d.distribution_type='direct' WHERE adr.status='distributed' AND (ar.status<>'distributed' OR d.id IS NULL)",
  'Distributed handovers have beneficiary history'=>"SELECT COUNT(*) FROM vision_camp_handovers h LEFT JOIN distributions d ON d.beneficiary_id=h.beneficiary_id AND d.item_id=h.item_id AND d.source='vision-camp' AND d.distributed_at>=h.handed_at WHERE h.status='distributed' AND d.id IS NULL",
 ];
 foreach($checks as $label=>$sql){$count=(int)$db->query($sql)->fetchColumn();if($count){$failures[]="$label: $count violation(s)";}else echo "[OK] $label\n";}

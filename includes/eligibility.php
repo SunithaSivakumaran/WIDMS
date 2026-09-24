@@ -8,6 +8,22 @@ function beneficiaryEligibility(PDO $db,int $beneficiaryId,int $itemId,int $excl
     if($excludedAidRequestId===0&&($_POST['distribution_type']??'')==='request-based'){
         $excludedAidRequestId=filter_var($_POST['aid_request_id']??null,FILTER_VALIDATE_INT)?:0;
     }
+    // A direct-request exception is trusted only when it is already recorded
+    // on the matching database request. Posted values can never enable it.
+    if($excludedAidRequestId>0){
+        $override=$db->prepare("SELECT ar.id,c.distribution_type,i.item_name,i.variety
+            FROM aid_requests ar
+            JOIN inventory_items i ON i.id=ar.item_id
+            JOIN item_categories c ON c.id=i.category_id
+            WHERE ar.id=:request AND ar.beneficiary_id=:beneficiary
+              AND ar.item_id=:item AND ar.eligibility_override=1
+            LIMIT 1");
+        $override->execute(['request'=>$excludedAidRequestId,'beneficiary'=>$beneficiaryId,'item'=>$itemId]);
+        $overrideRequest=$override->fetch();
+        if($overrideRequest){
+            return ['eligible'=>true,'reason'=>'Authorized direct request exception.','item'=>$overrideRequest,'history'=>[],'override'=>true];
+        }
+    }
     $q=$db->prepare("SELECT b.id,b.disability,i.item_name,i.variety,dai.id rule_id,dai.restriction_months
         FROM beneficiaries b
         -- Existing databases can have different collations for these two text columns.

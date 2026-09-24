@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const item = document.getElementById('item_id')
 
+  const identificationOptional = form?.dataset.identificationOptional === '1'
+
   /*
   |--------------------------------------------------------------------------
   | Make sure all required HTML elements exist
@@ -123,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[character])
 
   async function checkEligibility() {
+    if (identificationOptional) return
     if (!preview || (!nic.value.trim() && !eldersCard.value.trim())) return
     const query = new URLSearchParams({ nic: nic.value, elders_card: eldersCard.value })
     if (item?.value) query.set('item_id', item.value)
@@ -155,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
     |--------------------------------------------------------------------------
     */
 
-    if (!useNic.checked && !useEldersCard.checked) {
+    if (!identificationOptional && !useNic.checked && !useEldersCard.checked) {
       event.preventDefault()
 
       error.textContent = form.dataset.identificationRequired || "Please select NIC or Elders' Identity Card."

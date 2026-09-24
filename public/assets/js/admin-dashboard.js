@@ -93,6 +93,44 @@ const mountDashboardNotificationCenter = (actions) => {
   const totalLabel = panel.querySelector('[data-notification-total]')
   let knownKeys = new Set()
   let initialLoadComplete = false
+  let notificationCsrf = ''
+
+  const openPersistentNotification = (event, item, element) => {
+    if ((!item.notification_id && !item.notification_key) || !notificationCsrf) return
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+
+    event.preventDefault()
+    if (element.dataset.openingNotification === 'true') return
+    element.dataset.openingNotification = 'true'
+    element.setAttribute('aria-busy', 'true')
+
+    const form = new URLSearchParams({ csrf_token: notificationCsrf })
+    if (item.notification_id) form.set('notification_id', String(item.notification_id))
+    if (item.notification_key) form.set('notification_key', String(item.notification_key))
+    fetch('admin-notifications.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      },
+      body: form.toString(),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error('Unable to mark notification as read')
+        return response.json()
+      })
+      .then(() => {
+        element.remove()
+        window.location.assign(item.url)
+      })
+      .catch(() => {
+        delete element.dataset.openingNotification
+        element.removeAttribute('aria-busy')
+        loadNotifications()
+      })
+  }
 
   const showLiveToast = (item, additionalCount) => {
     document.querySelector('.admin-live-notification')?.remove()
@@ -108,6 +146,7 @@ const mountDashboardNotificationCenter = (actions) => {
     const link = document.createElement('a')
     link.href = item.url
     link.textContent = uiText('Review')
+    link.addEventListener('click', (event) => openPersistentNotification(event, item, link))
     const close = document.createElement('button')
     close.type = 'button'
     close.setAttribute('aria-label', 'Dismiss notification')
@@ -121,6 +160,7 @@ const mountDashboardNotificationCenter = (actions) => {
   const renderNotifications = (payload) => {
     const items = Array.isArray(payload.items) ? payload.items : []
     const count = Number.isFinite(Number(payload.count)) ? Number(payload.count) : items.length
+    notificationCsrf = typeof payload.csrf_token === 'string' ? payload.csrf_token : ''
     const nextKeys = new Set(items.map((item) => String(item.key || '')))
 
     if (initialLoadComplete) {
@@ -131,15 +171,16 @@ const mountDashboardNotificationCenter = (actions) => {
     initialLoadComplete = true
 
     badge.hidden = count < 1
-    badge.textContent = count > 9 ? '9+' : String(count)
-    trigger.setAttribute('aria-label', count === 1 ? 'Notifications, 1 pending request' : `Notifications, ${count} pending requests`)
-    totalLabel.textContent = `${count} ${uiText('Pending')}`
+    badge.textContent = count < 1 ? '' : (count > 9 ? '9+' : String(count))
+    trigger.setAttribute('aria-label', count < 1 ? uiText('Notifications') : (count === 1 ? 'Notifications, 1 unread item' : `Notifications, ${count} unread items`))
+    totalLabel.hidden = count < 1
+    totalLabel.textContent = count < 1 ? '' : `${count} ${uiText('Unread')}`
     list.replaceChildren()
 
     if (items.length === 0) {
       const empty = document.createElement('p')
       empty.className = 'admin-notification-empty'
-      empty.textContent = uiText('There are no requests waiting for review.')
+      empty.textContent = uiText('No unread notifications.')
       list.appendChild(empty)
       return
     }
@@ -157,6 +198,7 @@ const mountDashboardNotificationCenter = (actions) => {
       const meta = document.createElement('small')
       meta.textContent = `${item.submitted_by} · ${item.created_label}`
       link.append(category, title, detail, meta)
+      link.addEventListener('click', (event) => openPersistentNotification(event, item, link))
       list.appendChild(link)
     })
   }
@@ -228,6 +270,32 @@ const focusAdminNotificationTarget = () => {
       target.classList.add('admin-notification-target')
       target.tabIndex = -1
     }
+  }
+
+  if (!target && /^fulfillment-\d+$/.test(targetId)) {
+    const requestId = Number(targetId.replace(/\D/g, ''))
+    const requestCode = `FUL-${String(requestId).padStart(4, '0')}`
+    target = [...document.querySelectorAll('table tbody tr')]
+      .find((row) => {
+        if (row.firstElementChild?.textContent.trim() === requestCode) return true
+        const fulfillment = row.querySelector('input[name="fulfillment_id"]')
+        if (Number(fulfillment?.value) === requestId) return true
+        const handover = row.querySelector('input[name="handover_id"]')
+        const handoverType = row.querySelector('input[name="handover_type"]')
+        return Number(handover?.value) === requestId && handoverType?.value === 'goods'
+      })
+  }
+
+  if (!target && /^lens-unit-\d+$/.test(targetId)) {
+    const requestId = Number(targetId.replace(/\D/g, ''))
+    target = [...document.querySelectorAll('table tbody tr')]
+      .find((row) => Number(row.querySelector('input[name="lens_unit_id"]')?.value) === requestId)
+  }
+
+  if (target && !target.id) {
+    target.id = targetId
+    target.classList.add('admin-notification-target')
+    target.tabIndex = -1
   }
 
   if (!target) return
@@ -478,6 +546,32 @@ const initializeWidmsDashboard = () => {
       if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '')
     }))
   }
+
+  document.querySelectorAll('[data-store-table-filter]').forEach((toolbar) => {
+    const table = document.getElementById(toolbar.dataset.storeTableFilter || '')
+    if (!table) return
+
+    const search = toolbar.querySelector('[data-filter-search]')
+    const item = toolbar.querySelector('[data-filter-item]')
+    const rows = Array.from(table.querySelectorAll('tbody tr[data-filter-row]'))
+    const emptyRow = table.querySelector('tbody tr[data-filter-empty]')
+    const applyFilters = () => {
+      const query = String(search?.value || '').trim().toLocaleLowerCase()
+      const selectedItem = String(item?.value || '').trim().toLocaleLowerCase()
+      let visibleRows = 0
+
+      rows.forEach((row) => {
+        const matchesSearch = query === '' || row.textContent.toLocaleLowerCase().includes(query)
+        const matchesItem = selectedItem === '' || String(row.dataset.item || '').toLocaleLowerCase() === selectedItem
+        row.hidden = !(matchesSearch && matchesItem)
+        if (!row.hidden) visibleRows += 1
+      })
+      if (emptyRow) emptyRow.hidden = visibleRows !== 0
+    }
+
+    search?.addEventListener('input', applyFilters)
+    item?.addEventListener('change', applyFilters)
+  })
 
   const sidebar = document.getElementById('admin-sidebar')
   const overlay = document.getElementById('sidebar-overlay')

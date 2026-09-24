@@ -28,6 +28,8 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/eligibility.php';
 require_once __DIR__ . '/../../includes/admin-approval-tabs.php';
+require_once __DIR__ . '/../../includes/aid-request-details.php';
+require_once __DIR__ . '/../../includes/notifications.php';
 
 
 /*
@@ -228,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             |--------------------------------------------------------------------------
             */
 
-            if ($decision === 'approve') {
+            if ($decision === 'approve' && empty($request['eligibility_override'])) {
 
                 $eligibility =
                     beneficiaryEligibility(
@@ -309,6 +311,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'id' =>
                     $id
             ]);
+
+            $submitterStatement = $db->prepare(
+                'SELECT role FROM users WHERE id = :id LIMIT 1'
+            );
+            $submitterStatement->execute([
+                'id' => (int) $request['submitted_by'],
+            ]);
+            $submitterRole = (string) $submitterStatement->fetchColumn();
+            $historyPage = $submitterRole === 'social-service-officer'
+                ? 'aid-requests'
+                : 'my-aid-requests';
+            $requestCode = 'AR-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT);
+
+            notifyUser(
+                $db,
+                (int) $request['submitted_by'],
+                'aid-request-decision-' . $id,
+                $status === 'approved' ? 'Aid request approved' : 'Aid request rejected',
+                $requestCode,
+                $status === 'approved'
+                    ? 'Your aid request has been approved.'
+                    : 'Your aid request has been rejected.',
+                'dashboard.php?page=' . $historyPage . '#aid-request-' . $id
+            );
+
+            if ($status === 'approved') {
+                notifyApprovedAidRouting(
+                    $db,
+                    $id,
+                    $submitterRole === 'subject-officer' ? (int) $request['submitted_by'] : null
+                );
+            }
 
 
             /*
@@ -468,7 +502,12 @@ try {
             i.variety,
 
             u.full_name AS submitter_name,
-            r.full_name AS reviewer_name
+            r.full_name AS reviewer_name,
+            CASE
+                WHEN COALESCE(ret.returned_quantity, 0) > 0 THEN "return"
+                WHEN dist.distribution_type = "direct" THEN "direct-distribution"
+                ELSE ar.status
+            END AS display_status
 
          FROM aid_requests ar
 
@@ -489,6 +528,15 @@ try {
 
          LEFT JOIN users r
             ON r.id = ar.reviewed_by
+
+         LEFT JOIN distributions dist
+            ON dist.aid_request_id = ar.id
+
+         LEFT JOIN (
+            SELECT distribution_id, SUM(quantity) AS returned_quantity
+            FROM item_returns
+            GROUP BY distribution_id
+         ) ret ON ret.distribution_id = dist.id
 
          WHERE ar.status <> "draft"
 
@@ -526,7 +574,7 @@ try {
         ->query("SELECT COUNT(*) FROM registration_requests WHERE status='pending'")
         ->fetchColumn();
     $pendingStockReleases = (int) $db
-        ->query("SELECT COUNT(*) FROM goods_requests WHERE status='pending-admin-approval'")
+        ->query("SELECT COUNT(DISTINCT COALESCE(NULLIF(request_batch_ref, ''), CONCAT('GR-', id))) FROM goods_requests WHERE status='pending-admin-approval'")
         ->fetchColumn();
     $pendingCorrectionRequests = (int) $db
         ->query("SELECT COUNT(*) FROM correction_requests WHERE status='pending'")
@@ -567,7 +615,7 @@ try {
     <!-- WIDMS Main CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css?v=65"
+        href="assets/css/admin-dashboard.css?v=69"
         rel="stylesheet"
     >
 
@@ -635,12 +683,6 @@ require __DIR__ .
     >
 
 
-        <!-- ============================================================
-             SUCCESS MESSAGE
-        ============================================================= -->
-
-        <?php renderSuccessMessage($success); ?>
-
         <?php if ($pendingView): ?>
         <?php renderAdminApprovalTabs([
             'registrations' => $pendingUserRegistrations,
@@ -649,6 +691,9 @@ require __DIR__ .
             'corrections' => $pendingCorrectionRequests,
         ], 'aid'); ?>
         <?php endif; ?>
+
+        <!-- Keep decision feedback directly below the approval tabs. -->
+        <?php renderSuccessMessage($success); ?>
 
 
 
@@ -683,14 +728,14 @@ require __DIR__ .
                     <div class="empty-corrections"><strong><?= htmlspecialchars(t('No pending aid requests'), ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars(t('New aid requests will appear here for approval.'), ENT_QUOTES, 'UTF-8') ?></span></div>
                 <?php else: foreach ($rows as $r): ?>
                     <?php
-                    $requestDetails = json_decode((string) ($r['beneficiary_details_json'] ?? ''), true);
-                    if ((!is_array($requestDetails) || !$requestDetails) && !empty($r['beneficiary_detail_label']) && $r['beneficiary_detail_value'] !== null) {
-                        $requestDetails = [['label' => $r['beneficiary_detail_label'], 'type' => 'text', 'value' => $r['beneficiary_detail_value'], 'display_value' => $r['beneficiary_detail_value']]];
-                    }
+                    $requestDetails = aidRequestDetails($r);
                     $identification = !empty($r['nic'])
                         ? 'NIC · ' . $r['nic']
                         : (!empty($r['elders_card_number']) ? t("Elders' ID") . ' · ' . $r['elders_card_number'] : '—');
                     $aidLabel = $r['item_name'] . ($r['variety'] ? ' — ' . $r['variety'] : '') . ' × ' . (int) $r['quantity'];
+                    $directDocument = preg_match('#^uploads/aid-documents/direct-[a-f0-9]{24}\.pdf$#', (string) ($r['direct_request_document'] ?? ''))
+                        ? (string) $r['direct_request_document']
+                        : '';
                     ?>
                     <article id="aid-request-<?= (int) $r['id'] ?>" class="admin-correction-item admin-notification-target" tabindex="-1">
                         <div class="correction-summary">
@@ -706,10 +751,14 @@ require __DIR__ .
                         <dl class="correction-details aid-request-card-details">
                             <div class="aid-card-requested"><dt><?= htmlspecialchars(t('Aid Requested'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($aidLabel, ENT_QUOTES, 'UTF-8') ?><?php if (is_array($requestDetails) && $requestDetails): ?><button type="button" class="request-extra-info-button" data-request-extra-info="<?= htmlspecialchars(json_encode($requestDetails, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') ?>" data-dialog-title="<?= htmlspecialchars(t('Beneficiary Details'), ENT_QUOTES, 'UTF-8') ?>" data-close-label="<?= htmlspecialchars(t('Close'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(t('View details'), ENT_QUOTES, 'UTF-8') ?></button><?php endif; ?></dd></div>
                             <div><dt><?= htmlspecialchars(t('Identification'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($identification, ENT_QUOTES, 'UTF-8') ?></dd></div>
-                            <div><dt><?= htmlspecialchars(t('Age'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= (int) $r['age'] ?></dd></div>
+                            <div><dt><?= htmlspecialchars(t('Age'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= $r['age'] === null ? '—' : (int) $r['age'] ?></dd></div>
                             <div><dt><?= htmlspecialchars(t('District'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($r['district_name'], ENT_QUOTES, 'UTF-8') ?></dd></div>
                             <div><dt><?= htmlspecialchars(t('DS Division'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($r['division_name'], ENT_QUOTES, 'UTF-8') ?></dd></div>
                             <div class="aid-card-address"><dt><?= htmlspecialchars(t('Address'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($r['address'], ENT_QUOTES, 'UTF-8') ?></dd></div>
+                            <?php if (!empty($r['eligibility_override'])): ?>
+                                <div class="aid-card-address aid-card-direct-reason"><dt><?= htmlspecialchars(t('Reason for Direct Request'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($r['notes'] ?: '—', ENT_QUOTES, 'UTF-8') ?></dd></div>
+                                <div><dt><?= htmlspecialchars(t('Supporting Document'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= $directDocument !== '' ? '<a class="outline-action" href="' . htmlspecialchars($directDocument, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">' . htmlspecialchars(t('View PDF'), ENT_QUOTES, 'UTF-8') . '</a>' : '—' ?></dd></div>
+                            <?php endif; ?>
                             <div class="aid-card-approvals">
                                 <dt><?= htmlspecialchars(t('Official Approvals'), ENT_QUOTES, 'UTF-8') ?></dt>
                                 <dd>
@@ -846,7 +895,7 @@ require __DIR__ .
                         <?php foreach ($rows as $r): ?>
 
 
-                            <tr id="aid-request-<?= (int) $r['id'] ?>" class="admin-notification-target" tabindex="-1">
+                            <tr id="aid-request-<?= (int) $r['id'] ?>" class="admin-notification-target aid-review-row is-<?= htmlspecialchars($r['status'], ENT_QUOTES, 'UTF-8') ?>" tabindex="-1">
                             <td>
                                 AR-<?= str_pad(
                                     (string) $r['id'],
@@ -880,7 +929,7 @@ require __DIR__ .
 
 
                             <td>
-                                <?= (int) $r['age'] ?>
+                                <?= $r['age'] === null ? '—' : (int) $r['age'] ?>
                             </td>
 
 
@@ -925,7 +974,7 @@ require __DIR__ .
 
                                 × <?= (int) $r['quantity'] ?>
 
-                                <?php $requestDetails=json_decode((string)($r['beneficiary_details_json']??''),true);if((!is_array($requestDetails)||!$requestDetails)&&!empty($r['beneficiary_detail_label'])&&$r['beneficiary_detail_value']!==null)$requestDetails=[['label'=>$r['beneficiary_detail_label'],'type'=>'text','value'=>$r['beneficiary_detail_value'],'display_value'=>$r['beneficiary_detail_value']]];if(is_array($requestDetails)&&$requestDetails): ?>
+                                <?php $requestDetails=aidRequestDetails($r);if($requestDetails): ?>
                                     <button type="button" class="request-extra-info-button" data-request-extra-info="<?= htmlspecialchars(json_encode($requestDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>" data-dialog-title="<?= htmlspecialchars(t('Beneficiary Details'),ENT_QUOTES,'UTF-8') ?>" data-close-label="<?= htmlspecialchars(t('Close'),ENT_QUOTES,'UTF-8') ?>"><?= htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8') ?></button>
                                 <?php endif; ?>
                             </td>
@@ -962,13 +1011,13 @@ require __DIR__ .
                                 <span
                                     class="request-status-pill
                                     status-<?= htmlspecialchars(
-                                        $r['status'],
+                                        $r['display_status'],
                                         ENT_QUOTES,
                                         'UTF-8'
                                     ) ?>"
                                 >
                                     <?= htmlspecialchars(
-                                        t(ucwords(str_replace('-', ' ', $r['status']))),
+                                        t(ucwords(str_replace('-', ' ', $r['display_status']))),
                                         ENT_QUOTES,
                                         'UTF-8'
                                     ) ?>

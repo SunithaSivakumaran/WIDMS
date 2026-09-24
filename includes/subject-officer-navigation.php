@@ -1,37 +1,38 @@
 <?php
 declare(strict_types=1);
 
+// Group existing pages by workflow; routing and permissions remain unchanged.
 return [
     'Overview' => [
         ['icon' => '📊', 'label' => 'Dashboard', 'page' => 'dashboard'],
     ],
-    'Operations' => [
-        ['icon' => '📦', 'label' => 'Request Goods from Store', 'page' => 'request-goods'],
-        ['icon' => '👓', 'label' => 'Vision Camp / Direct Procurement', 'page' => 'vision-camp'],
-        ['icon' => '🔵', 'label' => 'Contact Lens Orders', 'page' => 'contact-lens-orders'],
-        ['icon' => '🗃️', 'label' => 'Beneficiaries', 'page' => 'beneficiaries'],
-        ['icon' => '📦', 'label' => 'Distribute Aid', 'page' => 'distribute-items'],
-        ['icon' => '🔄', 'label' => 'Returns', 'page' => 'returns'],
-    ],
-    'Requests' => [
+    'Aid Requests' => [
+        ['icon' => '📝', 'label' => 'Direct Aid Request', 'page' => 'direct-aid-request'],
+        ['icon' => '📑', 'label' => 'Aid Activity History', 'page' => 'my-aid-requests'],
         ['icon' => '📋', 'label' => 'Aid Requests (Monitor)', 'page' => 'aid-requests'],
     ],
-    'Procurement' => [
+    'Stock & Quotas' => [
+        ['icon' => '&#10133;', 'label' => 'New Quota Request', 'page' => 'request-goods'],
+        ['icon' => '&#128203;', 'label' => 'Quota Request History', 'page' => 'my-goods-requests'],
         ['icon' => '📦', 'label' => 'Current Stock', 'page' => 'current-stock'],
+        ['icon' => '📈', 'label' => 'Social Service Officer Pools', 'page' => 'officer-pools'],
     ],
-    'Supplier Configuration' => [
+    'Returns' => [
+        ['icon' => '&#128260;', 'label' => 'Process Return', 'page' => 'returns'],
+        ['icon' => '&#128203;', 'label' => 'Return History', 'page' => 'return-history'],
+    ],
+    'Suppliers' => [
         ['icon' => '⚙️', 'label' => 'Register & Allocate', 'page' => 'supplier-config'],
         ['icon' => '🏢', 'label' => 'Registered Suppliers', 'page' => 'supplier-details'],
         ['icon' => '📊', 'label' => 'Balance Summary', 'page' => 'supplier-balances'],
     ],
-    // Separate builder and register links so officers can enter or review rules directly.
     'Eligibility Configuration' => [
         ['icon' => '🛠️', 'label' => 'Eligibility Rule Builder', 'page' => 'item-categories'],
         ['icon' => '📋', 'label' => 'Configured Eligibility Rules', 'page' => 'eligibility-rules'],
     ],
-    'Monitoring' => [
-        ['icon' => '📈', 'label' => 'Social Service Officer Pools', 'page' => 'officer-pools'],
+    'Reports & Activity' => [
         ['icon' => '📑', 'label' => 'Reports', 'page' => 'reports'],
+        ['icon' => '🕘', 'label' => 'Recent Activity', 'page' => 'recent-activity'],
         ['icon' => '🔍', 'label' => 'Audit Log', 'page' => 'audit-log'],
     ],
 ];

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/sms.php';
+require_once __DIR__ . '/../includes/registration.php';
 
 if (isLoggedIn()) {
     header('Location: dashboard.php');
@@ -14,7 +16,7 @@ $roles = [
     'store-keeper' => 'Store Keeper',
     'social-service-officer' => 'Social Service Officer',
 ];
-$values = ['full_name' => '', 'email' => '', 'phone' => '', 'role' => '', 'district_id' => '', 'ds_division_id' => ''];
+$values = ['full_name' => '', 'salary_number' => '', 'email' => '', 'phone' => '', 'role' => '', 'district_id' => '', 'ds_division_id' => ''];
 $errors = [];
 $success = '';
 $districts = [];
@@ -57,8 +59,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!filter_var($values['email'], FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Enter a valid email address.';
     }
-    if (!preg_match('/^[0-9+()\-\s]{7,25}$/', $values['phone'])) {
-        $errors[] = 'Enter a valid phone number.';
+    if (widmsSalaryNumber($values['salary_number']) === null) {
+        $errors[] = 'Enter a valid salary number using 1 to 30 digits.';
+    }
+    if (strlen($values['phone']) > 25 || widmsSmsPhone($values['phone']) === null) {
+        $errors[] = 'Enter a valid Sri Lankan mobile number (07XXXXXXXX or +947XXXXXXXX).';
     }
     if (!isset($roles[$values['role']])) {
         $errors[] = 'Select a valid role.';
@@ -110,25 +115,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($errors === []) {
         try {
             $duplicate = database()->prepare(
-                "SELECT email FROM registration_requests WHERE email = :request_email AND status = 'pending'
-                 UNION SELECT username AS email FROM users WHERE username = :user_email LIMIT 1"
+                "SELECT email FROM registration_requests WHERE email = :request_email AND status IN ('pending','approved')
+                 UNION SELECT username AS email FROM users WHERE username = :user_email OR email = :contact_email LIMIT 1"
             );
             $normalizedEmail = strtolower($values['email']);
             $duplicate->execute([
                 'request_email' => $normalizedEmail,
                 'user_email' => $normalizedEmail,
+                'contact_email' => $normalizedEmail,
             ]);
+            $salaryDuplicate = database()->prepare(
+                'SELECT id FROM registration_requests WHERE salary_number = :request_salary
+                 UNION SELECT id FROM users WHERE salary_number = :user_salary OR username = :login LIMIT 1'
+            );
+            $salaryDuplicate->execute(['request_salary' => $values['salary_number'], 'user_salary' => $values['salary_number'], 'login' => widmsSalaryUsername($values['salary_number'])]);
 
             if ($duplicate->fetch()) {
                 $errors[] = 'This email already has an account or a pending request.';
+            } elseif ($salaryDuplicate->fetch()) {
+                $errors[] = 'This salary number is already registered.';
             } else {
                 $statement = database()->prepare(
                     'INSERT INTO registration_requests
-                     (full_name, email, phone, password_hash, role, division, district_id, ds_division_id)
-                     VALUES (:full_name, :email, :phone, :password_hash, :role, :division, :district_id, :ds_division_id)'
+                     (full_name, salary_number, email, phone, password_hash, role, division, district_id, ds_division_id)
+                     VALUES (:full_name, :salary_number, :email, :phone, :password_hash, :role, :division, :district_id, :ds_division_id)'
                 );
                 $statement->execute([
                     'full_name' => $values['full_name'],
+                    'salary_number' => $values['salary_number'],
                     'email' => strtolower($values['email']),
                     'phone' => $values['phone'],
                     'password_hash' => password_hash($password, PASSWORD_DEFAULT),
@@ -143,7 +157,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } catch (PDOException $exception) {
             error_log($exception->getMessage());
-            $errors[] = 'Unable to submit the request. Ask the administrator to install the registration database migration.';
+            $errors[] = (int) ($exception->errorInfo[1] ?? 0) === 1062
+                ? 'This salary number is already registered.'
+                : 'Unable to submit the request. Ask the administrator to install the registration database migration.';
         }
     }
 }
@@ -217,13 +233,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label class="form-label" for="full_name"><?= htmlspecialchars(t('Full name'), ENT_QUOTES, 'UTF-8') ?></label>
                     <input class="form-control" id="full_name" name="full_name" maxlength="100" value="<?= htmlspecialchars($values['full_name'], ENT_QUOTES, 'UTF-8') ?>" required>
                 </div>
+                <div class="full-width">
+                    <label class="form-label" for="salary_number"><?= htmlspecialchars(t('Salary Number'), ENT_QUOTES, 'UTF-8') ?></label>
+                    <input class="form-control" type="text" id="salary_number" name="salary_number" inputmode="numeric" pattern="[0-9]{1,30}" maxlength="30" aria-describedby="salary-help" value="<?= htmlspecialchars($values['salary_number'], ENT_QUOTES, 'UTF-8') ?>" required>
+                    <small id="salary-help" class="form-text"><?= htmlspecialchars(t('Your username will be swpcs followed by your salary number.'), ENT_QUOTES, 'UTF-8') ?></small>
+                </div>
                 <div>
                     <label class="form-label" for="email"><?= htmlspecialchars(t('Email address'), ENT_QUOTES, 'UTF-8') ?></label>
                     <input class="form-control" type="email" id="email" name="email" maxlength="120" value="<?= htmlspecialchars($values['email'], ENT_QUOTES, 'UTF-8') ?>" required>
                 </div>
                 <div>
                     <label class="form-label" for="phone"><?= htmlspecialchars(t('Phone Number'), ENT_QUOTES, 'UTF-8') ?></label>
-                    <input class="form-control" type="tel" id="phone" name="phone" maxlength="25" value="<?= htmlspecialchars($values['phone'], ENT_QUOTES, 'UTF-8') ?>" required>
+                    <input class="form-control" type="tel" id="phone" name="phone" maxlength="25" autocomplete="tel" aria-describedby="phone-help" value="<?= htmlspecialchars($values['phone'], ENT_QUOTES, 'UTF-8') ?>" required>
+                    <small id="phone-help" class="form-text"><?= htmlspecialchars(t('Use a mobile number to receive your account approval SMS.'), ENT_QUOTES, 'UTF-8') ?></small>
                 </div>
                 <div>
                     <label class="form-label" for="password"><?= htmlspecialchars(t('Password'), ENT_QUOTES, 'UTF-8') ?></label>

@@ -4,6 +4,8 @@ declare(strict_types=1);
 requireRole('admin');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/sms.php';
+require_once __DIR__ . '/../../includes/registration.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/admin-approval-tabs.php';
 
@@ -36,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $notice = t('A rejection reason is required.');
         $noticeType = 'danger';
     } else {
+        $decisionSaved = false;
         try {
             $connection = database();
             $connection->beginTransaction();
@@ -48,10 +51,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($decision === 'approved') {
-                $existing = $connection->prepare('SELECT id FROM users WHERE username = :email LIMIT 1');
-                $existing->execute(['email' => $request['email']]);
+                if (strlen((string) $request['phone']) > 25 || widmsSmsPhone((string) $request['phone']) === null) {
+                    throw new RuntimeException(t('Enter a valid Sri Lankan mobile number (07XXXXXXXX or +947XXXXXXXX).'));
+                }
+                // Requests submitted before salary registration keep their email login.
+                $approvedUsername = $request['salary_number'] !== null
+                    ? widmsSalaryUsername($request['salary_number']) : $request['email'];
+                $existing = $connection->prepare('SELECT id FROM users WHERE username = :username OR email = :email OR salary_number = :salary LIMIT 1');
+                $existing->execute(['username' => $approvedUsername, 'email' => $request['email'], 'salary' => $request['salary_number']]);
                 if ($existing->fetch()) {
-                    throw new RuntimeException('An account already exists for this email address.');
+                    throw new RuntimeException(t('An account already exists for this email address or salary number.'));
                 }
 
                 if ($request['role'] === 'social-service-officer') {
@@ -79,11 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $createUser = $connection->prepare(
-                    'INSERT INTO users (full_name, username, phone, division, district_id, ds_division_id, password_hash, role, status)
-                     VALUES (:full_name, :email, :phone, :division, :district_id, :ds_division_id, :password_hash, :role, :status)'
+                    'INSERT INTO users (full_name, username, email, salary_number, phone, division, district_id, ds_division_id, password_hash, role, status)
+                     VALUES (:full_name, :username, :email, :salary_number, :phone, :division, :district_id, :ds_division_id, :password_hash, :role, :status)'
                 );
                 $createUser->execute([
                     'full_name' => $request['full_name'],
+                    'username' => $approvedUsername,
+                    'salary_number' => $request['salary_number'],
                     'email' => $request['email'],
                     'phone' => $request['phone'],
                     'division' => $request['division'],
@@ -100,27 +111,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $update->execute(['status'=>$decision,'reason'=>$decision==='rejected'?$decisionReason:null,'reviewed_by'=>$_SESSION['user_id'],'id'=>$requestId]);
             $connection->commit();
+            $decisionSaved = true;
+
+            // Account creation is committed before contacting any external provider.
+            if ($decision === 'approved') {
+                try {
+                    widmsSendRegistrationApprovalSms($connection, (int) $requestId);
+                } catch (Throwable $notificationException) {
+                    error_log('WIDMS approval SMS could not be recorded for REG-' . (int) $requestId . '.');
+                }
+            }
             logActivity('Users', ucfirst($decision) . ' user registration request', 'REG-' . str_pad((string)$requestId,3,'0',STR_PAD_LEFT), $decision);
 
             // Rejected applicants need the administrator's reason in their notification.
-            $emailSent = sendRegistrationDecisionEmail($request['email'], $request['full_name'], $decision, $decisionReason);
+            $emailSent = sendRegistrationDecisionEmail($request['email'], $request['full_name'], $decision, $decisionReason, $approvedUsername ?? null);
             $emailUpdate = $connection->prepare('UPDATE registration_requests SET email_status = :email_status WHERE id = :id');
             $emailUpdate->execute(['email_status' => $emailSent ? 'sent' : 'failed', 'id' => $requestId]);
 
-            $notice = sprintf(
-                'Request %s. %s',
-                $decision,
-                $emailSent ? 'The applicant was notified by email.' : 'The decision was saved, but email delivery failed. Configure email on the server.'
-            );
-            $noticeType = $emailSent ? 'success' : 'warning';
+            // Keep notification delivery details out of the decision confirmation.
+            $notice = t($decision === 'approved' ? 'You approved the user.' : 'You rejected the user.');
+            $noticeType = 'success';
         } catch (Throwable $exception) {
             if (isset($connection) && $connection->inTransaction()) {
                 $connection->rollBack();
             }
             error_log($exception->getMessage());
-            $notice = $exception instanceof RuntimeException ? $exception->getMessage() : 'Unable to process the request. Check the database migration.';
-            $noticeType = 'danger';
-            $noticeType = 'danger';
+            if ($decisionSaved) {
+                $notice = t($decision === 'approved' ? 'You approved the user.' : 'You rejected the user.');
+                $noticeType = 'success';
+            } else {
+                $notice = $exception instanceof RuntimeException ? $exception->getMessage() : 'Unable to process the request. Check the database migration.';
+                $noticeType = 'danger';
+            }
         }
     }
 }
@@ -128,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 try {
     $connection = database();
     $registrations = $connection->query(
-        "SELECT rr.id,rr.full_name,rr.email,rr.phone,rr.role,rr.division,rr.created_at,
+        "SELECT rr.id,rr.full_name,rr.salary_number,rr.email,rr.phone,rr.role,rr.division,rr.created_at,
                 d.name district_name,ds.name ds_division_name
          FROM registration_requests rr
          LEFT JOIN districts d ON d.id=rr.district_id
@@ -141,7 +163,7 @@ try {
         ->query("SELECT COUNT(*) FROM aid_requests WHERE status='pending'")
         ->fetchColumn();
     $pendingStockReleases = (int) $connection
-        ->query("SELECT COUNT(*) FROM goods_requests WHERE status='pending-admin-approval'")
+        ->query("SELECT COUNT(DISTINCT COALESCE(NULLIF(request_batch_ref, ''), CONCAT('GR-', id))) FROM goods_requests WHERE status='pending-admin-approval'")
         ->fetchColumn();
     $pendingCorrectionRequests = (int) $connection
         ->query("SELECT COUNT(*) FROM correction_requests WHERE status='pending'")
@@ -168,14 +190,14 @@ try {
         <div class="topbar-actions"><label class="search-box"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search anything..." aria-label="Search"></label><button class="notification-button" type="button" aria-label="Notifications">●</button></div>
     </header>
     <main class="dashboard-content approvals-page admin-correction-review-page registration-review-page">
-        <?php if ($notice !== ''): ?><div class="alert alert-<?= $noticeType ?>" role="status"><?= htmlspecialchars($notice, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
-        <?php if ($loadError !== ''): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($loadError, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
         <?php renderAdminApprovalTabs([
             'registrations' => count($registrations),
             'aid' => $pendingItemRequests,
             'stock' => $pendingStockReleases,
             'corrections' => $pendingCorrectionRequests,
         ], 'registrations'); ?>
+        <?php if ($notice !== ''): ?><div class="alert alert-<?= $noticeType ?>" role="status"><?= htmlspecialchars($notice, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+        <?php if ($loadError !== ''): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($loadError, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
         <section class="approval-tab-panel active" data-panel="registrations">
             <div class="admin-data-card admin-correction-review-card">
                 <div class="admin-correction-list">
@@ -196,6 +218,8 @@ try {
                                 <span class="correction-status pending"><?= htmlspecialchars(t('Pending'), ENT_QUOTES, 'UTF-8') ?></span>
                             </div>
                             <dl class="correction-details registration-card-details">
+                                <div><dt><?= htmlspecialchars(t('Salary Number'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($registration['salary_number'] ?? '—', ENT_QUOTES, 'UTF-8') ?></dd></div>
+                                <div><dt><?= htmlspecialchars(t('Username'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($registration['salary_number'] !== null ? widmsSalaryUsername($registration['salary_number']) : $registration['email'], ENT_QUOTES, 'UTF-8') ?></dd></div>
                                 <div><dt><?= htmlspecialchars(t('Email Address'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($registration['email'], ENT_QUOTES, 'UTF-8') ?></dd></div>
                                 <div><dt><?= htmlspecialchars(t('Phone Number'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($registration['phone'], ENT_QUOTES, 'UTF-8') ?></dd></div>
                                 <div><dt><?= htmlspecialchars(t('District'), ENT_QUOTES, 'UTF-8') ?></dt><dd><?= htmlspecialchars($registration['district_name'] ?: '—', ENT_QUOTES, 'UTF-8') ?></dd></div>

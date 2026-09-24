@@ -4,7 +4,7 @@ declare(strict_types=1);
 use PHPMailer\PHPMailer\Exception as MailException;
 use PHPMailer\PHPMailer\PHPMailer;
 
-function sendRegistrationDecisionEmail(string $email,string $name,string $decision,string $reason=''):bool
+function sendRegistrationDecisionEmail(string $email,string $name,string $decision,string $reason='',?string $username=null):bool
 {
     $autoload=__DIR__.'/../vendor/autoload.php';
     if(!is_file($autoload)){error_log('WIDMS email: Composer dependencies are missing. Run composer install.');return false;}
@@ -14,7 +14,7 @@ function sendRegistrationDecisionEmail(string $email,string $name,string $decisi
     $approved=$decision==='approved';
     $subject='WIDMS registration request '.($approved?'approved':'rejected');
     // Include the recorded reason so rejected applicants understand the decision.
-    $statusText=$approved?'Your WIDMS registration request has been approved. You can now sign in using your email address and the password you selected.':'Your WIDMS registration request has been rejected.'.($reason!==''?' Reason: '.$reason:'');
+    $statusText=$approved?'Your WIDMS account has been successfully created. Your username is '.($username ?? $email).'. Sign in using the password you entered during registration.':'Your WIDMS registration request has been rejected.'.($reason!==''?' Reason: '.$reason:'');
     $safeName=htmlspecialchars($name,ENT_QUOTES,'UTF-8');$safeText=htmlspecialchars($statusText,ENT_QUOTES,'UTF-8');
     try{
         $mail=new PHPMailer(true);$mail->isSMTP();$mail->Host=$smtp['host'];$mail->Port=$smtp['port'];$mail->SMTPAuth=true;$mail->Username=$smtp['username'];$mail->Password=$smtp['password'];$mail->CharSet='UTF-8';$mail->Timeout=20;

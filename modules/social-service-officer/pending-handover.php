@@ -1,6 +1,164 @@
 <?php
-declare(strict_types=1);requireRole('social-service-officer');require_once __DIR__.'/../../config/database.php';require_once __DIR__.'/../../includes/activity.php';$activePage='pending-handover';$db=database();$user=(int)$_SESSION['user_id'];$errors=[];$success=(string)($_SESSION['flash_success']??'');unset($_SESSION['flash_success']);
-if($_SERVER['REQUEST_METHOD']==='POST'){$type=(string)($_POST['handover_type']??'goods');$id=filter_input(INPUT_POST,'handover_id',FILTER_VALIDATE_INT);if(!verifyCsrfToken((string)($_POST['csrf_token']??'')))$errors[]='Your session expired.';if(!$id||!in_array($type,['goods','vision'],true))$errors[]='Invalid handover.';if(!$errors)try{$db->beginTransaction();if($type==='vision'){$q=$db->prepare("SELECT vh.id FROM vision_camp_handovers vh WHERE vh.id=:id AND vh.officer_id=:user AND vh.status='pending' FOR UPDATE");$q->execute(['id'=>$id,'user'=>$user]);if(!$q->fetchColumn())throw new RuntimeException('Vision Camp handover is no longer pending.');$db->prepare("UPDATE vision_camp_handovers SET status='distributed',distributed_at=NOW() WHERE id=:id")->execute(['id'=>$id]);$reference='VCH-'.str_pad((string)$id,4,'0',STR_PAD_LEFT);}else{$q=$db->prepare("SELECT f.*,ar.beneficiary_id,ar.item_id,ar.quantity FROM goods_fulfillments f JOIN aid_requests ar ON ar.id=f.aid_request_id WHERE f.id=:id AND f.sso_id=:user AND f.status='pending-sso-handover' FOR UPDATE");$q->execute(['id'=>$id,'user'=>$user]);$f=$q->fetch();if(!$f)throw new RuntimeException('Goods handover is no longer pending.');$db->prepare("INSERT INTO distributions(aid_request_id,beneficiary_id,item_id,quantity,distribution_type,source,distributed_by) VALUES(:aid,:beneficiary,:item,:quantity,'request-based','officer-pool',:user)")->execute(['aid'=>$f['aid_request_id'],'beneficiary'=>$f['beneficiary_id'],'item'=>$f['item_id'],'quantity'=>$f['quantity'],'user'=>$user]);$db->prepare("UPDATE goods_fulfillments SET status='distributed',distributed_at=NOW() WHERE id=:id")->execute(['id'=>$id]);$db->prepare("UPDATE aid_requests SET status='distributed' WHERE id=:id")->execute(['id'=>$f['aid_request_id']]);$reference='FUL-'.str_pad((string)$id,4,'0',STR_PAD_LEFT);}$db->commit();logActivity('SSO Handover','Completed final beneficiary delivery',$reference,'distributed');$_SESSION['flash_success']='Final delivery marked as distributed.';unset($_SESSION['csrf_token']);header('Location: dashboard.php?page=pending-handover');exit;}catch(Throwable $e){if($db->inTransaction())$db->rollBack();error_log($e->getMessage());$errors[]=$e instanceof RuntimeException?$e->getMessage():'Unable to complete handover.';}}
-try{$q=$db->prepare("SELECT f.id,'goods' handover_type,COALESCE(f.lens_unit_identifier,CONCAT('FUL-',LPAD(f.id,4,'0'))) reference,i.item_name,b.full_name,b.nic,b.address,so.full_name subject_name,f.status FROM goods_fulfillments f JOIN aid_requests ar ON ar.id=f.aid_request_id JOIN beneficiaries b ON b.id=ar.beneficiary_id JOIN inventory_items i ON i.id=ar.item_id JOIN users so ON so.id=f.subject_officer_id WHERE f.sso_id=:user");$q->execute(['user'=>$user]);$rows=$q->fetchAll();$q=$db->prepare("SELECT vh.id,'vision' handover_type,CONCAT('VCH-',LPAD(vh.id,4,'0')) reference,'Spectacles' item_name,cb.full_name,cb.nic,cb.address,so.full_name subject_name,IF(vh.status='pending','pending-sso-handover','distributed') status FROM vision_camp_handovers vh JOIN vision_camp_beneficiaries cb ON cb.id=vh.camp_beneficiary_id JOIN users so ON so.id=vh.handed_by WHERE vh.officer_id=:user");$q->execute(['user'=>$user]);$rows=array_merge($rows,$q->fetchAll());usort($rows,fn($a,$b)=>($a['status']==='pending-sso-handover'?0:1)<=>($b['status']==='pending-sso-handover'?0:1));}catch(PDOException $e){error_log($e->getMessage());$rows=[];$errors[]='Pending handovers are unavailable.';}$counts=array_count_values(array_column($rows,'status'));
+
+declare(strict_types=1);
+
+requireRole('social-service-officer');
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/activity.php';
+
+$activePage = 'pending-handover';
+$database = database();
+$userId = (int) $_SESSION['user_id'];
+$errors = [];
+$success = (string) ($_SESSION['flash_success'] ?? '');
+unset($_SESSION['flash_success']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $handoverId = filter_input(INPUT_POST, 'handover_id', FILTER_VALIDATE_INT);
+    if (!verifyCsrfToken((string) ($_POST['csrf_token'] ?? ''))) {
+        $errors[] = 'Your session expired.';
+    }
+    if (!$handoverId) {
+        $errors[] = 'Invalid handover.';
+    }
+
+    if ($errors === []) {
+        try {
+            $database->beginTransaction();
+            $statement = $database->prepare(
+                "SELECT f.id, f.aid_request_id, ar.beneficiary_id, ar.item_id, ar.quantity
+                 FROM goods_fulfillments f
+                 JOIN aid_requests ar ON ar.id = f.aid_request_id
+                 WHERE f.id = :id AND f.sso_id = :user AND f.status = 'pending-sso-handover'
+                   AND ar.status = 'approved'
+                   AND NOT EXISTS (SELECT 1 FROM distributions d WHERE d.aid_request_id = ar.id)
+                 FOR UPDATE"
+            );
+            $statement->execute(['id' => $handoverId, 'user' => $userId]);
+            $handover = $statement->fetch();
+            if (!$handover) {
+                throw new RuntimeException('This aid handover is no longer pending.');
+            }
+
+            $database->prepare(
+                "INSERT INTO distributions
+                    (aid_request_id, beneficiary_id, item_id, quantity, distribution_type, source, distributed_by)
+                 VALUES
+                    (:aid, :beneficiary, :item, :quantity, 'request-based', 'officer-pool', :user)"
+            )->execute([
+                'aid' => $handover['aid_request_id'],
+                'beneficiary' => $handover['beneficiary_id'],
+                'item' => $handover['item_id'],
+                'quantity' => $handover['quantity'],
+                'user' => $userId,
+            ]);
+            $statement = $database->prepare("UPDATE goods_fulfillments SET status = 'distributed', distributed_at = NOW() WHERE id = :id AND status = 'pending-sso-handover'");
+            $statement->execute(['id' => $handoverId]);
+            if ($statement->rowCount() !== 1) {
+                throw new RuntimeException('This aid handover is no longer pending.');
+            }
+            $statement = $database->prepare("UPDATE aid_requests SET status = 'distributed' WHERE id = :id AND status = 'approved'");
+            $statement->execute(['id' => $handover['aid_request_id']]);
+            if ($statement->rowCount() !== 1) {
+                throw new RuntimeException('The approved request changed. Refresh and try again.');
+            }
+            $database->commit();
+
+            $reference = 'FUL-' . str_pad((string) $handoverId, 4, '0', STR_PAD_LEFT);
+            logActivity('SSO Handover', 'Completed final beneficiary delivery', $reference, 'distributed');
+            $_SESSION['flash_success'] = 'Final delivery marked as distributed.';
+            unset($_SESSION['csrf_token']);
+            header('Location: dashboard.php?page=pending-handover');
+            exit;
+        } catch (Throwable $exception) {
+            if ($database->inTransaction()) {
+                $database->rollBack();
+            }
+            error_log($exception->getMessage());
+            $errors[] = $exception instanceof RuntimeException
+                ? $exception->getMessage()
+                : 'Unable to complete handover.';
+        }
+    }
+}
+
+try {
+    $statement = $database->prepare(
+        "SELECT f.id, COALESCE(f.lens_unit_identifier, CONCAT('FUL-', LPAD(f.id, 4, '0'))) reference,
+                i.item_name, b.full_name, b.nic, b.address, so.full_name subject_name, f.status
+         FROM goods_fulfillments f
+         JOIN aid_requests ar ON ar.id = f.aid_request_id
+         JOIN beneficiaries b ON b.id = ar.beneficiary_id
+         JOIN inventory_items i ON i.id = ar.item_id
+         JOIN users so ON so.id = f.subject_officer_id
+         WHERE f.sso_id = :user
+         ORDER BY CASE WHEN f.status = 'pending-sso-handover' THEN 0 ELSE 1 END, f.id DESC"
+    );
+    $statement->execute(['user' => $userId]);
+    $rows = $statement->fetchAll();
+} catch (PDOException $exception) {
+    error_log($exception->getMessage());
+    $rows = [];
+    $errors[] = 'Pending aid handovers are unavailable.';
+}
+$counts = array_count_values(array_column($rows, 'status'));
 ?>
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pending Handover</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link href="assets/css/admin-dashboard.css" rel="stylesheet"></head><body><?php require __DIR__.'/../../includes/social-service-officer-sidebar.php';?><div class="admin-shell"><header class="topbar"><h1>Pending Handover</h1></header><main class="dashboard-content"><?php if($success):?><div class="alert alert-success"><?=htmlspecialchars($success)?></div><?php endif;?><?php if($errors):?><div class="alert alert-danger"><?=htmlspecialchars(implode(' ',$errors))?></div><?php endif;?><section class="handover-summary-grid"><article class="handover-summary-card pending"><p>Pending Items</p><strong><?=(int)($counts['pending-sso-handover']??0)?></strong></article><article class="handover-summary-card distributed"><p>Distributed</p><strong><?=(int)($counts['distributed']??0)?></strong></article></section><section class="handover-list-card"><div class="handover-list-header"><h2>Items Handed Over by Subject Officers</h2></div><div class="handover-table-wrap"><table class="handover-table"><thead><tr><th>Reference</th><th>Source</th><th>Item</th><th>Beneficiary</th><th>NIC</th><th>Address</th><th>Subject Officer</th><th>Status</th><th>Action</th></tr></thead><tbody><?php if(!$rows):?><tr><td colspan="9">No handovers assigned to you.</td></tr><?php else:foreach($rows as $r):?><tr><td><?=htmlspecialchars($r['reference'])?></td><td><?=$r['handover_type']==='vision'?'Vision Camp':'Aid Request'?></td><td><?=htmlspecialchars($r['item_name'])?></td><td><?=htmlspecialchars($r['full_name'])?></td><td><?=htmlspecialchars($r['nic']?:'—')?></td><td><?=htmlspecialchars($r['address'])?></td><td><?=htmlspecialchars($r['subject_name'])?></td><td><?=ucwords(str_replace('-',' ',$r['status']))?></td><td><?php if($r['status']==='pending-sso-handover'):?><form method="post"><input type="hidden" name="csrf_token" value="<?=htmlspecialchars(csrfToken())?>"><input type="hidden" name="handover_type" value="<?=htmlspecialchars($r['handover_type'])?>"><input type="hidden" name="handover_id" value="<?=(int)$r['id']?>"><button class="approve-button">Mark Distributed</button></form><?php else:?>—<?php endif;?></td></tr><?php endforeach;endif;?></tbody></table></div></section></main></div><script src="assets/js/admin-dashboard.js"></script></body></html>
+<!doctype html>
+<html lang="<?= htmlspecialchars(widmsLanguage(), ENT_QUOTES, 'UTF-8') ?>">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= htmlspecialchars(t('Pending Aid Handover'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=85" rel="stylesheet">
+</head>
+<body>
+<?php require __DIR__ . '/../../includes/social-service-officer-sidebar.php'; ?>
+<div class="admin-shell">
+    <header class="topbar"><h1><?= htmlspecialchars(t('Pending Aid Handover'), ENT_QUOTES, 'UTF-8') ?></h1></header>
+    <main class="dashboard-content">
+        <?php if ($success !== ''): ?><div class="alert alert-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+        <?php if ($errors !== []): ?><div class="alert alert-danger"><?= htmlspecialchars(implode(' ', $errors), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+        <section class="handover-summary-grid">
+            <article class="handover-summary-card pending"><p><?= htmlspecialchars(t('Pending Items'), ENT_QUOTES, 'UTF-8') ?></p><strong><?= (int) ($counts['pending-sso-handover'] ?? 0) ?></strong></article>
+            <article class="handover-summary-card distributed"><p><?= htmlspecialchars(t('Distributed'), ENT_QUOTES, 'UTF-8') ?></p><strong><?= (int) ($counts['distributed'] ?? 0) ?></strong></article>
+        </section>
+        <section class="handover-list-card">
+            <div class="handover-list-header"><h2><?= htmlspecialchars(t('Items Handed Over by Subject Officers'), ENT_QUOTES, 'UTF-8') ?></h2></div>
+            <div class="handover-table-wrap">
+                <table class="handover-table">
+                    <thead><tr><th><?= htmlspecialchars(t('Reference'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Item'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?></th><th>NIC</th><th><?= htmlspecialchars(t('Address'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Subject Officer'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Status'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Action'), ENT_QUOTES, 'UTF-8') ?></th></tr></thead>
+                    <tbody>
+                    <?php if ($rows === []): ?>
+                        <tr><td colspan="8"><?= htmlspecialchars(t('No handovers assigned to you.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
+                    <?php else: ?>
+                        <?php foreach ($rows as $row): ?>
+                            <tr id="fulfillment-<?= (int) $row['id'] ?>">
+                                <td><?= htmlspecialchars($row['reference'], ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($row['item_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($row['full_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($row['nic'] ?: '—', ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($row['address'], ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($row['subject_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars(ucwords(str_replace('-', ' ', $row['status'])), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td>
+                                    <?php if ($row['status'] === 'pending-sso-handover'): ?>
+                                        <form method="post">
+                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                            <input type="hidden" name="handover_id" value="<?= (int) $row['id'] ?>">
+                                            <button class="approve-button"><?= htmlspecialchars(t('Mark Distributed'), ENT_QUOTES, 'UTF-8') ?></button>
+                                        </form>
+                                    <?php else: ?>—<?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+</div>
+<script src="assets/js/admin-dashboard.js?v=26"></script>
+</body>
+</html>

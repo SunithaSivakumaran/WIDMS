@@ -6,7 +6,7 @@ function renderAdminApprovalTabs(array $counts, string $activeTab): void
     $tabs = [
         'registrations' => ['User Registration Requests', 'dashboard.php?page=pending-approvals', 'red'],
         'aid' => ['Pending Aid Requests', 'dashboard.php?page=item-requests&view=pending', 'yellow'],
-        'stock' => ['Stock Release', 'dashboard.php?page=goods-requests', 'yellow'],
+        'stock' => ['Stock Quota Requests', 'dashboard.php?page=goods-requests', 'yellow'],
         'corrections' => ['Correction Requests', 'dashboard.php?page=correction-requests', 'yellow'],
     ];
     ?>

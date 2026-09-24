@@ -16,6 +16,63 @@ if (!isLoggedIn() || !in_array($role, ['admin', 'store-keeper', 'subject-officer
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $notificationId = filter_input(INPUT_POST, 'notification_id', FILTER_VALIDATE_INT);
+    $notificationKey = trim((string) ($_POST['notification_key'] ?? ''));
+    $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+
+    $allowedDynamicPattern = match ($role) {
+        'store-keeper' => '/^(?:dispatch|payment)-\d+$/',
+        'subject-officer' => '/^fulfillment-\d+$/',
+        'social-service-officer' => '/^sso-handover-\d+$/',
+        default => '/(?!)/',
+    };
+    $allowedDynamicKey = preg_match($allowedDynamicPattern, $notificationKey) === 1;
+    if ((!$notificationId && !$allowedDynamicKey) || !verifyCsrfToken($csrfToken)) {
+        http_response_code(422);
+        echo json_encode(['error' => 'Invalid notification request.']);
+        exit;
+    }
+
+    try {
+        $database = database();
+        if ($notificationId) {
+            $statement = $database->prepare(
+                'UPDATE user_notifications
+                 SET read_at = COALESCE(read_at, NOW())
+                 WHERE id = :id AND user_id = :user_id'
+            );
+            $statement->execute([
+                'id' => $notificationId,
+                'user_id' => (int) $_SESSION['user_id'],
+            ]);
+
+            if ($statement->rowCount() < 1) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Notification not found.']);
+                exit;
+            }
+        } else {
+            $statement = $database->prepare(
+                'INSERT INTO notification_reads (user_id, notification_key)
+                 VALUES (:user_id, :notification_key)
+                 ON DUPLICATE KEY UPDATE read_at = read_at'
+            );
+            $statement->execute([
+                'user_id' => (int) $_SESSION['user_id'],
+                'notification_key' => $notificationKey,
+            ]);
+        }
+
+        echo json_encode(['success' => true]);
+    } catch (Throwable $exception) {
+        error_log($exception->getMessage());
+        http_response_code(503);
+        echo json_encode(['error' => 'Unable to update notification.']);
+    }
+    exit;
+}
+
 $errorTypes = [
     'wrong-unit-cost' => 'Wrong unit cost',
     'wrong-quantity' => 'Wrong quantity',
@@ -42,44 +99,120 @@ try {
         }
         unset($notification);
         echo json_encode(
-            ['count' => $total, 'items' => $notifications],
+            ['count' => $total, 'items' => $notifications, 'csrf_token' => csrfToken()],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
         );
         exit;
     };
 
+    $persistentCountStatement = $database->prepare(
+        "SELECT COUNT(*) FROM user_notifications
+         WHERE user_id = :user_id AND read_at IS NULL
+           AND COALESCE(target_url, '') NOT LIKE '%page=vision-camp%'
+           AND COALESCE(target_url, '') NOT LIKE '%page=contact-lens-orders%'
+           AND COALESCE(target_url, '') NOT LIKE '%page=pending-lens-handover%'"
+    );
+    $persistentCountStatement->execute(['user_id' => $userId]);
+    $persistentCount = (int) $persistentCountStatement->fetchColumn();
+
+    $persistentStatement = $database->prepare(
+        "SELECT id, category, title, message, target_url, created_at
+         FROM user_notifications
+         WHERE user_id = :user_id AND read_at IS NULL
+           AND COALESCE(target_url, '') NOT LIKE '%page=vision-camp%'
+           AND COALESCE(target_url, '') NOT LIKE '%page=contact-lens-orders%'
+           AND COALESCE(target_url, '') NOT LIKE '%page=pending-lens-handover%'
+         ORDER BY created_at DESC, id DESC
+         LIMIT 12"
+    );
+    $persistentStatement->execute(['user_id' => $userId]);
+    foreach ($persistentStatement->fetchAll() as $notification) {
+        $notificationId = (int) $notification['id'];
+        $items[] = [
+            'key' => 'user-notification-' . $notificationId,
+            'notification_id' => $notificationId,
+            'category' => t((string) $notification['category']),
+            'title' => (string) $notification['title'],
+            'detail' => t((string) $notification['message']),
+            'submitted_by' => t('Reviewed by Administrator'),
+            'created_label' => date('d M Y, H:i', strtotime((string) $notification['created_at'])),
+            'created_at' => (string) $notification['created_at'],
+            'url' => (string) $notification['target_url'],
+        ];
+    }
+
     if ($role === 'store-keeper') {
-        $count = (int) $database->query(
+        $countStatement = $database->prepare(
             "SELECT
-                (SELECT COUNT(*) FROM goods_requests WHERE status = 'approved-awaiting-dispatch') +
-                (SELECT COUNT(*) FROM stock_receipts WHERE balance_amount > 0)"
-        )->fetchColumn();
-        $dispatches = $database->query(
+                (SELECT COUNT(*) FROM goods_requests g
+                 WHERE g.status = 'approved-awaiting-dispatch'
+                 AND NOT EXISTS (
+                    SELECT 1 FROM notification_reads nr
+                    WHERE nr.user_id = :dispatch_user
+                    AND nr.notification_key = CONCAT('dispatch-', g.id)
+                 )) +
+                (SELECT COUNT(*) FROM stock_receipts sr
+                 WHERE sr.balance_amount > 0
+                 AND NOT EXISTS (
+                    SELECT 1 FROM notification_reads nr
+                    WHERE nr.user_id = :payment_user
+                    AND nr.notification_key = CONCAT('payment-', sr.id)
+                 ))"
+        );
+        $countStatement->execute([
+            'dispatch_user' => $userId,
+            'payment_user' => $userId,
+        ]);
+        $count = $persistentCount + (int) $countStatement->fetchColumn();
+        $dispatchStatement = $database->prepare(
             "SELECT g.id, g.quantity, g.approved_at created_at, i.item_name
              FROM goods_requests g JOIN inventory_items i ON i.id = g.item_id
              WHERE g.status = 'approved-awaiting-dispatch'
+             AND NOT EXISTS (
+                SELECT 1 FROM notification_reads nr
+                WHERE nr.user_id = :user_id
+                AND nr.notification_key = CONCAT('dispatch-', g.id)
+             )
              ORDER BY g.approved_at DESC, g.id DESC LIMIT 12"
-        )->fetchAll();
+        );
+        $dispatchStatement->execute(['user_id' => $userId]);
+        $dispatches = $dispatchStatement->fetchAll();
         foreach ($dispatches as $request) {
             $id = (int) $request['id'];
-            $items[] = ['key' => 'dispatch-' . $id, 'category' => t('Approved stock release'), 'title' => 'GR-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . ' · ' . $request['item_name'], 'detail' => t('Quantity') . ' ' . (int) $request['quantity'], 'submitted_by' => t('Ready for dispatch'), 'created_label' => date('d M Y, H:i', strtotime((string) $request['created_at'])), 'created_at' => (string) $request['created_at'], 'url' => 'dashboard.php?page=approved-dispatches'];
+            $items[] = ['key' => 'dispatch-' . $id, 'notification_key' => 'dispatch-' . $id, 'category' => t('Approved stock quota'), 'title' => 'GR-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . ' · ' . $request['item_name'], 'detail' => t('Quantity') . ' ' . (int) $request['quantity'], 'submitted_by' => t('Ready for dispatch'), 'created_label' => date('d M Y, H:i', strtotime((string) $request['created_at'])), 'created_at' => (string) $request['created_at'], 'url' => 'dashboard.php?page=approved-dispatches#goods-request-' . $id];
         }
-        $payments = $database->query(
+        $paymentStatement = $database->prepare(
             "SELECT sr.id, sr.bill_number, sr.balance_amount, sr.created_at, i.item_name
              FROM stock_receipts sr JOIN inventory_items i ON i.id = sr.item_id
-             WHERE sr.balance_amount > 0 ORDER BY sr.created_at DESC, sr.id DESC LIMIT 12"
-        )->fetchAll();
+             WHERE sr.balance_amount > 0
+             AND NOT EXISTS (
+                SELECT 1 FROM notification_reads nr
+                WHERE nr.user_id = :user_id
+                AND nr.notification_key = CONCAT('payment-', sr.id)
+             )
+             ORDER BY sr.created_at DESC, sr.id DESC LIMIT 12"
+        );
+        $paymentStatement->execute(['user_id' => $userId]);
+        $payments = $paymentStatement->fetchAll();
         foreach ($payments as $payment) {
             $id = (int) $payment['id'];
-            $items[] = ['key' => 'payment-' . $id, 'category' => t('Supplier payment reminder'), 'title' => 'BAT-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . ' · ' . $payment['item_name'], 'detail' => t('Balance') . ' Rs ' . number_format((float) $payment['balance_amount'], 2), 'submitted_by' => t('Bill') . ' ' . $payment['bill_number'], 'created_label' => date('d M Y, H:i', strtotime((string) $payment['created_at'])), 'created_at' => (string) $payment['created_at'], 'url' => 'dashboard.php?page=receipt-history'];
+            $items[] = ['key' => 'payment-' . $id, 'notification_key' => 'payment-' . $id, 'category' => t('Supplier payment reminder'), 'title' => 'BAT-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . ' · ' . $payment['item_name'], 'detail' => t('Balance') . ' Rs ' . number_format((float) $payment['balance_amount'], 2), 'submitted_by' => t('Bill') . ' ' . $payment['bill_number'], 'created_label' => date('d M Y, H:i', strtotime((string) $payment['created_at'])), 'created_at' => (string) $payment['created_at'], 'url' => 'dashboard.php?page=receipt-history#receipt-' . $id];
         }
         $respond($items, $count);
     }
 
     if ($role === 'subject-officer') {
-        $countStatement = $database->prepare("SELECT COUNT(*) FROM goods_fulfillments WHERE subject_officer_id = :user AND status = 'with-subject-officer'");
-        $countStatement->execute(['user' => $userId]);
-        $count = (int) $countStatement->fetchColumn();
+        $countStatement = $database->prepare(
+            "SELECT COUNT(*) FROM goods_fulfillments f
+             WHERE f.subject_officer_id = :user AND f.status = 'with-subject-officer'
+             AND NOT EXISTS (
+                SELECT 1 FROM notification_reads nr
+                WHERE nr.user_id = :read_user
+                AND nr.notification_key = CONCAT('fulfillment-', f.id)
+             )"
+        );
+        $countStatement->execute(['user' => $userId, 'read_user' => $userId]);
+        $count = $persistentCount + (int) $countStatement->fetchColumn();
         $statement = $database->prepare(
             "SELECT f.id, f.created_at, i.item_name, b.full_name beneficiary_name
              FROM goods_fulfillments f
@@ -87,22 +220,33 @@ try {
              JOIN inventory_items i ON i.id = ar.item_id
              JOIN beneficiaries b ON b.id = ar.beneficiary_id
              WHERE f.subject_officer_id = :user AND f.status = 'with-subject-officer'
+             AND NOT EXISTS (
+                SELECT 1 FROM notification_reads nr
+                WHERE nr.user_id = :read_user
+                AND nr.notification_key = CONCAT('fulfillment-', f.id)
+             )
              ORDER BY f.created_at DESC, f.id DESC LIMIT 12"
         );
-        $statement->execute(['user' => $userId]);
+        $statement->execute(['user' => $userId, 'read_user' => $userId]);
         foreach ($statement->fetchAll() as $request) {
             $id = (int) $request['id'];
-            $items[] = ['key' => 'fulfillment-' . $id, 'category' => t('Goods received'), 'title' => 'FUL-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . ' · ' . $request['item_name'], 'detail' => t('For') . ' ' . $request['beneficiary_name'], 'submitted_by' => t('Distribution action required'), 'created_label' => date('d M Y, H:i', strtotime((string) $request['created_at'])), 'created_at' => (string) $request['created_at'], 'url' => 'dashboard.php?page=distribute-items'];
+            $items[] = ['key' => 'fulfillment-' . $id, 'notification_key' => 'fulfillment-' . $id, 'category' => t('Goods received'), 'title' => 'FUL-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . ' · ' . $request['item_name'], 'detail' => t('For') . ' ' . $request['beneficiary_name'], 'submitted_by' => t('Distribution action required'), 'created_label' => date('d M Y, H:i', strtotime((string) $request['created_at'])), 'created_at' => (string) $request['created_at'], 'url' => 'dashboard.php?page=distribute-items#fulfillment-' . $id];
         }
         $respond($items, $count);
     }
 
     if ($role === 'social-service-officer') {
-        $goodsCount = $database->prepare("SELECT COUNT(*) FROM goods_fulfillments WHERE sso_id = :user AND status = 'pending-sso-handover'");
-        $goodsCount->execute(['user' => $userId]);
-        $lensCount = $database->prepare("SELECT COUNT(*) FROM contact_lens_units WHERE sso_id = :user AND status = 'pending-handover'");
-        $lensCount->execute(['user' => $userId]);
-        $count = (int) $goodsCount->fetchColumn() + (int) $lensCount->fetchColumn();
+        $goodsCount = $database->prepare(
+            "SELECT COUNT(*) FROM goods_fulfillments f
+             WHERE f.sso_id = :user AND f.status = 'pending-sso-handover'
+             AND NOT EXISTS (
+                SELECT 1 FROM notification_reads nr
+                WHERE nr.user_id = :read_user
+                AND nr.notification_key = CONCAT('sso-handover-', f.id)
+             )"
+        );
+        $goodsCount->execute(['user' => $userId, 'read_user' => $userId]);
+        $count = $persistentCount + (int) $goodsCount->fetchColumn();
         $statement = $database->prepare(
             "SELECT f.id, f.created_at, i.item_name, b.full_name beneficiary_name
              FROM goods_fulfillments f
@@ -110,35 +254,27 @@ try {
              JOIN inventory_items i ON i.id = ar.item_id
              JOIN beneficiaries b ON b.id = ar.beneficiary_id
              WHERE f.sso_id = :user AND f.status = 'pending-sso-handover'
+             AND NOT EXISTS (
+                SELECT 1 FROM notification_reads nr
+                WHERE nr.user_id = :read_user
+                AND nr.notification_key = CONCAT('sso-handover-', f.id)
+             )
              ORDER BY f.created_at DESC, f.id DESC LIMIT 12"
         );
-        $statement->execute(['user' => $userId]);
+        $statement->execute(['user' => $userId, 'read_user' => $userId]);
         foreach ($statement->fetchAll() as $request) {
             $id = (int) $request['id'];
-            $items[] = ['key' => 'sso-handover-' . $id, 'category' => t('Pending handover'), 'title' => 'FUL-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . ' · ' . $request['item_name'], 'detail' => t('For') . ' ' . $request['beneficiary_name'], 'submitted_by' => t('Final distribution required'), 'created_label' => date('d M Y, H:i', strtotime((string) $request['created_at'])), 'created_at' => (string) $request['created_at'], 'url' => 'dashboard.php?page=pending-handover'];
-        }
-        $lensStatement = $database->prepare(
-            "SELECT lu.id, lu.unit_code, lu.power, lu.created_at, b.full_name beneficiary_name
-             FROM contact_lens_units lu
-             JOIN aid_requests ar ON ar.id = lu.aid_request_id
-             JOIN beneficiaries b ON b.id = ar.beneficiary_id
-             WHERE lu.sso_id = :user AND lu.status = 'pending-handover'
-             ORDER BY lu.created_at DESC, lu.id DESC LIMIT 12"
-        );
-        $lensStatement->execute(['user' => $userId]);
-        foreach ($lensStatement->fetchAll() as $request) {
-            $id = (int) $request['id'];
-            $items[] = ['key' => 'lens-handover-' . $id, 'category' => t('Contact lens handover'), 'title' => $request['unit_code'] . ' · ' . $request['beneficiary_name'], 'detail' => t('Power') . ' ' . sprintf('%+.2f', (float) $request['power']), 'submitted_by' => t('Identity verification required'), 'created_label' => date('d M Y, H:i', strtotime((string) $request['created_at'])), 'created_at' => (string) $request['created_at'], 'url' => 'dashboard.php?page=pending-lens-handover'];
+            $items[] = ['key' => 'sso-handover-' . $id, 'notification_key' => 'sso-handover-' . $id, 'category' => t('Pending handover'), 'title' => 'FUL-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT) . ' · ' . $request['item_name'], 'detail' => t('For') . ' ' . $request['beneficiary_name'], 'submitted_by' => t('Final distribution required'), 'created_label' => date('d M Y, H:i', strtotime((string) $request['created_at'])), 'created_at' => (string) $request['created_at'], 'url' => 'dashboard.php?page=pending-handover#fulfillment-' . $id];
         }
         $respond($items, $count);
     }
 
-    $count = (int) $database->query(
+    $count = $persistentCount + (int) $database->query(
         "SELECT
             (SELECT COUNT(*) FROM correction_requests WHERE status = 'pending') +
             (SELECT COUNT(*) FROM registration_requests WHERE status = 'pending') +
             (SELECT COUNT(*) FROM aid_requests WHERE status = 'pending') +
-            (SELECT COUNT(*) FROM goods_requests WHERE status = 'pending-admin-approval')"
+            (SELECT COUNT(DISTINCT COALESCE(NULLIF(request_batch_ref, ''), CONCAT('GR-', id))) FROM goods_requests WHERE status = 'pending-admin-approval')"
     )->fetchColumn();
 
     $correctionStatement = $database->query(
@@ -210,21 +346,24 @@ try {
     }
 
     $goodsStatement = $database->query(
-        "SELECT gr.id, gr.quantity, gr.created_at, i.item_name, u.full_name AS requested_name
+        "SELECT MIN(gr.id) id,
+                COALESCE(NULLIF(gr.request_batch_ref, ''), CONCAT('GR-', gr.id)) batch_reference,
+                COUNT(*) allocation_count, SUM(gr.quantity) total_quantity,
+                MIN(gr.created_at) created_at, u.full_name AS requested_name
          FROM goods_requests gr
-         JOIN inventory_items i ON i.id = gr.item_id
          JOIN users u ON u.id = gr.requested_by
          WHERE gr.status = 'pending-admin-approval'
-         ORDER BY gr.created_at DESC, gr.id DESC
+         GROUP BY COALESCE(NULLIF(gr.request_batch_ref, ''), CONCAT('GR-', gr.id)), gr.requested_by, u.full_name
+         ORDER BY created_at DESC, id DESC
          LIMIT 12"
     );
     foreach ($goodsStatement->fetchAll() as $request) {
         $requestId = (int) $request['id'];
         $items[] = [
             'key' => 'goods-' . $requestId,
-            'category' => t('Stock release request'),
-            'title' => 'GR-' . str_pad((string) $requestId, 4, '0', STR_PAD_LEFT) . ' · ' . (string) $request['item_name'],
-            'detail' => t('Quantity') . ' ' . (int) $request['quantity'],
+            'category' => t('Stock quota request'),
+            'title' => (string) $request['batch_reference'],
+            'detail' => (int) $request['allocation_count'] . ' ' . t((int) $request['allocation_count'] === 1 ? 'Allocation' : 'Allocations') . ' - ' . (int) $request['total_quantity'] . ' ' . t('Total Units'),
             'submitted_by' => t('Requested by') . ' ' . (string) $request['requested_name'],
             'created_label' => date('d M Y, H:i', strtotime((string) $request['created_at'])),
             'created_at' => (string) $request['created_at'],
@@ -240,7 +379,7 @@ try {
     unset($item);
 
     echo json_encode(
-        ['count' => $count, 'items' => $items],
+        ['count' => $count, 'items' => $items, 'csrf_token' => csrfToken()],
         JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
     );
 } catch (Throwable $exception) {

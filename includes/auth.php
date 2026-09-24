@@ -25,7 +25,12 @@ function csrfToken(): string
 
 function verifyCsrfToken(string $token): bool
 {
-    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+    $valid = isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+    if ($valid) {
+        require_once __DIR__ . '/notification-sms.php';
+        widmsScheduleNotificationSms();
+    }
+    return $valid;
 }
 
 function isLoggedIn(): bool

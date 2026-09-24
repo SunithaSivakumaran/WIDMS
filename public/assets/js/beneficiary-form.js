@@ -34,6 +34,26 @@ document.addEventListener('DOMContentLoaded', () => {
     serviceDivisionNotice = document.getElementById('service-division-gn-notice'),
     dob = document.getElementById('date_of_birth'),
     age = document.getElementById('beneficiary-age')
+
+  const updateAge = () => {
+    if (!age) return
+    if (!dob.value) {
+      age.textContent = 'Age: —'
+      return
+    }
+    const birth = new Date(dob.value),
+      today = new Date()
+    let years = today.getFullYear() - birth.getFullYear()
+    if (
+      today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate())
+    )
+      years--
+    age.textContent = `Age: ${Math.max(0, years)}`
+  }
+  dob?.addEventListener('change', updateAge)
+
+  // Some workflows supply District and DS Division from the logged-in
+  // officer. Their form contains only the already-filtered GN Division.
   if (!district || !ds || !gn) return
   const filter = (select, parent) => {
     Array.from(select.options).forEach((option, index) => {
@@ -72,19 +92,4 @@ document.addEventListener('DOMContentLoaded', () => {
   })
   filter(ds, district.value)
   updateGnDivision(false)
-  dob?.addEventListener('change', () => {
-    if (!age) return
-    if (!dob.value) {
-      age.textContent = 'Age: —'
-      return
-    }
-    const birth = new Date(dob.value),
-      today = new Date()
-    let years = today.getFullYear() - birth.getFullYear()
-    if (
-      today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate())
-    )
-      years--
-    age.textContent = `Age: ${Math.max(0, years)}`
-  })
 })

@@ -94,7 +94,7 @@ try {
     $database = database();
     $approvalQueueCounts['registrations'] = (int) $database->query("SELECT COUNT(*) FROM registration_requests WHERE status='pending'")->fetchColumn();
     $approvalQueueCounts['aid'] = (int) $database->query("SELECT COUNT(*) FROM aid_requests WHERE status='pending'")->fetchColumn();
-    $approvalQueueCounts['stock'] = (int) $database->query("SELECT COUNT(*) FROM goods_requests WHERE status='pending-admin-approval'")->fetchColumn();
+    $approvalQueueCounts['stock'] = (int) $database->query("SELECT COUNT(DISTINCT COALESCE(NULLIF(request_batch_ref, ''), CONCAT('GR-', id))) FROM goods_requests WHERE status='pending-admin-approval'")->fetchColumn();
 } catch (PDOException $exception) {
     error_log($exception->getMessage());
 }
@@ -119,13 +119,13 @@ try {
     </header>
 
     <main class="dashboard-content correction-page admin-correction-review-page">
+        <?php renderAdminApprovalTabs($approvalQueueCounts, 'corrections'); ?>
+
         <?php if ($notice !== ''): ?>
             <div class="alert alert-<?= htmlspecialchars($noticeType, ENT_QUOTES, 'UTF-8') ?>" role="<?= $noticeType === 'danger' ? 'alert' : 'status' ?>">
                 <?= htmlspecialchars($notice, ENT_QUOTES, 'UTF-8') ?>
             </div>
         <?php endif; ?>
-
-        <?php renderAdminApprovalTabs($approvalQueueCounts, 'corrections'); ?>
 
         <section class="admin-data-card admin-correction-review-card" aria-label="<?= htmlspecialchars(t('Pending correction requests'), ENT_QUOTES, 'UTF-8') ?>">
             <div class="admin-correction-list">

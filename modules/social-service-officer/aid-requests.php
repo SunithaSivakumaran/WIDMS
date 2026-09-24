@@ -2,17 +2,14 @@
 
 declare(strict_types=1);
 
-/*
-|--------------------------------------------------------------------------
-| 1. ACCESS CONTROL
-|--------------------------------------------------------------------------
-| Only a Social Service Officer is allowed to create aid requests.
-|--------------------------------------------------------------------------
-*/
+/* This form is shared by the normal SSO workflow and the controlled direct
+ * request workflow available to Admin and Subject Officers. */
+$currentRole = (string) ($_SESSION['role'] ?? '');
+$directRequestMode = in_array($currentRole, ['admin', 'subject-officer'], true);
 
-if (!hasRole('social-service-officer')) {
+if (!in_array($currentRole, ['admin', 'subject-officer', 'social-service-officer'], true)) {
     http_response_code(403);
-    exit('Only Social Service Officers can create aid requests.');
+    exit('You do not have permission to create aid requests.');
 }
 
 
@@ -30,6 +27,8 @@ if (!hasRole('social-service-officer')) {
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/eligibility.php';
+require_once __DIR__ . '/../../includes/aid-request-details.php';
+require_once __DIR__ . '/../../includes/notifications.php';
 
 
 /*
@@ -49,10 +48,17 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 |--------------------------------------------------------------------------
 */
 
-$subject = hasRole('subject-officer');
+$subject = $currentRole === 'subject-officer';
+$admin = $currentRole === 'admin';
+$historyPageTitle = $admin ? 'Direct Distribution History' : 'Aid Activity History';
+$requestedPage = (string) ($_GET['page'] ?? '');
+$adminDirectDistributionPage = $admin && $requestedPage === 'direct-distribution';
+$directHistoryPage = $directRequestMode && $requestedPage === 'my-aid-requests';
 
-$showRequestForm = !$subject && (string) ($_GET['page'] ?? '') === 'new-aid-request';
-$activePage = $subject ? 'aid-distribution' : ($showRequestForm ? 'new-aid-request' : 'aid-requests');
+$showRequestForm = $directRequestMode ? !$directHistoryPage : $requestedPage === 'new-aid-request';
+$activePage = $directRequestMode
+    ? ($directHistoryPage ? 'my-aid-requests' : ($admin ? 'direct-distribution' : 'direct-aid-request'))
+    : ($showRequestForm ? 'new-aid-request' : 'aid-requests');
 
 $db = database();
 
@@ -63,6 +69,38 @@ $errors = [];
 $success = (string) ($_SESSION['flash_success'] ?? '');
 
 unset($_SESSION['flash_success']);
+
+// District and DS Division are account assignments, not beneficiary inputs.
+// Load them from the authenticated SSO and never trust posted location IDs.
+$officerAssignment = null;
+try {
+    if (!$directRequestMode) {
+    $assignmentQuery = $db->prepare(
+        "SELECT u.district_id,u.ds_division_id,d.name district_name,
+                ds.name ds_division_name,ds.division_type
+         FROM users u
+         JOIN districts d ON d.id=u.district_id AND d.status='active'
+         JOIN ds_divisions ds ON ds.id=u.ds_division_id
+                              AND ds.district_id=u.district_id
+                              AND ds.status='active'
+         WHERE u.id=:user AND u.role='social-service-officer' AND u.status='active'
+         LIMIT 1"
+    );
+    $assignmentQuery->execute(['user'=>$userId]);
+    $officerAssignment = $assignmentQuery->fetch() ?: null;
+    }
+} catch (PDOException $e) {
+    error_log($e->getMessage());
+}
+
+$hasAssignedDivision = $officerAssignment !== null;
+$canCreateRequest = $directRequestMode || $hasAssignedDivision;
+$assignedDistrictId = $hasAssignedDivision ? (int) $officerAssignment['district_id'] : 0;
+$assignedDsDivisionId = $hasAssignedDivision ? (int) $officerAssignment['ds_division_id'] : 0;
+$assignedDivisionType = $hasAssignedDivision ? (string) $officerAssignment['division_type'] : '';
+if ($showRequestForm && !$canCreateRequest) {
+    $errors[] = t('You must be assigned to an active DS Division before creating an aid request. Contact an administrator.');
+}
 
 
 /*
@@ -76,8 +114,8 @@ unset($_SESSION['flash_success']);
 */
 
 $v = [
-    'district_id' => '',
-    'ds_division_id' => '',
+    'district_id' => $assignedDistrictId ? (string) $assignedDistrictId : '',
+    'ds_division_id' => $assignedDsDivisionId ? (string) $assignedDsDivisionId : '',
     'gn_division_id' => '',
     'full_name' => '',
     // Identification values
@@ -106,6 +144,7 @@ $approvalSelections = [
 ];
 $useNicSelected = false;
 $useEldersCardSelected = false;
+$existingDirectRequestDocument = '';
 
 $editingRequestId = filter_input(INPUT_GET, 'edit_request_id', FILTER_VALIDATE_INT) ?: 0;
 
@@ -141,17 +180,22 @@ try {
 | distributed requests stay immutable so their operational history is safe.
 |--------------------------------------------------------------------------
 */
-if ($showRequestForm && $editingRequestId) {
-    $editRequest = $db->prepare(
+if ($showRequestForm && $editingRequestId && $canCreateRequest) {
+    $editSql =
         "SELECT ar.*, b.district_id, b.ds_division_id, b.gn_division_id,
                 b.full_name, b.nic, b.elders_card_number, b.date_of_birth,
                 b.gender, b.phone, b.address, b.disability
          FROM aid_requests ar
          JOIN beneficiaries b ON b.id = ar.beneficiary_id
          WHERE ar.id = :id AND ar.submitted_by = :user
-           AND ar.status IN ('draft', 'pending')"
-    );
-    $editRequest->execute(['id' => $editingRequestId, 'user' => $userId]);
+           AND ar.status IN ('draft', 'pending')";
+    $editParams = ['id' => $editingRequestId, 'user' => $userId];
+    if (!$directRequestMode) {
+        $editSql .= ' AND b.ds_division_id = :assigned_ds';
+        $editParams['assigned_ds'] = $assignedDsDivisionId;
+    }
+    $editRequest = $db->prepare($editSql);
+    $editRequest->execute($editParams);
     $editRequest = $editRequest->fetch();
 
     if (!$editRequest) {
@@ -159,8 +203,8 @@ if ($showRequestForm && $editingRequestId) {
         $editingRequestId = 0;
     } else {
         $v = [
-            'district_id' => (string) $editRequest['district_id'],
-            'ds_division_id' => (string) $editRequest['ds_division_id'],
+            'district_id' => (string) ($directRequestMode ? $editRequest['district_id'] : $assignedDistrictId),
+            'ds_division_id' => (string) ($directRequestMode ? $editRequest['ds_division_id'] : $assignedDsDivisionId),
             'gn_division_id' => (string) ($editRequest['gn_division_id'] ?? ''),
             'full_name' => (string) $editRequest['full_name'],
             'nic' => (string) ($editRequest['nic'] ?? ''),
@@ -185,6 +229,7 @@ if ($showRequestForm && $editingRequestId) {
         ];
         $useNicSelected = $v['nic'] !== '';
         $useEldersCardSelected = $v['elders_card_number'] !== '';
+        $existingDirectRequestDocument = directRequestDocumentUrl((string) ($editRequest['direct_request_document'] ?? ''));
     }
 }
 
@@ -213,14 +258,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') ==
             logActivity('Aid Requests', 'Removed editable aid request', 'AR-'.str_pad((string) $requestId, 4, '0', STR_PAD_LEFT), 'removed');
             $_SESSION['flash_success'] = 'Aid request removed.';
             unset($_SESSION['csrf_token']);
-            header('Location: dashboard.php?page=aid-requests');
+            header('Location: dashboard.php?page=' . ($directRequestMode ? 'my-aid-requests' : 'aid-requests'));
             exit;
         }
         $errors[] = 'This aid request can no longer be removed.';
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !== 'delete') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['request_action'] ?? '') !== 'delete'
+    && !isset($_POST['admin_direct_action'])) {
 
     /*
     |--------------------------------------------------------------------------
@@ -229,7 +275,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
     */
 
     foreach (array_keys($v) as $key) {
+        if (!$directRequestMode && ($key === 'district_id' || $key === 'ds_division_id')) {
+            continue;
+        }
         $v[$key] = trim((string) ($_POST[$key] ?? ''));
+    }
+    if (!$directRequestMode) {
+        $v['district_id'] = $assignedDistrictId ? (string) $assignedDistrictId : '';
+        $v['ds_division_id'] = $assignedDsDivisionId ? (string) $assignedDsDivisionId : '';
     }
 
     /*
@@ -260,7 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
     |--------------------------------------------------------------------------
     */
 
-    $saveDraft =
+    $saveDraft = !$directRequestMode &&
         ($_POST['submit_action'] ?? 'submit') === 'draft';
 
 
@@ -270,15 +323,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
     |--------------------------------------------------------------------------
     */
 
-    $district = filter_var(
-        $v['district_id'],
-        FILTER_VALIDATE_INT
-    );
+    $district = $directRequestMode
+        ? filter_var($v['district_id'], FILTER_VALIDATE_INT)
+        : ($assignedDistrictId ?: false);
 
-    $ds = filter_var(
-        $v['ds_division_id'],
-        FILTER_VALIDATE_INT
-    );
+    $ds = $directRequestMode
+        ? filter_var($v['ds_division_id'], FILTER_VALIDATE_INT)
+        : ($assignedDsDivisionId ?: false);
 
     $gn = filter_var(
         $v['gn_division_id'],
@@ -338,26 +389,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
     }
 
 
-    // Service centres represent a fixed residential location and intentionally have no GN Division.
-    $isServiceDivision = false;
-    if ($district && $ds) {
-        $divisionType = $db->prepare(
-            "SELECT division_type
-             FROM ds_divisions
-             WHERE id = :ds AND district_id = :district AND status = 'active'"
-        );
-        $divisionType->execute([
-            'ds' => $ds,
-            'district' => $district,
-        ]);
-        $isServiceDivision = $divisionType->fetchColumn() === 'service-centre';
-    }
-
-
-    // GN Division remains mandatory for official DS Divisions only.
-    if (!$district || !$ds || (!$isServiceDivision && !$gn)) {
-        $errors[] =
-            'Select District, D.S. Division, and G.N. Division.';
+    // Direct requests select the beneficiary's complete location. Normal SSO
+    // requests continue to use the officer's assigned District and DS Division.
+    $isServiceDivision = !$directRequestMode && $assignedDivisionType === 'service-centre';
+    if ($directRequestMode && (!$district || !$ds || !$gn)) {
+        $errors[] = t('Select District, DS Division, and GN Division.');
+    } elseif (!$directRequestMode && !$hasAssignedDivision) {
+        $assignmentMessage = t('You must be assigned to an active DS Division before creating an aid request. Contact an administrator.');
+        if (!in_array($assignmentMessage, $errors, true)) {
+            $errors[] = $assignmentMessage;
+        }
+    } elseif (!$isServiceDivision && !$gn) {
+        $errors[] = t('Select the beneficiary GN Division.');
     }
 
 
@@ -376,7 +419,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
     |--------------------------------------------------------------------------
     |
     */
-    if (!$useNic && !$useEldersCard) {
+    if (!$directRequestMode && !$useNic && !$useEldersCard) {
     $errors[] =
         'Select at least one identification method: NIC or Elder\'s Card.';
     }
@@ -430,18 +473,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
     |--------------------------------------------------------------------------
     */
 
-    $dob = DateTimeImmutable::createFromFormat(
-        'Y-m-d',
-        $v['date_of_birth']
-    );
+    $dob = $v['date_of_birth'] !== ''
+        ? DateTimeImmutable::createFromFormat('Y-m-d', $v['date_of_birth'])
+        : null;
 
-    if (
-        !$dob ||
-        $dob->format('Y-m-d') !== $v['date_of_birth'] ||
-        $dob > new DateTimeImmutable('today')
-    ) {
-        $errors[] =
-            'Enter a valid date of birth.';
+    if (!$directRequestMode || $v['date_of_birth'] !== '') {
+        if (!$dob || $dob->format('Y-m-d') !== $v['date_of_birth'] || $dob > new DateTimeImmutable('today')) {
+            $errors[] = 'Enter a valid date of birth.';
+        }
     }
 
 
@@ -490,7 +529,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
     */
 
     if (
-        mb_strlen($v['address']) < 5 ||
+        (!$admin && mb_strlen($v['address']) < 5) ||
         mb_strlen($v['address']) > 255
     ) {
         $errors[] =
@@ -537,6 +576,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
     if (mb_strlen($v['notes']) > 1000) {
         $errors[] =
             'Notes cannot exceed 1000 characters.';
+    }
+    if ($directRequestMode && !$admin && mb_strlen($v['notes']) < 10) {
+        $errors[] = t('Explain the reason for this direct request using at least 10 characters.');
     }
 
 
@@ -585,30 +627,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             |--------------------------------------------------------------------------
             */
 
-            $division = $db->prepare(
-                "SELECT division_type
-                 FROM ds_divisions
-                 WHERE id = :ds
-                   AND district_id = :district
-                   AND status = 'active'
-                 FOR UPDATE"
-            );
-            $division->execute([
-                'ds' => $ds,
-                'district' => $district,
-            ]);
-            $divisionType = $division->fetchColumn();
-
-            if (!$divisionType) {
-                throw new RuntimeException(
-                    'The selected location hierarchy is invalid.'
-                );
-            }
-
-            // Never attach an arbitrary GN Division to a service-centre beneficiary.
-            if ($divisionType === 'service-centre') {
-                $gn = null;
-            } else {
+            if ($directRequestMode) {
+                // Admin and Subject Officer direct requests use the explicitly
+                // selected beneficiary hierarchy, verified again server-side.
                 $geo = $db->prepare(
                     "SELECT gn.id
                      FROM gn_divisions gn
@@ -636,6 +657,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     throw new RuntimeException(
                         'The selected location hierarchy is invalid.'
                     );
+                }
+            } else {
+                // Re-read and lock the live SSO assignment so a crafted POST
+                // or concurrent reassignment cannot place a beneficiary elsewhere.
+                $division = $db->prepare(
+                    "SELECT u.district_id,u.ds_division_id,ds.division_type
+                     FROM users u
+                     JOIN districts d ON d.id=u.district_id AND d.status='active'
+                     JOIN ds_divisions ds ON ds.id=u.ds_division_id
+                                          AND ds.district_id=u.district_id
+                                          AND ds.status='active'
+                     WHERE u.id=:user AND u.role='social-service-officer' AND u.status='active'
+                     LIMIT 1 FOR UPDATE"
+                );
+                $division->execute(['user'=>$userId]);
+                $liveAssignment = $division->fetch();
+
+                if (!$liveAssignment) {
+                    throw new RuntimeException(
+                        t('You must be assigned to an active DS Division before creating an aid request. Contact an administrator.')
+                    );
+                }
+                $district = (int) $liveAssignment['district_id'];
+                $ds = (int) $liveAssignment['ds_division_id'];
+                $divisionType = (string) $liveAssignment['division_type'];
+
+                // Never attach an arbitrary GN Division to a service-centre beneficiary.
+                if ($divisionType === 'service-centre') {
+                    $gn = null;
+                } else {
+                    $geo = $db->prepare(
+                        "SELECT gn.id
+                         FROM gn_divisions gn
+                         JOIN ds_divisions ds ON ds.id = gn.ds_division_id
+                         JOIN districts d ON d.id = ds.district_id
+                         WHERE gn.id = :gn AND ds.id = :ds AND d.id = :district
+                           AND gn.status = 'active' AND ds.status = 'active' AND d.status = 'active'"
+                    );
+                    $geo->execute(['gn'=>$gn, 'ds'=>$ds, 'district'=>$district]);
+                    if (!$geo->fetchColumn()) {
+                        throw new RuntimeException('The selected location hierarchy is invalid.');
+                    }
                 }
             }
 
@@ -697,6 +760,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                 throw new RuntimeException(
                     'Select a request-based aid type.'
                 );
+            }
+
+            // Subject Officer optical requests must be backed by the current
+            // Central Stock balance before any supporting file is stored.
+            $aidText = mb_strtolower(trim(
+                (string) ($aid['item_name'] ?? '') . ' ' .
+                (string) ($aid['variety'] ?? '') . ' ' .
+                (string) ($aid['category_name'] ?? '')
+            ));
+            $isOpticalAid = str_contains($aidText, 'lens')
+                || str_contains($aidText, 'spectacle')
+                || str_contains($aidText, 'glasses');
+            if ($currentRole === 'subject-officer' && !$saveDraft && $isOpticalAid
+                && (int) ($aid['quantity'] ?? 0) < (int) $qty) {
+                throw new RuntimeException(sprintf(
+                    t('Only %d units of %s are available in Central Stock.'),
+                    max(0, (int) ($aid['quantity'] ?? 0)),
+                    (string) $aid['item_name']
+                ));
+            }
+
+            // Direct requests may include one optional supporting PDF. The
+            // MIME type is detected server-side; the browser filename is never
+            // used as the stored filename.
+            $directRequestDocument = $existingDirectRequestDocument !== '' ? $existingDirectRequestDocument : null;
+            $newDirectDocumentFullPath = null;
+            if ($directRequestMode && isset($_FILES['direct_request_document'])) {
+                $documentUpload = $_FILES['direct_request_document'];
+                $documentError = (int) ($documentUpload['error'] ?? UPLOAD_ERR_NO_FILE);
+                if ($documentError !== UPLOAD_ERR_NO_FILE) {
+                    if ($documentError !== UPLOAD_ERR_OK) {
+                        throw new RuntimeException(t('The supporting PDF could not be uploaded.'));
+                    }
+                    if ((int) ($documentUpload['size'] ?? 0) > 5 * 1024 * 1024) {
+                        throw new RuntimeException(t('The supporting PDF must be 5 MB or smaller.'));
+                    }
+                    $documentMime = (new finfo(FILEINFO_MIME_TYPE))->file((string) $documentUpload['tmp_name']);
+                    if ($documentMime !== 'application/pdf') {
+                        throw new RuntimeException(t('The supporting document must be a PDF file.'));
+                    }
+                    $documentDirectory = __DIR__ . '/../../public/uploads/aid-documents';
+                    if (!is_dir($documentDirectory) && !mkdir($documentDirectory, 0775, true) && !is_dir($documentDirectory)) {
+                        throw new RuntimeException(t('The aid-document folder could not be created.'));
+                    }
+                    $documentFilename = 'direct-' . bin2hex(random_bytes(12)) . '.pdf';
+                    $newDirectDocumentFullPath = $documentDirectory . '/' . $documentFilename;
+                    if (!move_uploaded_file((string) $documentUpload['tmp_name'], $newDirectDocumentFullPath)) {
+                        throw new RuntimeException(t('The supporting PDF could not be saved.'));
+                    }
+                    $directRequestDocument = 'uploads/aid-documents/' . $documentFilename;
+                }
             }
 
 
@@ -826,9 +940,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             }
             $detailsJson=$submittedDetails?json_encode($submittedDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES):null;
 
-            // Legacy power remains unused for newly configured items; their value is stored generically.
+            // Keep the generic configured value and the indexed legacy column
+            // in sync so optical stock/fulfilment screens can show the power.
             $power = null;
-
+            foreach ($submittedDetails as $submittedDetail) {
+                if (($submittedDetail['type'] ?? '') === 'number'
+                    && mb_strtolower(trim((string) ($submittedDetail['label'] ?? ''))) === 'power') {
+                    $power = (float) ($submittedDetail['value'] ?? 0);
+                    break;
+                }
+            }
+            if ($isOpticalAid && !$saveDraft && $power === null) {
+                throw new RuntimeException(
+                    'Enter the signed prescribed power for spectacles or contact lenses.'
+                );
+            }
 
             /*
             |--------------------------------------------------------------------------
@@ -935,7 +1061,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
     if ($conditions !== []) {
 
         $q = $db->prepare(
-            'SELECT id, nic, elders_card_number
+            'SELECT id, nic, elders_card_number, ds_division_id
             FROM beneficiaries
             WHERE ' . implode(' OR ', $conditions) . '
             FOR UPDATE'
@@ -955,6 +1081,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
 
 
         if (count($matches) === 1) {
+
+            if ($admin && !$editingRequestId) {
+                throw new RuntimeException(t('This identification belongs to an existing beneficiary. Direct distribution registration is for a new beneficiary.'));
+            }
+
+            if (!$directRequestMode && (int) $matches[0]['ds_division_id'] !== $ds) {
+                throw new RuntimeException(
+                    t('This beneficiary belongs to another DS Division and cannot be changed by this officer.')
+                );
+            }
 
             $beneficiary =
                 (int) $matches[0]['id'];
@@ -981,9 +1117,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                         ds_division_id = :ds,
                         gn_division_id = :gn,
                         full_name = :name,
-                        nic = :nic,
-                        elders_card_number = :elders_card,
-                        date_of_birth = :dob,
+                        nic = COALESCE(:nic, nic),
+                        elders_card_number = COALESCE(:elders_card, elders_card_number),
+                        date_of_birth = COALESCE(:dob, date_of_birth),
                         gender = :gender,
                         phone = :phone,
                         address = :address,
@@ -1011,7 +1147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                         $eldersCardNumber,
 
                     'dob' =>
-                        $v['date_of_birth'],
+                        $v['date_of_birth'] !== '' ? $v['date_of_birth'] : null,
 
                     'gender' =>
                         $v['gender'],
@@ -1094,7 +1230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     'elders_card' => $eldersCardNumber,
 
                     'dob' =>
-                        $v['date_of_birth'],
+                        $v['date_of_birth'] !== '' ? $v['date_of_birth'] : null,
 
                     'gender' =>
                         $v['gender'],
@@ -1135,7 +1271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             |--------------------------------------------------------------------------
             */
 
-            if (!$saveDraft) {
+            if (!$saveDraft && !$directRequestMode) {
 
                 $eligibility =
                     beneficiaryEligibility(
@@ -1160,10 +1296,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             |--------------------------------------------------------------------------
             */
 
-            $status =
-                $saveDraft
-                    ? 'draft'
-                    : 'pending';
+            $autoApprovedByAdmin = $admin && $directRequestMode && !$saveDraft;
+            $status = $saveDraft
+                ? 'draft'
+                : ($autoApprovedByAdmin ? 'approved' : 'pending');
 
 
             /*
@@ -1205,6 +1341,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                          beneficiary_detail_label = :detail_label,
                          beneficiary_detail_value = :detail_value,
                          beneficiary_details_json = :details_json, notes = :notes,
+                         eligibility_override = :eligibility_override,
+                         direct_request_document = :direct_request_document,
                          medical_officer_approved = :medical,
                          grama_niladhari_approved = :gn,
                          social_services_approved = :social,
@@ -1223,6 +1361,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     'detail_value' => $detailValue,
                     'details_json' => $detailsJson,
                     'notes' => $v['notes'] ?: null,
+                    'eligibility_override' => (int) $directRequestMode,
+                    'direct_request_document' => $directRequestMode ? $directRequestDocument : null,
                     'medical' => (int) $signoffs['medical_officer'],
                     'gn' => (int) $signoffs['grama_niladhari'],
                     'social' => (int) $signoffs['social_services'],
@@ -1245,6 +1385,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     beneficiary_detail_value,
                     beneficiary_details_json,
                     notes,
+                    eligibility_override,
+                    direct_request_document,
                     medical_officer_approved,
                     grama_niladhari_approved,
                     social_services_approved,
@@ -1263,6 +1405,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     :detail_value,
                     :details_json,
                     :notes,
+                    :eligibility_override,
+                    :direct_request_document,
                     :medical,
                     :gn,
                     :social,
@@ -1299,6 +1443,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                 'notes' =>
                     $v['notes'] ?: null,
 
+                'eligibility_override' =>
+                    (int) $directRequestMode,
+
+                'direct_request_document' =>
+                    $directRequestMode ? $directRequestDocument : null,
+
                 'medical' =>
                     (int) $signoffs['medical_officer'],
 
@@ -1332,6 +1482,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
                     (int) $db->lastInsertId();
             }
 
+            if ($autoApprovedByAdmin) {
+                $markReviewed = $db->prepare(
+                    'UPDATE aid_requests
+                     SET reviewed_by = :reviewer, reviewed_at = NOW()
+                     WHERE id = :id AND submitted_by = :submitter'
+                );
+                $markReviewed->execute([
+                    'reviewer' => $userId,
+                    'submitter' => $userId,
+                    'id' => $id,
+                ]);
+                // Admin-created requests go directly to the Store Keeper's
+                // release queue; no second Admin approval is required.
+                $db->prepare(
+                    "INSERT INTO admin_direct_releases (aid_request_id, admin_id)
+                     VALUES (:request_id, :admin_id)"
+                )->execute(['request_id' => $id, 'admin_id' => $userId]);
+                $keepers = $db->query(
+                    "SELECT id FROM users WHERE role = 'store-keeper' AND status = 'active'"
+                )->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($keepers as $keeperId) {
+                    notifyUser(
+                        $db,
+                        (int) $keeperId,
+                        'admin-direct-release-' . $id,
+                        'Admin direct aid release',
+                        'AR-' . str_pad((string) $id, 4, '0', STR_PAD_LEFT),
+                        'Release the approved aid to the Administrator.',
+                        'dashboard.php?page=approved-dispatches#aid-request-' . $id
+                    );
+                }
+            }
+
 
             /*
             |--------------------------------------------------------------------------
@@ -1351,11 +1534,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             logActivity(
                 'Aid Requests',
 
-                $editingRequestId
-                    ? 'Updated aid request'
-                    : ($saveDraft
-                    ? 'Saved aid request draft'
-                    : 'Submitted aid request'),
+                $autoApprovedByAdmin
+                    ? ($editingRequestId
+                        ? 'Updated and approved direct aid request'
+                        : 'Created and approved direct aid request')
+                    : ($editingRequestId
+                        ? 'Updated aid request'
+                        : ($saveDraft
+                            ? 'Saved aid request draft'
+                            : 'Submitted aid request')),
 
                 'AR-' .
                     str_pad(
@@ -1375,14 +1562,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             |--------------------------------------------------------------------------
             */
 
-            $_SESSION['flash_success'] =
-                $editingRequestId
+            $_SESSION['flash_success'] = $autoApprovedByAdmin
+                ? 'Beneficiary and aid request saved. The Store Keeper has been asked to release the item to you.'
+                : ($editingRequestId
                     ? 'Aid request updated.'
                     : ($saveDraft
-
-                    ? 'Aid request saved as draft.'
-
-                    : 'Aid request submitted for Admin approval.');
+                        ? 'Aid request saved as draft.'
+                        : 'Aid request submitted for Admin approval.'));
 
 
             unset($_SESSION['csrf_token']);
@@ -1397,8 +1583,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
             header(
                 'Location: dashboard.php?page=' .
                 (
-                    $subject
-                        ? 'aid-distribution'
+                    $directRequestMode
+                        ? ($admin ? 'direct-aid-release-queue' : 'my-aid-requests')
                         : 'aid-requests'
                 )
             );
@@ -1417,6 +1603,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['request_action'] ?? '') !=
 
             if ($db->inTransaction()) {
                 $db->rollBack();
+            }
+            if (!empty($newDirectDocumentFullPath) && is_file($newDirectDocumentFullPath)) {
+                unlink($newDirectDocumentFullPath);
             }
 
 
@@ -1446,92 +1635,32 @@ try {
 
     /*
     |--------------------------------------------------------------------------
-    | Load Southern Province districts.
+    | Load only the GN Divisions belonging to the logged-in SSO assignment.
     |--------------------------------------------------------------------------
     */
-
-    $districts = $db->query(
-        "SELECT id, name
-
-         FROM districts
-
-         WHERE status='active'
-
-           AND name IN (
-               'Galle',
-               'Matara',
-               'Hambantota'
-           )
-
-         ORDER BY FIELD(
-             name,
-             'Galle',
-             'Matara',
-             'Hambantota'
-         )"
-    )->fetchAll();
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Load DS Divisions.
-    |--------------------------------------------------------------------------
-    */
-
-    $dsDivisions = $db->query(
-        "SELECT
-            ds.id,
-            ds.district_id,
-            ds.name,
-            ds.division_type
-
-         FROM ds_divisions ds
-
-         JOIN districts d
-            ON d.id = ds.district_id
-
-         WHERE ds.status='active'
-
-           AND d.name IN (
-               'Galle',
-               'Matara',
-               'Hambantota'
-           )
-
-         ORDER BY ds.name"
-    )->fetchAll();
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Load GN Divisions.
-    |--------------------------------------------------------------------------
-    */
-
-    $gnDivisions = $db->query(
-        "SELECT
-            gn.id,
-            gn.ds_division_id,
-            gn.name
-
-         FROM gn_divisions gn
-
-         JOIN ds_divisions ds
-            ON ds.id = gn.ds_division_id
-
-         JOIN districts d
-            ON d.id = ds.district_id
-
-         WHERE gn.status='active'
-
-           AND d.name IN (
-               'Galle',
-               'Matara',
-               'Hambantota'
-           )
-
-         ORDER BY gn.name"
-    )->fetchAll();
+    $districts = [];
+    $dsDivisions = [];
+    $gnDivisions = [];
+    if ($directRequestMode) {
+        $districts = $db->query(
+            "SELECT id,name FROM districts WHERE status='active' ORDER BY name"
+        )->fetchAll();
+        $dsDivisions = $db->query(
+            "SELECT id,district_id,name,division_type FROM ds_divisions WHERE status='active' ORDER BY name"
+        )->fetchAll();
+        $gnDivisions = $db->query(
+            "SELECT id,ds_division_id,name FROM gn_divisions WHERE status='active' ORDER BY name"
+        )->fetchAll();
+    } elseif ($hasAssignedDivision && $assignedDivisionType !== 'service-centre') {
+        $gnQuery = $db->prepare(
+            "SELECT id,ds_division_id,name
+             FROM gn_divisions
+             WHERE ds_division_id=:ds AND status='active'
+             ORDER BY name"
+        );
+        $gnQuery->execute(['ds'=>$assignedDsDivisionId]);
+        $gnDivisions = $gnQuery->fetchAll();
+    }
 
 
     /*
@@ -1547,7 +1676,7 @@ try {
 
     // Only items configured for an active disability appear in the request form.
     $aidTypes = $db->query(
-        "SELECT i.id,i.item_name,i.variety,dt.name disability_name,dai.id eligibility_rule_id,
+        "SELECT i.id,i.item_name,i.variety,i.quantity AS central_stock,dt.name disability_name,dai.id eligibility_rule_id,
                 dai.beneficiary_field_label,dai.beneficiary_field_type
          FROM disability_aid_items dai
          JOIN disability_types dt ON dt.id=dai.disability_type_id AND dt.status='active'
@@ -1593,6 +1722,27 @@ try {
     |--------------------------------------------------------------------------
     */
 
+    // SSO history includes its own requests and only Admin direct issues for
+    // beneficiaries in its currently assigned division. Never expose another
+    // division's Admin activity merely because a notification URL names a row.
+    $historyScope = 'ar.submitted_by = :user';
+    $historyParams = ['user' => $userId];
+    if ($currentRole === 'social-service-officer' && $hasAssignedDivision) {
+        $historyScope = "(ar.submitted_by = :user OR (
+            b.ds_division_id = :assigned_ds
+            AND distribution.distribution_type = 'direct'
+            AND ar.submitted_by = distribution.distributed_by
+            AND EXISTS (
+                SELECT 1 FROM users direct_admin
+                WHERE direct_admin.id = distribution.distributed_by
+                  AND direct_admin.role = 'admin'
+            )
+        ))";
+        $historyParams['assigned_ds'] = $assignedDsDivisionId;
+    }
+    $adminDistributionFilter = $admin
+        ? " AND distribution.distribution_type = 'direct'"
+        : '';
     $q = $db->prepare(
         'SELECT
             ar.*,
@@ -1603,7 +1753,13 @@ try {
             d.name district_name,
             ds.name division_name,
             i.item_name,
-            i.variety
+            i.variety,
+            distribution.distribution_type AS recorded_distribution_type,
+            EXISTS (
+                SELECT 1
+                FROM item_returns item_return
+                WHERE item_return.distribution_id = distribution.id
+            ) AS has_recorded_return
 
          FROM aid_requests ar
 
@@ -1619,15 +1775,16 @@ try {
          JOIN inventory_items i
             ON i.id = ar.item_id
 
-         WHERE ar.submitted_by = :user
+         LEFT JOIN distributions distribution
+            ON distribution.aid_request_id = ar.id
+
+         WHERE ' . $historyScope . $adminDistributionFilter . '
 
          ORDER BY ar.id DESC'
     );
 
 
-    $q->execute([
-        'user' => $userId
-    ]);
+    $q->execute($historyParams);
 
 
     $requests =
@@ -1683,9 +1840,12 @@ function old(string $key): string
 |--------------------------------------------------------------------------
 */
 
-function requestAge(string $dob): int
+function requestAge(?string $dob): string
 {
-    return (int) (
+    if ($dob === null || $dob === '') {
+        return '—';
+    }
+    return (string) (int) (
         new DateTimeImmutable($dob)
     )
         ->diff(
@@ -1765,7 +1925,7 @@ function requestSubmitted(string $date): string
         content="width=device-width,initial-scale=1"
     >
 
-    <title><?= $showRequestForm ? 'New Aid Request' : 'My Aid Requests' ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t($directRequestMode ? ($directHistoryPage ? $historyPageTitle : ($admin ? 'Direct Aid Distribution' : 'Direct Aid Request')) : ($showRequestForm ? 'New Aid Request' : $historyPageTitle)), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
 
 
     <!-- Bootstrap -->
@@ -1797,12 +1957,20 @@ function requestSubmitted(string $date): string
 |--------------------------------------------------------------------------
 */
 
-require $subject
-    ? __DIR__ .
-        '/../../includes/subject-officer-sidebar.php'
+if ($admin) {
+    require __DIR__ . '/../../includes/admin-sidebar.php';
+} elseif ($subject) {
+    require __DIR__ . '/../../includes/subject-officer-sidebar.php';
+} else {
+    require __DIR__ . '/../../includes/social-service-officer-sidebar.php';
+}
 
-    : __DIR__ .
-        '/../../includes/social-service-officer-sidebar.php';
+/** Return only document paths generated by the direct-request uploader. */
+function directRequestDocumentUrl(?string $path): string
+{
+    $path = (string) $path;
+    return preg_match('#^uploads/aid-documents/direct-[a-f0-9]{24}\.pdf$#', $path) ? $path : '';
+}
 
 ?>
 
@@ -1816,7 +1984,7 @@ require $subject
 
     <header class="topbar">
 
-        <h1><?= $showRequestForm ? htmlspecialchars(t('New Aid Request'), ENT_QUOTES, 'UTF-8') : htmlspecialchars(t('My Aid Requests'), ENT_QUOTES, 'UTF-8') ?></h1>
+        <h1><?= htmlspecialchars(t($directRequestMode ? ($directHistoryPage ? $historyPageTitle : ($admin ? 'Direct Aid Distribution' : 'Direct Aid Request')) : ($showRequestForm ? 'New Aid Request' : $historyPageTitle)), ENT_QUOTES, 'UTF-8') ?></h1>
 
     </header>
 
@@ -1860,7 +2028,7 @@ require $subject
              NEW AID REQUEST FORM
         ============================================================= -->
 
-        <?php if ($showRequestForm): ?>
+        <?php if ($showRequestForm && $canCreateRequest): ?>
         <section class="aid-form-card">
 
 
@@ -1869,6 +2037,7 @@ require $subject
                 enctype="multipart/form-data"
                 class="aid-request-form"
                 id="aid-request-form"
+                data-identification-optional="<?= $directRequestMode ? '1' : '0' ?>"
                 data-identification-required="<?= htmlspecialchars(t("Please select NIC or Elders' Identity Card."), ENT_QUOTES, 'UTF-8') ?>"
                 data-invalid-nic="<?= htmlspecialchars(t('Enter a valid Sri Lankan NIC.'), ENT_QUOTES, 'UTF-8') ?>"
                 data-invalid-elders-card="<?= htmlspecialchars(t("Enter a valid Elders' Identity Card number."), ENT_QUOTES, 'UTF-8') ?>"
@@ -1894,144 +2063,41 @@ require $subject
                 ===================================================== -->
 
                 <fieldset>
-
-
-                    <legend>
-                        📍 <?= htmlspecialchars(t('Location Details'), ENT_QUOTES, 'UTF-8') ?>
-                    </legend>
-
-
-                    <div class="aid-form-grid three-columns">
-
-
-                        <!-- District -->
-
+                    <legend>📍 <?= htmlspecialchars(t('Beneficiary Location'), ENT_QUOTES, 'UTF-8') ?></legend>
+                    <div class="aid-form-grid <?= $directRequestMode ? 'three-columns' : '' ?>">
+                        <?php if ($directRequestMode): ?>
                         <label>
-
                             <?= htmlspecialchars(t('District'), ENT_QUOTES, 'UTF-8') ?> *
-
-                            <select
-                                id="district_id"
-                                name="district_id"
-                                required
-                            >
-
-                                <option value="">
-                                    <?= htmlspecialchars(t('Select District'), ENT_QUOTES, 'UTF-8') ?>
-                                </option>
-
-
+                            <select id="district_id" name="district_id" required>
+                                <option value=""><?= htmlspecialchars(t('Select District'), ENT_QUOTES, 'UTF-8') ?></option>
                                 <?php foreach ($districts as $r): ?>
-
-                                    <option
-                                        value="<?= (int) $r['id'] ?>"
-                                        <?= $v['district_id'] == $r['id']
-                                            ? 'selected'
-                                            : '' ?>
-                                    >
-
-                                        <?= htmlspecialchars($r['name']) ?>
-
-                                    </option>
-
+                                    <option value="<?= (int) $r['id'] ?>" <?= $v['district_id'] == $r['id'] ? 'selected' : '' ?>><?= htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') ?></option>
                                 <?php endforeach; ?>
-
                             </select>
-
                         </label>
-
-
-                        <!-- DS Division -->
-
                         <label>
-
                             <?= htmlspecialchars(t('D.S. Division'), ENT_QUOTES, 'UTF-8') ?> *
-
-                            <select
-                                id="ds_division_id"
-                                name="ds_division_id"
-                                required
-                            >
-
-                                <option value="">
-                                    <?= htmlspecialchars(t('Select DS Division'), ENT_QUOTES, 'UTF-8') ?>
-                                </option>
-
-
+                            <select id="ds_division_id" name="ds_division_id" required>
+                                <option value=""><?= htmlspecialchars(t('Select DS Division'), ENT_QUOTES, 'UTF-8') ?></option>
                                 <?php foreach ($dsDivisions as $r): ?>
-
-                                    <option
-
-                                        value="<?= (int) $r['id'] ?>"
-
-                                        data-parent="<?= (int) $r['district_id'] ?>"
-
-                                        data-service-division="<?= $r['division_type'] === 'service-centre' ? '1' : '0' ?>"
-
-                                        <?= $v['ds_division_id'] == $r['id']
-                                            ? 'selected'
-                                            : '' ?>
-                                    >
-
-                                        <?= htmlspecialchars($r['name']) ?>
-
-                                    </option>
-
+                                    <option value="<?= (int) $r['id'] ?>" data-parent="<?= (int) $r['district_id'] ?>" <?= $v['ds_division_id'] == $r['id'] ? 'selected' : '' ?>><?= htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') ?></option>
                                 <?php endforeach; ?>
-
                             </select>
-
                         </label>
-
-
-                        <!-- GN Division -->
-
+                        <?php endif; ?>
                         <label>
-
-                            <?= htmlspecialchars(t('G.N. Division'), ENT_QUOTES, 'UTF-8') ?> <span id="gn-required-indicator">*</span>
-
-                            <select
-                                id="gn_division_id"
-                                name="gn_division_id"
-                                required
-                            >
-
-                                <option value="">
-                                    <?= htmlspecialchars(t('Select GN Division'), ENT_QUOTES, 'UTF-8') ?>
-                                </option>
-
-
+                            <?= htmlspecialchars(t('G.N. Division'), ENT_QUOTES, 'UTF-8') ?><?= $directRequestMode || $assignedDivisionType !== 'service-centre' ? ' *' : '' ?>
+                            <select id="gn_division_id" name="gn_division_id" <?= $directRequestMode || $assignedDivisionType !== 'service-centre' ? 'required' : 'disabled' ?>>
+                                <option value=""><?= htmlspecialchars(t('Select GN Division'), ENT_QUOTES, 'UTF-8') ?></option>
                                 <?php foreach ($gnDivisions as $r): ?>
-
-                                    <option
-
-                                        value="<?= (int) $r['id'] ?>"
-
-                                        data-parent="<?= (int) $r['ds_division_id'] ?>"
-
-                                        <?= $v['gn_division_id'] == $r['id']
-                                            ? 'selected'
-                                            : '' ?>
-                                    >
-
-                                        <?= htmlspecialchars($r['name']) ?>
-
-                                    </option>
-
+                                    <option value="<?= (int) $r['id'] ?>"<?= $directRequestMode ? ' data-parent="' . (int) $r['ds_division_id'] . '"' : '' ?> <?= $v['gn_division_id'] == $r['id'] ? 'selected' : '' ?>><?= htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') ?></option>
                                 <?php endforeach; ?>
-
                             </select>
-
-                            <span class="field-help" id="service-division-gn-notice" hidden>
-                                <?= htmlspecialchars(t('GN Division is not applicable for service divisions.'), ENT_QUOTES, 'UTF-8') ?>
-                            </span>
-
+                            <?php if (!$directRequestMode && $assignedDivisionType === 'service-centre'): ?>
+                                <span class="field-help"><?= htmlspecialchars(t('GN Division is not applicable for service divisions.'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <?php endif; ?>
                         </label>
-
-
                     </div>
-
-
                 </fieldset>
 
 
@@ -2075,7 +2141,7 @@ require $subject
                         <div class="aid-identification-block">
 
                             <label class="aid-identification-title">
-                                <?= htmlspecialchars(t('Identification'), ENT_QUOTES, 'UTF-8') ?> *
+                                <?= htmlspecialchars(t('Identification'), ENT_QUOTES, 'UTF-8') ?><?= $directRequestMode ? ' (' . htmlspecialchars(t('Optional'), ENT_QUOTES, 'UTF-8') . ')' : ' *' ?>
                             </label>
 
                             <div class="aid-identification-options">
@@ -2123,6 +2189,9 @@ require $subject
                             >
                                 <?= htmlspecialchars(t('Select at least one identification method.'), ENT_QUOTES, 'UTF-8') ?>
                             </small>
+                            <?php if ($directRequestMode): ?>
+                                <small class="form-field-help"><?= htmlspecialchars(t('A direct request may be submitted without NIC or Elder’s Identity Card.'), ENT_QUOTES, 'UTF-8') ?></small>
+                            <?php endif; ?>
 
                             <!-- Live history prevents an avoidable submission when probation is active. -->
                             <div id="eligibility-preview" class="eligibility-preview" aria-live="polite" hidden></div>
@@ -2179,13 +2248,14 @@ require $subject
 
                         <label>
 
-                            <?= htmlspecialchars(t('Date of Birth'), ENT_QUOTES, 'UTF-8') ?> *
+                            <?= htmlspecialchars(t('Date of Birth'), ENT_QUOTES, 'UTF-8') ?><?= $directRequestMode ? ' (' . htmlspecialchars(t('Optional'), ENT_QUOTES, 'UTF-8') . ')' : ' *' ?>
 
                             <input
                                 type="date"
+                                id="date_of_birth"
                                 name="date_of_birth"
                                 value="<?= old('date_of_birth') ?>"
-                                required
+                                <?= $directRequestMode ? '' : 'required' ?>
                             >
 
                         </label>
@@ -2263,17 +2333,28 @@ require $subject
 
                     <label class="full-field">
 
-                        <?= htmlspecialchars(t('Address'), ENT_QUOTES, 'UTF-8') ?> *
+                        <?= htmlspecialchars(t('Address'), ENT_QUOTES, 'UTF-8') ?><?= $admin ? ' (' . htmlspecialchars(t('Optional'), ENT_QUOTES, 'UTF-8') . ')' : ' *' ?>
 
                         <textarea
                             name="address"
                             rows="2"
                             maxlength="255"
                             placeholder="<?= htmlspecialchars(t('Full residential address...'), ENT_QUOTES, 'UTF-8') ?>"
-                            required
+                            <?= $admin ? '' : 'required' ?>
                         ><?= old('address') ?></textarea>
 
                     </label>
+
+                    <?php if ($directRequestMode): ?>
+                    <label class="full-field">
+                        <?= htmlspecialchars(t('Supporting Document'), ENT_QUOTES, 'UTF-8') ?> (PDF · <?= htmlspecialchars(t('Optional'), ENT_QUOTES, 'UTF-8') ?>)
+                        <input type="file" name="direct_request_document" accept="application/pdf,.pdf">
+                        <small class="form-field-help"><?= htmlspecialchars(t('You may attach one PDF up to 5 MB.'), ENT_QUOTES, 'UTF-8') ?></small>
+                        <?php if ($existingDirectRequestDocument !== ''): ?>
+                            <a class="saved-beneficiary-document" href="<?= htmlspecialchars($existingDirectRequestDocument, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"><?= htmlspecialchars(t('View current supporting PDF'), ENT_QUOTES, 'UTF-8') ?></a>
+                        <?php endif; ?>
+                    </label>
+                    <?php endif; ?>
 
 
                 </fieldset>
@@ -2371,7 +2452,11 @@ require $subject
 
                                         value="<?= (int) ($i['id'] ?? 0) ?>"
 
-                                        data-beneficiary-fields="<?= htmlspecialchars($i['beneficiary_fields'] ?? '[]', ENT_QUOTES, 'UTF-8') ?>"
+                                data-beneficiary-fields="<?= htmlspecialchars($i['beneficiary_fields'] ?? '[]', ENT_QUOTES, 'UTF-8') ?>"
+
+                                        data-stock="<?= max(0, (int) ($i['central_stock'] ?? 0)) ?>"
+
+                                        data-optical="<?= preg_match('/(?:lens|spectacle|glasses)/i', (string) (($i['item_name'] ?? '') . ' ' . ($i['variety'] ?? ''))) ? '1' : '0' ?>"
 
                                         data-disability="<?= htmlspecialchars(
                                             $i['disability_name'] ?? '',
@@ -2382,6 +2467,12 @@ require $subject
                                         <?= $v['item_id'] == ($i['id'] ?? null)
                                             && mb_strtolower(trim((string) ($i['disability_name'] ?? ''))) === mb_strtolower(trim((string) $v['disability_notes']))
                                             ? 'selected'
+                                            : '' ?>
+
+                                        <?= $currentRole === 'subject-officer'
+                                            && preg_match('/(?:lens|spectacle|glasses)/i', (string) (($i['item_name'] ?? '') . ' ' . ($i['variety'] ?? '')))
+                                            && (int) ($i['central_stock'] ?? 0) < 1
+                                            ? 'disabled'
                                             : '' ?>
                                     >
 
@@ -2403,6 +2494,12 @@ require $subject
 
 
                             </select>
+
+                            <?php if ($currentRole === 'subject-officer'): ?>
+                                <small id="aid-stock-availability" class="form-field-help aid-stock-availability" aria-live="polite">
+                                    <?= htmlspecialchars(t('Select an aid item to check Central Stock availability.'), ENT_QUOTES, 'UTF-8') ?>
+                                </small>
+                            <?php endif; ?>
 
                         </label>
 
@@ -2441,13 +2538,14 @@ require $subject
 
                     <label class="full-field">
 
-                        <?= htmlspecialchars(t('Additional Notes'), ENT_QUOTES, 'UTF-8') ?>
+                        <?= htmlspecialchars(t($directRequestMode ? 'Reason for Direct Request' : 'Additional Notes'), ENT_QUOTES, 'UTF-8') ?><?= $directRequestMode ? ' *' : '' ?>
 
                         <textarea
                             name="notes"
                             rows="2"
                             maxlength="1000"
-                            placeholder="<?= htmlspecialchars(t('Any additional information...'), ENT_QUOTES, 'UTF-8') ?>"
+                            <?= $directRequestMode && !$admin ? 'minlength="10" required' : '' ?>
+                            placeholder="<?= htmlspecialchars(t($directRequestMode ? 'Explain why this request must bypass normal identification or waiting-period restrictions.' : 'Any additional information...'), ENT_QUOTES, 'UTF-8') ?>"
                         ><?= old('notes') ?></textarea>
 
                     </label>
@@ -2569,13 +2667,18 @@ require $subject
                         class="submit-aid-button"
                     >
 
-                        <?= htmlspecialchars($editingRequestId ? t('Save Changes') : t('Submit Aid Request'), ENT_QUOTES, 'UTF-8') ?>
+                        <?= htmlspecialchars($editingRequestId ? t('Save Changes') : t($admin ? 'Send to Store Keeper' : 'Submit Aid Request'), ENT_QUOTES, 'UTF-8') ?>
 
                     </button>
+
+                    <?php if ($admin): ?>
+                    <a class="outline-action" href="dashboard.php?page=direct-aid-release-queue"><?= htmlspecialchars(t('View Releases & History'), ENT_QUOTES, 'UTF-8') ?></a>
+                    <?php endif; ?>
 
 
                     <!-- Save Draft -->
 
+                    <?php if (!$directRequestMode): ?>
                     <button
                         name="submit_action"
                         value="draft"
@@ -2586,6 +2689,7 @@ require $subject
                         <?= htmlspecialchars(t('Save as Draft'), ENT_QUOTES, 'UTF-8') ?>
 
                     </button>
+                    <?php endif; ?>
 
 
                 </div>
@@ -2596,6 +2700,7 @@ require $subject
 
         </section>
         <?php endif; ?>
+
 
 
 
@@ -2624,16 +2729,18 @@ require $subject
 
 
                 <h2>
-                    <?= htmlspecialchars(t('My Submitted Requests'), ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars(t($historyPageTitle), ENT_QUOTES, 'UTF-8') ?>
                 </h2>
 
 
                 <div>
 
                     <!-- Keep the create action beside the request-list controls. -->
+                    <?php if (!$directRequestMode): ?>
                     <a class="new-aid-request-button" href="dashboard.php?page=new-aid-request">
                         <?= htmlspecialchars(t('New Aid Request'), ENT_QUOTES, 'UTF-8') ?>
                     </a>
+                    <?php endif; ?>
 
 
                     <!-- Search submitted requests -->
@@ -2653,6 +2760,7 @@ require $subject
                             <?= htmlspecialchars(t('All Status'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
+                        <?php if (!$admin): ?>
                         <option value="draft">
                             <?= htmlspecialchars(t('Draft'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
@@ -2675,6 +2783,15 @@ require $subject
 
                         <option value="distributed">
                             <?= htmlspecialchars(t('Distributed'), ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                        <?php endif; ?>
+
+                        <option value="direct-distribution">
+                            <?= htmlspecialchars(t('Direct Distribution'), ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+
+                        <option value="return">
+                            <?= htmlspecialchars(t('Return'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
                     </select>
@@ -2738,7 +2855,7 @@ require $subject
                         <tr>
 
                             <td colspan="12">
-                                <?= htmlspecialchars(t('No requests yet.'), ENT_QUOTES, 'UTF-8') ?>
+                                <?= htmlspecialchars(t($admin ? 'No direct distributions yet.' : 'No requests yet.'), ENT_QUOTES, 'UTF-8') ?>
                             </td>
 
                         </tr>
@@ -2748,11 +2865,21 @@ require $subject
 
 
                         <?php foreach ($requests as $r): ?>
+                            <?php
+                            $historyStatus = !empty($r['has_recorded_return'])
+                                ? 'return'
+                                : (($r['recorded_distribution_type'] ?? '') === 'direct'
+                                    ? 'direct-distribution'
+                                    : (string) $r['status']);
+                            ?>
 
 
                             <tr
+                                id="aid-request-<?= (int) $r['id'] ?>"
+                                class="admin-notification-target"
+                                tabindex="-1"
                                 data-status="<?= htmlspecialchars(
-                                    $r['status']
+                                    $historyStatus
                                 ) ?>"
                             >
 
@@ -2858,7 +2985,7 @@ require $subject
 
 
                                     <!-- Keep the table compact; all configured values open in a shared detail dialog. -->
-                                    <?php $requestDetails=json_decode((string)($r['beneficiary_details_json']??''),true);if((!is_array($requestDetails)||!$requestDetails)&&!empty($r['beneficiary_detail_label'])&&$r['beneficiary_detail_value']!==null)$requestDetails=[['label'=>$r['beneficiary_detail_label'],'type'=>'text','value'=>$r['beneficiary_detail_value'],'display_value'=>$r['beneficiary_detail_value']]];if(is_array($requestDetails)&&$requestDetails): ?>
+                                    <?php $requestDetails=aidRequestDetails($r);if($requestDetails): ?>
                                         <button type="button" class="request-extra-info-button" data-request-extra-info="<?= htmlspecialchars(json_encode($requestDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>" data-dialog-title="<?= htmlspecialchars(t('Beneficiary Details'),ENT_QUOTES,'UTF-8') ?>" data-close-label="<?= htmlspecialchars(t('Close'),ENT_QUOTES,'UTF-8') ?>"><?= htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8') ?></button>
                                     <?php endif; ?>
 
@@ -2938,13 +3065,13 @@ require $subject
                                         class="
                                             request-status-pill
                                             status-<?= htmlspecialchars(
-                                                $r['status']
+                                                $historyStatus
                                             ) ?>
                                         "
                                     >
 
                                         <?= htmlspecialchars(
-                                            t(ucwords(str_replace('-', ' ', $r['status']))),
+                                            t(ucwords(str_replace('-', ' ', $historyStatus))),
                                             ENT_QUOTES,
                                             'UTF-8'
                                         ) ?>
@@ -2975,7 +3102,7 @@ require $subject
                                 <td class="request-action-cell">
                                     <?php if (in_array($r['status'], ['draft', 'pending'], true)): ?>
                                         <div class="request-row-actions">
-                                            <a class="outline-action" href="dashboard.php?page=new-aid-request&amp;edit_request_id=<?= (int) $r['id'] ?>"><?= htmlspecialchars(t('Edit'), ENT_QUOTES, 'UTF-8') ?></a>
+                                            <a class="outline-action" href="dashboard.php?page=<?= $directRequestMode ? 'direct-aid-request' : 'new-aid-request' ?>&amp;edit_request_id=<?= (int) $r['id'] ?>"><?= htmlspecialchars(t('Edit'), ENT_QUOTES, 'UTF-8') ?></a>
                                             <form method="post" data-request-delete-form>
                                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                                 <input type="hidden" name="request_action" value="delete">
@@ -3046,11 +3173,11 @@ require $subject
     - Prescription field behaviour
 -->
 
-<script src="assets/js/beneficiary-form.js?v=3"></script>
+<script src="assets/js/beneficiary-form.js?v=4"></script>
 
 
 
-<script src="assets/js/aid-request-identification.js"></script>
+<script src="assets/js/aid-request-identification.js?v=2"></script>
 <script src="assets/js/aid-request-actions.js?v=1"></script>
 <script>
 /*
@@ -3071,7 +3198,32 @@ const item =
         document.getElementById('beneficiary-detail-fields'),
 
     existingDetailsInput =
-        document.getElementById('existing-beneficiary-details');
+        document.getElementById('existing-beneficiary-details'),
+
+    stockAvailability =
+        document.getElementById('aid-stock-availability');
+
+const requireOpticalStock = <?= $currentRole === 'subject-officer' ? 'true' : 'false' ?>;
+
+
+function updateAidStockAvailability() {
+    if (!stockAvailability) return;
+    const selected = item?.selectedOptions[0];
+    stockAvailability.classList.remove('is-available', 'is-unavailable');
+    if (!selected?.value) {
+        stockAvailability.textContent = <?= json_encode(t('Select an aid item to check Central Stock availability.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        return;
+    }
+    const stock = Number(selected.dataset.stock || 0);
+    const unitsLabel = <?= json_encode(t('units'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    if (selected.dataset.optical === '1' && stock < 1) {
+        stockAvailability.textContent = <?= json_encode(t('This optical item is currently unavailable in Central Stock.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        stockAvailability.classList.add('is-unavailable');
+        return;
+    }
+    stockAvailability.textContent = <?= json_encode(t('Available in Central Stock:'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + ` ${stock.toLocaleString()} ${unitsLabel}`;
+    stockAvailability.classList.add('is-available');
+}
 
 
 function beneficiaryDetailField() {
@@ -3159,17 +3311,22 @@ function filterAidItems() {
     const selectedDisability = disability.value.trim().toLocaleLowerCase();
     [...item.options].slice(1).forEach(option => {
         const visible = selectedDisability !== '' && option.dataset.disability.trim().toLocaleLowerCase() === selectedDisability;
+        const unavailableOpticalItem = requireOpticalStock && option.dataset.optical === '1' && Number(option.dataset.stock || 0) < 1;
         option.hidden = !visible;
-        option.disabled = !visible;
+        option.disabled = !visible || unavailableOpticalItem;
     });
     if (item.selectedOptions[0]?.disabled) item.value = '';
     beneficiaryDetailField();
+    updateAidStockAvailability();
 }
 
 
 item?.addEventListener(
     'change',
-    beneficiaryDetailField
+    () => {
+        beneficiaryDetailField();
+        updateAidStockAvailability();
+    }
 );
 
 disability?.addEventListener('change', filterAidItems);

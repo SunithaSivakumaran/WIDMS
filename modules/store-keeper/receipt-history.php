@@ -166,7 +166,7 @@ $labels = [
                     <tbody>
                     <?php if (!$rows): ?><tr><td colspan="11" class="admin-empty-row"><?= htmlspecialchars(t('No receipt history available.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
                     <?php else: foreach ($rows as $row): ?>
-                        <tr data-aid-name="<?= htmlspecialchars($row['item_name'], ENT_QUOTES, 'UTF-8') ?>">
+                        <tr id="receipt-<?= (int) $row['id'] ?>" class="admin-notification-target" tabindex="-1" data-aid-name="<?= htmlspecialchars($row['item_name'], ENT_QUOTES, 'UTF-8') ?>">
                             <td>BAT-<?= str_pad((string) $row['id'], 4, '0', STR_PAD_LEFT) ?></td>
                             <td><?= htmlspecialchars($row['item_name'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= (int) $row['quantity'] ?></td>

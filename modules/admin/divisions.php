@@ -31,7 +31,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
 }
 $rows=[];try{
     // Empty divisions remain visible so missing SSO coverage is obvious.
-    $rows=$db->query("SELECT d.name district,ds.name ds_division,ds.division_type,u.id officer_id,u.full_name officer_name,u.username officer_email,u.phone,u.status officer_status,u.deactivation_reason FROM ds_divisions ds JOIN districts d ON d.id=ds.district_id LEFT JOIN users u ON u.ds_division_id=ds.id AND u.role='social-service-officer' WHERE d.status='active' AND ds.status='active' ORDER BY d.name,ds.division_type,ds.name,FIELD(u.status,'active','inactive'),u.full_name")->fetchAll();
+    $rows=$db->query("SELECT d.name district,ds.name ds_division,ds.division_type,u.id officer_id,u.full_name officer_name,COALESCE(u.email,u.username) officer_email,u.phone,u.status officer_status,u.deactivation_reason FROM ds_divisions ds JOIN districts d ON d.id=ds.district_id LEFT JOIN users u ON u.ds_division_id=ds.id AND u.role='social-service-officer' WHERE d.status='active' AND ds.status='active' ORDER BY d.name,ds.division_type,ds.name,FIELD(u.status,'active','inactive'),u.full_name")->fetchAll();
 }catch(PDOException $e){error_log($e->getMessage());$errors[]=t('SSO assignments are unavailable. Run the latest migration.');}
 ?>
 <!doctype html><html lang="<?=htmlspecialchars(widmsLanguage(),ENT_QUOTES,'UTF-8')?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?=htmlspecialchars(t('SSO Division Assignments'),ENT_QUOTES,'UTF-8')?> | WIDMS</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link href="assets/css/admin-dashboard.css" rel="stylesheet"></head><body>

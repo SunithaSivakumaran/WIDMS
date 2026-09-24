@@ -4,6 +4,7 @@ declare(strict_types=1);
 requireRole('admin');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
+require_once __DIR__ . '/../../includes/sms.php';
 
 $activePage = 'users';
 $users = $districts = $dsDivisions = $errors = [];
@@ -36,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (mb_strlen($values['full_name']) < 2 || mb_strlen($values['full_name']) > 100) $errors[] = t('Enter a valid name between 2 and 100 characters.');
         if (!filter_var($values['email'], FILTER_VALIDATE_EMAIL) || strlen($values['email']) > 120) $errors[] = t('Enter a valid email address.');
-        if (!preg_match('/^[0-9+()\-\s]{7,25}$/', $values['phone'])) $errors[] = t('Enter a valid phone number.');
+        if (strlen($values['phone']) > 25 || widmsSmsPhone($values['phone']) === null) $errors[] = t('Enter a valid Sri Lankan mobile number (07XXXXXXXX or +947XXXXXXXX).');
         if (!isset($allowedCreationRoles[$values['role']])) $errors[] = t('Select a valid role.');
         if (strlen($password) < 8 || strlen($password) > 255) $errors[] = t('Password must contain at least 8 characters.');
         if (!hash_equals($password, $confirmPassword)) $errors[] = t('Password and confirm password do not match.');
@@ -53,8 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $connection = database();
                 $connection->beginTransaction();
-                $duplicate = $connection->prepare('SELECT id FROM users WHERE username=:username LIMIT 1 FOR UPDATE');
-                $duplicate->execute(['username'=>$values['email']]);
+                $duplicate = $connection->prepare('SELECT id FROM users WHERE username=:username OR email=:email LIMIT 1 FOR UPDATE');
+                $duplicate->execute(['username'=>$values['email'], 'email'=>$values['email']]);
                 if ($duplicate->fetchColumn()) throw new RuntimeException(t('An account already exists for this email address.'));
 
                 $divisionName = null;
@@ -69,9 +70,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($activeOfficer->fetchColumn()) throw new RuntimeException(t('This division already has an active Social Service Officer.'));
                 }
 
-                $insert = $connection->prepare("INSERT INTO users (full_name,username,phone,division,district_id,ds_division_id,password_hash,role,status) VALUES (:full_name,:username,:phone,:division,:district_id,:ds_division_id,:password_hash,:role,'active')");
+                $insert = $connection->prepare("INSERT INTO users (full_name,username,email,phone,division,district_id,ds_division_id,password_hash,role,status) VALUES (:full_name,:username,:email,:phone,:division,:district_id,:ds_division_id,:password_hash,:role,'active')");
                 $insert->execute([
                     'full_name'=>$values['full_name'],'username'=>$values['email'],'phone'=>$values['phone'],
+                    'email'=>$values['email'],
                     'division'=>$divisionName,'district_id'=>$districtId,'ds_division_id'=>$dsDivisionId,
                     'password_hash'=>password_hash($password, PASSWORD_DEFAULT),'role'=>$values['role'],
                 ]);

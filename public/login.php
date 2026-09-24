@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="mb-4">
                     <label for="username" class="form-label"><?= htmlspecialchars(t('Username'), ENT_QUOTES, 'UTF-8') ?></label>
-                    <input type="email" class="form-control" id="username" name="username"
+                    <input type="text" class="form-control" id="username" name="username"
                            value="<?= htmlspecialchars($username, ENT_QUOTES, 'UTF-8') ?>"
                            autocomplete="username" required>
                 </div>

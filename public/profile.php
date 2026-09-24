@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../includes/activity.php';
+require_once __DIR__ . '/../includes/sms.php';
 
 requireLogin();
 
@@ -20,7 +21,7 @@ unset($_SESSION['flash_success']);
 $activePage = 'profile';
 
 try {
-    $statement = database()->prepare('SELECT id, full_name, username, phone, division, profile_image, password_hash, role FROM users WHERE id = :id LIMIT 1');
+    $statement = database()->prepare('SELECT id, full_name, username, email, salary_number, phone, division, profile_image, password_hash, role FROM users WHERE id = :id LIMIT 1');
     $statement->execute(['id' => $_SESSION['user_id']]);
     $user = $statement->fetch();
     if (!$user) {
@@ -45,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken((string) ($_POST['csrf_token'] ?? ''))) $errors[] = 'Your session expired. Refresh the page and try again.';
     if (mb_strlen($fullName) < 2 || mb_strlen($fullName) > 100) $errors[] = 'Enter a valid name between 2 and 100 characters.';
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Enter a valid email address.';
-    if (!preg_match('/^[0-9+()\-\s]{7,25}$/', $phone)) $errors[] = 'Enter a valid phone number.';
+    if (strlen($phone) > 25 || widmsSmsPhone($phone) === null) $errors[] = 'Enter a valid Sri Lankan mobile number (07XXXXXXXX or +947XXXXXXXX).';
     if ($user['role'] === 'social-service-officer' && $division === '') $errors[] = 'Division is required for a Social Service Officer.';
     if ($newPassword !== '') {
         if (strlen($newPassword) < 8) $errors[] = 'The new password must contain at least 8 characters.';
@@ -54,8 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($errors === []) {
-        $duplicate = database()->prepare('SELECT id FROM users WHERE username = :email AND id <> :id LIMIT 1');
-        $duplicate->execute(['email' => $email, 'id' => $user['id']]);
+        $duplicate = database()->prepare('SELECT id FROM users WHERE (username = :login OR email = :email) AND id <> :id LIMIT 1');
+        $duplicate->execute(['login' => $email, 'email' => $email, 'id' => $user['id']]);
         if ($duplicate->fetch()) $errors[] = 'Another account already uses this email address.';
     }
 
@@ -89,9 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($errors === []) {
         try {
-            $sql = 'UPDATE users SET full_name = :full_name, username = :email, phone = :phone, division = :division, profile_image = :profile_image';
+            $updatedUsername = $user['salary_number'] !== null ? $user['username'] : $email;
+            $sql = 'UPDATE users SET full_name = :full_name, username = :username, email = :email, phone = :phone, division = :division, profile_image = :profile_image';
             $parameters = [
                 'full_name' => $fullName, 'email' => $email, 'phone' => $phone,
+                'username' => $updatedUsername,
                 'division' => $user['role'] === 'social-service-officer' ? $division : null,
                 'profile_image' => $profileImage, 'id' => $user['id'],
             ];
@@ -104,9 +107,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $update->execute($parameters);
 
             $_SESSION['full_name'] = $fullName;
-            $_SESSION['username'] = $email;
+            $_SESSION['username'] = $updatedUsername;
             $_SESSION['profile_image'] = $profileImage;
-            $user = array_merge($user, ['full_name' => $fullName, 'username' => $email, 'phone' => $phone, 'division' => $parameters['division'], 'profile_image' => $profileImage]);
+            $user = array_merge($user, ['full_name' => $fullName, 'username' => $updatedUsername, 'email' => $email, 'phone' => $phone, 'division' => $parameters['division'], 'profile_image' => $profileImage]);
             $_SESSION['flash_success'] = 'Your profile was updated successfully.';
             logActivity('Profile', 'Updated profile settings', 'USR-' . $user['id'], 'done');
             unset($_SESSION['csrf_token']);
@@ -117,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = 'Unable to update your profile.';
         }
     } else {
-        $user = array_merge($user, ['full_name' => $fullName, 'username' => $email, 'phone' => $phone, 'division' => $division]);
+        $user = array_merge($user, ['full_name' => $fullName, 'email' => $email, 'phone' => $phone, 'division' => $division]);
     }
 }
 
@@ -193,13 +196,17 @@ $sidebar = $sidebarFiles[$_SESSION['role']] ?? null;
                                 </label>
                         </div>
                         <div class="profile-form-grid">
+                            <?php if ($user['salary_number'] !== null): ?>
+                            <label><?= htmlspecialchars(t('Salary Number'), ENT_QUOTES, 'UTF-8') ?><input value="<?= htmlspecialchars($user['salary_number'], ENT_QUOTES, 'UTF-8') ?>" readonly></label>
+                            <label><?= htmlspecialchars(t('Username'), ENT_QUOTES, 'UTF-8') ?><input value="<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>" readonly></label>
+                            <?php endif; ?>
                             <label>
                                 Full name
                                 <input name="full_name" maxlength="100" value="<?= htmlspecialchars($user['full_name'], ENT_QUOTES, 'UTF-8') ?>" required>
                             </label>
                             <label>
                                 Email address
-                                <input type="email" name="email" maxlength="120" value="<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>" required>
+                                <input type="email" name="email" maxlength="120" value="<?= htmlspecialchars($user['email'] ?? $user['username'], ENT_QUOTES, 'UTF-8') ?>" required>
                             </label>
                             <label>
                                 Phone number

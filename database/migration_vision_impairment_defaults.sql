@@ -132,19 +132,23 @@ SET @spectacles_rule_id := (
     WHERE disability_type_id=@vision_id AND item_id=@spectacles_item_id LIMIT 1
 );
 
--- If both legacy labels exist, retain only the canonical Power definition.
-DELETE legacy_field
-FROM disability_aid_item_fields legacy_field
-JOIN disability_aid_item_fields power_field
-  ON power_field.disability_aid_item_id=legacy_field.disability_aid_item_id
- AND LOWER(TRIM(power_field.field_label))='power'
+-- Keep historical beneficiary-field definitions. Automatic migrations must
+-- not delete user-entered details or rules from an existing installation.
+
+UPDATE disability_aid_item_fields legacy_field
+LEFT JOIN disability_aid_item_fields canonical_field
+  ON canonical_field.disability_aid_item_id=legacy_field.disability_aid_item_id
+ AND LOWER(TRIM(canonical_field.field_label))='power'
+SET legacy_field.field_label='Power', legacy_field.field_type='number',
+    legacy_field.display_order=1, legacy_field.is_system=1
 WHERE legacy_field.disability_aid_item_id IN (@contact_lens_rule_id, @spectacles_rule_id)
-  AND LOWER(TRIM(legacy_field.field_label))='prescription power';
+  AND LOWER(TRIM(legacy_field.field_label))='prescription power'
+  AND canonical_field.id IS NULL;
 
 UPDATE disability_aid_item_fields
 SET field_label='Power', field_type='number', display_order=1, is_system=1
 WHERE disability_aid_item_id IN (@contact_lens_rule_id, @spectacles_rule_id)
-  AND LOWER(TRIM(field_label)) IN ('power', 'prescription power');
+  AND LOWER(TRIM(field_label))='power';
 
 INSERT INTO disability_aid_item_fields(
     disability_aid_item_id, field_label, field_type, display_order, is_system

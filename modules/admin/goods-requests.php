@@ -1,7 +1,345 @@
 <?php
-declare(strict_types=1);requireRole('admin');require_once __DIR__.'/../../config/database.php';require_once __DIR__.'/../../includes/activity.php';$activePage='goods-requests';$errors=[];$success=(string)($_SESSION['flash_success']??'');unset($_SESSION['flash_success']);
-if($_SERVER['REQUEST_METHOD']==='POST'){$id=filter_input(INPUT_POST,'request_id',FILTER_VALIDATE_INT);$decision=(string)($_POST['decision']??'');$reason=trim((string)($_POST['rejection_reason']??''));if(!verifyCsrfToken((string)($_POST['csrf_token']??'')))$errors[]='Your session expired.';if(!$id||!in_array($decision,['approved','rejected'],true))$errors[]='Invalid decision.';if($decision==='rejected'&&$reason==='')$errors[]='A rejection reason is required.';if(!$errors){try{$status=$decision==='approved'?'approved-awaiting-dispatch':'rejected';$s=database()->prepare("UPDATE goods_requests SET status=:status,rejection_reason=:reason,approved_by=:admin,approved_at=NOW() WHERE id=:id AND status='pending-admin-approval'");$s->execute(['status'=>$status,'reason'=>$decision==='rejected'?$reason:null,'admin'=>$_SESSION['user_id'],'id'=>$id]);if($s->rowCount()!==1)throw new RuntimeException('This request was already reviewed or does not exist.');logActivity('Goods Requests',ucfirst($decision).' goods request','GR-'.str_pad((string)$id,4,'0',STR_PAD_LEFT),$decision);$_SESSION['flash_success']='Goods request '.$decision.'.';unset($_SESSION['csrf_token']);header('Location: dashboard.php?page=goods-requests');exit;}catch(Throwable $e){error_log($e->getMessage());$errors[]=$e instanceof RuntimeException?$e->getMessage():'Unable to review goods request.';}}}
-try{$rows=database()->query('SELECT g.*,i.item_name,i.variety,i.quantity central_stock,ds.name division_name,d.name district_name,requester.full_name requester_name,approver.full_name approver_name,dispatcher.full_name dispatcher_name FROM goods_requests g JOIN inventory_items i ON i.id=g.item_id JOIN ds_divisions ds ON ds.id=g.destination_ds_division_id JOIN districts d ON d.id=ds.district_id JOIN users requester ON requester.id=g.requested_by LEFT JOIN users approver ON approver.id=g.approved_by LEFT JOIN users dispatcher ON dispatcher.id=g.dispatched_by ORDER BY CASE g.status WHEN "pending-admin-approval" THEN 0 WHEN "approved-awaiting-dispatch" THEN 1 ELSE 2 END,g.id DESC')->fetchAll();}catch(PDOException $e){error_log($e->getMessage());$rows=[];$errors[]='Goods workflow is unavailable.';}
-$counts=array_count_values(array_column($rows,'status'));$labels=['pending-admin-approval'=>'Pending Admin Approval','approved-awaiting-dispatch'=>'Approved — Awaiting Dispatch','dispatched'=>'Dispatched','rejected'=>'Rejected'];
+declare(strict_types=1);
+
+requireRole('admin');
+require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/activity.php';
+require_once __DIR__ . '/../../includes/notifications.php';
+require_once __DIR__ . '/../../includes/admin-approval-tabs.php';
+require_once __DIR__ . '/../../includes/optical-stock.php';
+
+$activePage = 'goods-requests';
+$database = database();
+$errors = [];
+$success = (string) ($_SESSION['flash_success'] ?? '');
+unset($_SESSION['flash_success']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $batchReference = trim((string) ($_POST['batch_reference'] ?? ''));
+    $legacyRequestId = filter_input(INPUT_POST, 'request_id', FILTER_VALIDATE_INT);
+    $decision = (string) ($_POST['decision'] ?? '');
+    $reason = trim((string) ($_POST['rejection_reason'] ?? ''));
+
+    if (!verifyCsrfToken((string) ($_POST['csrf_token'] ?? ''))) {
+        $errors[] = 'Your session expired. Please refresh the page and try again.';
+    }
+    if (!in_array($decision, ['approved', 'rejected'], true)) {
+        $errors[] = 'Invalid decision.';
+    }
+    if ($batchReference === '' && !$legacyRequestId) {
+        $errors[] = 'Select a stock quota request.';
+    }
+    if ($batchReference !== '' && !preg_match('/^[A-Za-z0-9-]{1,40}$/', $batchReference)) {
+        $errors[] = 'Invalid quota batch reference.';
+    }
+    if ($decision === 'rejected' && $reason === '') {
+        $errors[] = 'A rejection reason is required.';
+    }
+    if (mb_strlen($reason) > 500) {
+        $errors[] = 'The rejection reason must not exceed 500 characters.';
+    }
+
+    if (!$errors) {
+        try {
+            $database->beginTransaction();
+            $sql = "SELECT g.*, i.item_name, i.variety, ds.name AS division_name,
+                           d.name AS district_name, target.full_name AS sso_name,
+                           (SELECT COUNT(*) FROM goods_request_aid_requests link
+                            WHERE link.goods_request_id = g.id) AS linked_needs
+                    FROM goods_requests g
+                    JOIN inventory_items i ON i.id = g.item_id
+                    JOIN ds_divisions ds ON ds.id = g.destination_ds_division_id
+                    JOIN districts d ON d.id = ds.district_id
+                    LEFT JOIN users target ON target.id = g.destination_sso_id
+                    WHERE " . ($batchReference !== ''
+                        ? "g.request_batch_ref = :reference"
+                        : "g.id = :request_id AND g.request_batch_ref IS NULL") . "
+                      AND g.status = 'pending-admin-approval'
+                    ORDER BY g.id FOR UPDATE";
+            $requestStatement = $database->prepare($sql);
+            $requestStatement->execute($batchReference !== ''
+                ? ['reference' => $batchReference]
+                : ['request_id' => $legacyRequestId]);
+            $batchRows = $requestStatement->fetchAll();
+            if ($batchRows === []) {
+                throw new RuntimeException('This quota request was already reviewed or does not exist.');
+            }
+
+            $requesterIds = array_unique(array_map('intval', array_column($batchRows, 'requested_by')));
+            if (count($requesterIds) !== 1) {
+                throw new RuntimeException('This quota batch has inconsistent requester details.');
+            }
+
+            if ($decision === 'approved') {
+                $requestedByItem = [];
+                foreach ($batchRows as $row) {
+                    $itemId = (int) $row['item_id'];
+                    $requestedByItem[$itemId] = ($requestedByItem[$itemId] ?? 0) + (int) $row['quantity'];
+                }
+                ksort($requestedByItem, SORT_NUMERIC);
+
+                $stockLock = $database->prepare('SELECT quantity FROM inventory_items WHERE id = :item FOR UPDATE');
+                $reservedLock = $database->prepare(
+                    "SELECT id, quantity FROM goods_requests
+                     WHERE item_id = :item AND status = 'approved-awaiting-dispatch'
+                     ORDER BY id FOR UPDATE"
+                );
+                foreach ($requestedByItem as $itemId => $requestedQuantity) {
+                    $stockLock->execute(['item' => $itemId]);
+                    $centralStock = $stockLock->fetchColumn();
+                    if ($centralStock === false) {
+                        throw new RuntimeException('One of the requested stock items no longer exists.');
+                    }
+                    $reservedLock->execute(['item' => $itemId]);
+                    $reserved = array_sum(array_map('intval', $reservedLock->fetchAll(PDO::FETCH_COLUMN, 1)));
+                    $available = max(0, (int) $centralStock - $reserved);
+                    if ($available < $requestedQuantity) {
+                        $matching = array_values(array_filter($batchRows, static fn(array $row): bool => (int) $row['item_id'] === $itemId));
+                        throw new RuntimeException((string) ($matching[0]['item_name'] ?? 'Requested item') . ' exceeds unreserved Central Stock. Available for approval: ' . $available . '.');
+                    }
+                }
+
+                $linkedPowerStatement = $database->prepare(
+                    "SELECT ar.item_id, ar.prescribed_power,
+                            i.item_name, i.variety, c.name AS category_name
+                     FROM goods_request_aid_requests link
+                     JOIN aid_requests ar ON ar.id = link.aid_request_id
+                     JOIN inventory_items i ON i.id = ar.item_id
+                     JOIN item_categories c ON c.id = i.category_id
+                     WHERE link.goods_request_id = :goods_request_id"
+                );
+                foreach ($batchRows as $row) {
+                    $linkedPowerStatement->execute(['goods_request_id' => (int) $row['id']]);
+                    foreach ($linkedPowerStatement->fetchAll() as $linkedRequest) {
+                        if (!widmsIsOpticalItem(
+                            (string) $linkedRequest['item_name'],
+                            (string) $linkedRequest['variety'],
+                            (string) $linkedRequest['category_name']
+                        )) {
+                            continue;
+                        }
+                        if ($linkedRequest['prescribed_power'] === null) {
+                            throw new RuntimeException('An optical request is missing its prescribed power.');
+                        }
+                        $balances = widmsOpticalPowerBalances(
+                            $database,
+                            (int) $linkedRequest['item_id'],
+                            true
+                        );
+                        $powerKey = widmsPowerKey((float) $linkedRequest['prescribed_power']);
+                        if ((int) ($balances[$powerKey] ?? 0) < 0) {
+                            throw new RuntimeException(sprintf(
+                                '%s power %+.2f is no longer sufficiently available in Central Stock.',
+                                (string) $linkedRequest['item_name'],
+                                (float) $linkedRequest['prescribed_power']
+                            ));
+                        }
+                    }
+                }
+
+                $targetLock = $database->prepare(
+                    "SELECT id FROM users
+                     WHERE id = :sso AND role = 'social-service-officer'
+                       AND status = 'active' AND ds_division_id = :division
+                     FOR UPDATE"
+                );
+                foreach ($batchRows as $row) {
+                    $ssoId = (int) ($row['destination_sso_id'] ?? 0);
+                    if ($ssoId < 1) {
+                        if ((int) $row['linked_needs'] > 0) {
+                            continue;
+                        }
+                        throw new RuntimeException('Every general quota allocation must have a receiving Social Service Officer.');
+                    }
+                    $targetLock->execute(['sso' => $ssoId, 'division' => (int) $row['destination_ds_division_id']]);
+                    if (!$targetLock->fetchColumn()) {
+                        throw new RuntimeException('A selected SSO is no longer active in the assigned DS Division. Reject this batch and request a replacement.');
+                    }
+                }
+            }
+
+            $status = $decision === 'approved' ? 'approved-awaiting-dispatch' : 'rejected';
+            $update = $database->prepare(
+                "UPDATE goods_requests SET status = :status, rejection_reason = :reason,
+                     approved_by = :admin, approved_at = NOW()
+                 WHERE id = :id AND status = 'pending-admin-approval'"
+            );
+            foreach ($batchRows as $row) {
+                $update->execute([
+                    'status' => $status,
+                    'reason' => $decision === 'rejected' ? $reason : null,
+                    'admin' => (int) $_SESSION['user_id'],
+                    'id' => (int) $row['id'],
+                ]);
+                if ($update->rowCount() !== 1) {
+                    throw new RuntimeException('This quota request changed while it was being reviewed.');
+                }
+            }
+
+            $firstId = (int) $batchRows[0]['id'];
+            $displayReference = $batchReference !== '' ? $batchReference : 'GR-' . str_pad((string) $firstId, 4, '0', STR_PAD_LEFT);
+            $decisionLabel = $decision === 'approved' ? 'approved' : 'rejected';
+            $totalUnits = array_sum(array_map('intval', array_column($batchRows, 'quantity')));
+
+            if ($decision === 'approved') {
+                $allocationsBySso = [];
+                foreach ($batchRows as $row) {
+                    $ssoId = (int) $row['destination_sso_id'];
+                    if ($ssoId < 1 || (int) $row['linked_needs'] > 0) {
+                        continue;
+                    }
+                    if (!isset($allocationsBySso[$ssoId])) {
+                        $allocationsBySso[$ssoId] = ['first_id' => (int) $row['id'], 'lines' => 0, 'units' => 0];
+                    }
+                    $allocationsBySso[$ssoId]['lines']++;
+                    $allocationsBySso[$ssoId]['units'] += (int) $row['quantity'];
+                }
+                foreach ($allocationsBySso as $ssoId => $allocation) {
+                    notifyUser(
+                        $database,
+                        $ssoId,
+                        'stock-quota-approved-' . preg_replace('/[^A-Za-z0-9-]/', '', $displayReference) . '-' . $ssoId,
+                        'Stock quota approved',
+                        $displayReference . ' allocated to your division',
+                        $allocation['lines'] . ' allocations - ' . $allocation['units'] . ' total units; awaiting Store Keeper release.',
+                        'dashboard.php?page=assigned-stock-quotas#goods-request-' . $allocation['first_id']
+                    );
+                }
+            }
+            notifyUser(
+                $database,
+                $requesterIds[0],
+                'stock-quota-decision-' . preg_replace('/[^A-Za-z0-9-]/', '', $displayReference),
+                'Stock quota request update',
+                $displayReference . ' ' . $decisionLabel,
+                count($batchRows) . ' allocations - ' . $totalUnits . ' total units',
+                'dashboard.php?page=my-goods-requests#goods-request-' . $firstId
+            );
+
+            $database->commit();
+            logActivity('Stock Quota Requests', ucfirst($decisionLabel) . ' stock quota request', $displayReference, $decisionLabel);
+            $_SESSION['flash_success'] = 'Stock quota request ' . $decisionLabel . '.';
+            unset($_SESSION['csrf_token']);
+            header('Location: dashboard.php?page=reviewed-stock-quota-requests#stock-quota-' . $firstId);
+            exit;
+        } catch (Throwable $exception) {
+            if ($database->inTransaction()) {
+                $database->rollBack();
+            }
+            error_log($exception->getMessage());
+            $errors[] = $exception instanceof RuntimeException ? $exception->getMessage() : 'Unable to review the stock quota request.';
+        }
+    }
+}
+
+try {
+    $pendingRows = $database->query(
+        "SELECT g.*, i.item_name, i.variety, i.quantity AS central_stock,
+                GREATEST(0, i.quantity - COALESCE((SELECT SUM(r.quantity) FROM goods_requests r
+                    WHERE r.item_id = g.item_id AND r.status = 'approved-awaiting-dispatch'), 0)) AS available_stock,
+                (SELECT ar.prescribed_power
+                 FROM goods_request_aid_requests link
+                 JOIN aid_requests ar ON ar.id = link.aid_request_id
+                 WHERE link.goods_request_id = g.id LIMIT 1) AS prescribed_power,
+                ds.name AS division_name, d.name AS district_name,
+                requester.full_name AS requester_name, target.full_name AS sso_name
+         FROM goods_requests g
+         JOIN inventory_items i ON i.id = g.item_id
+         JOIN ds_divisions ds ON ds.id = g.destination_ds_division_id
+         JOIN districts d ON d.id = ds.district_id
+         JOIN users requester ON requester.id = g.requested_by
+         LEFT JOIN users target ON target.id = g.destination_sso_id
+         WHERE g.status = 'pending-admin-approval'
+         ORDER BY g.created_at, g.id"
+    )->fetchAll();
+    $powerBalancesByItem = [];
+    foreach ($pendingRows as &$pendingRow) {
+        $pendingRow['power_available'] = null;
+        if ($pendingRow['prescribed_power'] !== null) {
+            $itemId = (int) $pendingRow['item_id'];
+            $powerBalancesByItem[$itemId] ??= widmsOpticalPowerBalances($database, $itemId);
+            $pendingRow['power_available'] = max(0, (int) (
+                $powerBalancesByItem[$itemId][widmsPowerKey((float) $pendingRow['prescribed_power'])] ?? 0
+            ));
+        }
+    }
+    unset($pendingRow);
+    $approvalCounts = [
+        'registrations' => (int) $database->query("SELECT COUNT(*) FROM registration_requests WHERE status = 'pending'")->fetchColumn(),
+        'aid' => (int) $database->query("SELECT COUNT(*) FROM aid_requests WHERE status = 'pending'")->fetchColumn(),
+        'stock' => (int) $database->query("SELECT COUNT(DISTINCT COALESCE(NULLIF(request_batch_ref, ''), CONCAT('GR-', id))) FROM goods_requests WHERE status = 'pending-admin-approval'")->fetchColumn(),
+        'corrections' => (int) $database->query("SELECT COUNT(*) FROM correction_requests WHERE status = 'pending'")->fetchColumn(),
+    ];
+} catch (PDOException $exception) {
+    error_log($exception->getMessage());
+    $pendingRows = [];
+    $approvalCounts = [];
+    $errors[] = 'Stock quota workflow is unavailable.';
+}
+
+$batches = [];
+foreach ($pendingRows as $row) {
+    $batchKey = trim((string) ($row['request_batch_ref'] ?? '')) ?: 'legacy-' . (int) $row['id'];
+    if (!isset($batches[$batchKey])) {
+        $batches[$batchKey] = [
+            'reference' => trim((string) ($row['request_batch_ref'] ?? '')),
+            'first_id' => (int) $row['id'],
+            'requester_name' => (string) $row['requester_name'],
+            'created_at' => (string) $row['created_at'],
+            'justification' => (string) $row['justification'],
+            'rows' => [],
+        ];
+    }
+    $batches[$batchKey]['rows'][] = $row;
+}
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Goods Requests | WIDMS</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link href="assets/css/admin-dashboard.css" rel="stylesheet"></head><body><?php require __DIR__.'/../../includes/admin-sidebar.php';?><div class="admin-shell"><header class="topbar"><div class="d-flex align-items-center gap-3"><button class="menu-button" id="menu-button">&#9776;</button><h1>Goods Requests</h1></div></header><main class="dashboard-content admin-operation-page"><?php if($success):?><div class="alert alert-success"><?=htmlspecialchars($success,ENT_QUOTES,'UTF-8')?></div><?php endif;?><?php if($errors):?><div class="alert alert-danger"><?=htmlspecialchars(implode(' ',$errors),ENT_QUOTES,'UTF-8')?></div><?php endif;?><section class="operation-summary-grid"><?php foreach([['pending-admin-approval','Pending Admin Approval'],['approved-awaiting-dispatch','Approved — Awaiting Dispatch'],['dispatched','Dispatched'],['rejected','Rejected']] as [$key,$label]):?><article class="operation-summary-card"><span>&#128203;</span><p><?=$label?></p><strong><?=(int)($counts[$key]??0)?></strong><small>Live request count</small></article><?php endforeach;?></section><section class="admin-data-card operation-list-card"><div class="admin-data-header"><h2>All Goods Requests</h2></div><div class="admin-data-table-wrap"><table class="admin-data-table goods-table"><thead><tr><th>ID</th><th>Item</th><th>Qty</th><th>Central Stock</th><th>Destination</th><th>Requested By</th><th>Date</th><th>Status</th><th>Action</th></tr></thead><tbody><?php if(!$rows):?><tr><td colspan="9" class="admin-empty-row">No goods requests available.</td></tr><?php else:foreach($rows as $r):?><tr><td>GR-<?=str_pad((string)$r['id'],4,'0',STR_PAD_LEFT)?></td><td><strong><?=htmlspecialchars($r['item_name'],ENT_QUOTES,'UTF-8')?></strong><small><?=htmlspecialchars($r['variety'],ENT_QUOTES,'UTF-8')?></small></td><td><?=(int)$r['quantity']?></td><td><?=(int)$r['central_stock']?></td><td><?=htmlspecialchars($r['district_name'].' / '.$r['division_name'],ENT_QUOTES,'UTF-8')?></td><td><?=htmlspecialchars($r['requester_name'],ENT_QUOTES,'UTF-8')?></td><td><?=date('d M Y',strtotime($r['created_at']))?></td><td><?=htmlspecialchars($labels[$r['status']],ENT_QUOTES,'UTF-8')?></td><td><?php if($r['status']==='pending-admin-approval'):?><form method="post" class="goods-decision-form"><input type="hidden" name="csrf_token" value="<?=htmlspecialchars(csrfToken(),ENT_QUOTES,'UTF-8')?>"><input type="hidden" name="request_id" value="<?=(int)$r['id']?>"><input name="rejection_reason" placeholder="Reason for rejection"><button name="decision" value="approved" class="approve-button">Approve</button><button name="decision" value="rejected" class="reject-button">Reject</button></form><?php else:?><?=htmlspecialchars($r['rejection_reason']?:'—',ENT_QUOTES,'UTF-8')?><?php endif;?></td></tr><?php endforeach;endif;?></tbody></table></div></section></main></div><script src="assets/js/admin-dashboard.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title><?= htmlspecialchars(t('Stock Quota Requests'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css" rel="stylesheet">
+</head>
+<body class="admin-correction-page">
+<?php require __DIR__ . '/../../includes/admin-sidebar.php'; ?>
+<div class="admin-shell">
+    <header class="topbar"><div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="Open navigation">&#9776;</button><h1><?= htmlspecialchars(t('Stock Quota Requests'), ENT_QUOTES, 'UTF-8') ?></h1></div></header>
+    <main class="dashboard-content admin-correction-review-page admin-stock-quota-page">
+        <?php renderAdminApprovalTabs($approvalCounts, 'stock'); ?>
+        <?php renderSuccessMessage($success); ?>
+        <?php if ($errors): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars(implode(' ', array_map('t', array_unique($errors))), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+
+        <section class="admin-data-card admin-correction-review-card" aria-label="<?= htmlspecialchars(t('Pending Stock Quota Requests'), ENT_QUOTES, 'UTF-8') ?>">
+            <div class="admin-correction-list stock-quota-card-list">
+                <?php if ($batches === []): ?>
+                    <div class="empty-corrections"><strong><?= htmlspecialchars(t('No pending stock quota requests'), ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars(t('New quota requests will appear here for approval.'), ENT_QUOTES, 'UTF-8') ?></span></div>
+                <?php else: foreach ($batches as $batch): ?>
+                    <?php $lines = $batch['rows']; $displayReference = $batch['reference'] !== '' ? $batch['reference'] : 'GR-' . str_pad((string) $batch['first_id'], 4, '0', STR_PAD_LEFT); $totalUnits = array_sum(array_map('intval', array_column($lines, 'quantity'))); ?>
+                    <article id="goods-request-<?= (int) $batch['first_id'] ?>" class="admin-correction-item stock-quota-card admin-notification-target" tabindex="-1">
+                        <?php foreach (array_slice($lines, 1) as $line): ?><span id="goods-request-<?= (int) $line['id'] ?>" class="stock-quota-anchor" aria-hidden="true"></span><?php endforeach; ?>
+                        <div class="correction-summary stock-quota-summary">
+                            <div><div class="correction-reference-line"><strong><?= htmlspecialchars($displayReference, ENT_QUOTES, 'UTF-8') ?></strong><span><?= count($lines) ?> <?= htmlspecialchars(t(count($lines) === 1 ? 'Allocation' : 'Allocations'), ENT_QUOTES, 'UTF-8') ?></span><small><?= number_format($totalUnits) ?> <?= htmlspecialchars(t('Total Units'), ENT_QUOTES, 'UTF-8') ?></small></div><p class="correction-submission-meta"><?= htmlspecialchars(t('Requested by'), ENT_QUOTES, 'UTF-8') ?> <strong><?= htmlspecialchars($batch['requester_name'], ENT_QUOTES, 'UTF-8') ?></strong> &middot; <?= date('d M Y, H:i', strtotime($batch['created_at'])) ?></p></div>
+                            <span class="correction-status pending"><?= htmlspecialchars(t('Pending'), ENT_QUOTES, 'UTF-8') ?></span>
+                        </div>
+                        <div class="stock-quota-justification"><span><?= htmlspecialchars(t('Quota Justification'), ENT_QUOTES, 'UTF-8') ?></span><p><?= nl2br(htmlspecialchars($batch['justification'], ENT_QUOTES, 'UTF-8')) ?></p></div>
+                        <div class="stock-quota-lines-wrap"><table class="admin-data-table stock-quota-lines-table">
+                            <thead><tr><th>#</th><th><?= htmlspecialchars(t('Aid Item'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Prescribed Power'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Available Stock'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('District / DS Division'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Receiving SSO'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Document'), ENT_QUOTES, 'UTF-8') ?></th></tr></thead>
+                            <tbody><?php foreach ($lines as $index => $line): ?><tr><td><?= $index + 1 ?></td><td><strong><?= htmlspecialchars((string) $line['item_name'], ENT_QUOTES, 'UTF-8') ?></strong><?php if ((string) $line['variety'] !== ''): ?><small><?= htmlspecialchars((string) $line['variety'], ENT_QUOTES, 'UTF-8') ?></small><?php endif; ?></td><td><?= $line['prescribed_power'] !== null ? sprintf('%+.2f', (float) $line['prescribed_power']) : '&mdash;' ?><?php if ($line['power_available'] !== null): ?><small><?= number_format((int) $line['power_available']) ?> <?= htmlspecialchars(t('remaining after reservations'), ENT_QUOTES, 'UTF-8') ?></small><?php endif; ?></td><td><?= number_format((int) $line['available_stock']) ?></td><td><strong><?= number_format((int) $line['quantity']) ?></strong></td><td><?= htmlspecialchars($line['district_name'] . ' / ' . $line['division_name'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) ($line['sso_name'] ?: t('Subject Officer direct release')), ENT_QUOTES, 'UTF-8') ?></td><td><a class="outline-action" target="_blank" rel="noopener" href="dashboard.php?page=goods-request-document&amp;request_id=<?= (int) $line['id'] ?>&amp;print=1"><?= htmlspecialchars(t('View PDF'), ENT_QUOTES, 'UTF-8') ?></a></td></tr><?php endforeach; ?></tbody>
+                        </table></div>
+                        <form method="post" action="dashboard.php?page=goods-requests" class="admin-decision-form stock-quota-decision-form">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                            <?php if ($batch['reference'] !== ''): ?><input type="hidden" name="batch_reference" value="<?= htmlspecialchars($batch['reference'], ENT_QUOTES, 'UTF-8') ?>"><?php else: ?><input type="hidden" name="request_id" value="<?= (int) $batch['first_id'] ?>"><?php endif; ?>
+                            <label><?= htmlspecialchars(t('Admin note'), ENT_QUOTES, 'UTF-8') ?><textarea name="rejection_reason" maxlength="500" rows="2" placeholder="<?= htmlspecialchars(t('Required when rejecting the request'), ENT_QUOTES, 'UTF-8') ?>"></textarea></label>
+                            <div class="correction-decision-footer"><small><?= htmlspecialchars(t('Approval reserves Central Stock for every allocation in this quota batch.'), ENT_QUOTES, 'UTF-8') ?></small><div class="correction-decision-actions"><button class="approve-button" name="decision" value="approved" type="submit"><?= htmlspecialchars(t('Approve'), ENT_QUOTES, 'UTF-8') ?></button><button class="reject-button" name="decision" value="rejected" type="submit"><?= htmlspecialchars(t('Reject'), ENT_QUOTES, 'UTF-8') ?></button></div></div>
+                        </form>
+                    </article>
+                <?php endforeach; endif; ?>
+            </div>
+        </section>
+    </main>
+</div>
+<script src="assets/js/admin-dashboard.js"></script>
+</body>
+</html>

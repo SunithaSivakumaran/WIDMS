@@ -1,11 +1,19 @@
 <?php
 declare(strict_types=1);
 
-const DB_HOST = '127.0.0.1';
-const DB_PORT = '3306';
-const DB_NAME = 'widms';
-const DB_USER = 'root';
-const DB_PASS = '';
+// The defaults work for local XAMPP. A deployment can override them without
+// editing application files (including when testing migration on a separate DB).
+function widmsDatabaseSetting(string $name, string $default): string
+{
+    $value = getenv($name);
+    return $value === false ? $default : $value;
+}
+
+define('DB_HOST', widmsDatabaseSetting('WIDMS_DB_HOST', '127.0.0.1'));
+define('DB_PORT', widmsDatabaseSetting('WIDMS_DB_PORT', '3306'));
+define('DB_NAME', widmsDatabaseSetting('WIDMS_DB_NAME', 'widms'));
+define('DB_USER', widmsDatabaseSetting('WIDMS_DB_USER', 'root'));
+define('DB_PASS', widmsDatabaseSetting('WIDMS_DB_PASS', ''));
 
 function database(): PDO
 {

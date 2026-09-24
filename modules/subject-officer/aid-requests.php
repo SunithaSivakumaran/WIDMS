@@ -21,6 +21,7 @@ requireRole('subject-officer');
 */
 
 require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/aid-request-details.php';
 
 
 /*
@@ -71,7 +72,13 @@ try {
             i.item_name,
             i.variety,
 
-            u.full_name AS sso_name
+            u.username AS submitter_username,
+            u.role AS submitter_role,
+            CASE
+                WHEN COALESCE(ret.returned_quantity, 0) > 0 THEN 'return'
+                WHEN dist.distribution_type = 'direct' THEN 'direct-distribution'
+                ELSE ar.status
+            END AS display_status
 
          FROM aid_requests ar
 
@@ -90,9 +97,16 @@ try {
          JOIN users u
             ON u.id = ar.submitted_by
 
-         WHERE ar.status <> 'draft'
+         LEFT JOIN distributions dist
+            ON dist.aid_request_id = ar.id
 
-           AND u.role = 'social-service-officer'
+         LEFT JOIN (
+            SELECT distribution_id, SUM(quantity) AS returned_quantity
+            FROM item_returns
+            GROUP BY distribution_id
+         ) ret ON ret.distribution_id = dist.id
+
+         WHERE ar.status <> 'draft'
 
          ORDER BY
 
@@ -139,9 +153,12 @@ try {
 |--------------------------------------------------------------------------
 */
 
-function monitorAge(string $dob): int
+function monitorAge(?string $dob): string
 {
-    return (int) (
+    if ($dob === null || $dob === '') {
+        return '—';
+    }
+    return (string) (int) (
         new DateTimeImmutable($dob)
     )
         ->diff(
@@ -184,7 +201,7 @@ function monitorAge(string $dob): int
     <!-- WIDMS Main CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css?v=24"
+        href="assets/css/admin-dashboard.css?v=69"
         rel="stylesheet"
     >
 
@@ -275,11 +292,11 @@ require __DIR__ .
                 <div>
 
                     <h2>
-                        Requests from Social Service Officers
+                        <?= htmlspecialchars(t('All Aid Requests'), ENT_QUOTES, 'UTF-8') ?>
                     </h2>
 
                     <small>
-                        Read-only — only Admin can approve or reject
+                        <?= htmlspecialchars(t('Includes SSO, Subject Officer, and Admin requests. Only Admin can approve or reject.'), ENT_QUOTES, 'UTF-8') ?>
                     </small>
 
                 </div>
@@ -293,7 +310,7 @@ require __DIR__ .
                     <input
                         id="monitor-search"
                         type="search"
-                        placeholder="Search name, NIC or SSO..."
+                        placeholder="<?= htmlspecialchars(t('Search name, identification or submitter...'), ENT_QUOTES, 'UTF-8') ?>"
                     >
 
 
@@ -323,6 +340,14 @@ require __DIR__ .
 
                         <option value="distributed">
                             Distributed
+                        </option>
+
+                        <option value="direct-distribution">
+                            <?= htmlspecialchars(t('Direct Distribution'), ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+
+                        <option value="return">
+                            <?= htmlspecialchars(t('Return'), ENT_QUOTES, 'UTF-8') ?>
                         </option>
 
                     </select>
@@ -393,9 +418,10 @@ require __DIR__ .
 
                         <?php foreach ($rows as $r): ?>
 
-                            <tr
+                            <tr id="aid-request-<?= (int) $r['id'] ?>" class="admin-notification-target aid-review-row<?= in_array($r['status'], ['approved', 'rejected'], true) ? ' is-' . htmlspecialchars($r['status'], ENT_QUOTES, 'UTF-8') : '' ?>"
+                                tabindex="-1"
                                 data-status="<?= htmlspecialchars(
-                                    $r['status']
+                                    $r['display_status']
                                 ) ?>"
                             >
 
@@ -492,7 +518,7 @@ require __DIR__ .
                                     </strong>
 
                                     <!-- Match the SSO layout by keeping details beneath the requested item. -->
-                                    <?php $requestDetails=json_decode((string)($r['beneficiary_details_json']??''),true);if((!is_array($requestDetails)||!$requestDetails)&&!empty($r['beneficiary_detail_label'])&&$r['beneficiary_detail_value']!==null)$requestDetails=[['label'=>$r['beneficiary_detail_label'],'type'=>'text','value'=>$r['beneficiary_detail_value'],'display_value'=>$r['beneficiary_detail_value']]];if(is_array($requestDetails)&&$requestDetails): ?>
+                                    <?php $requestDetails=aidRequestDetails($r);if($requestDetails): ?>
                                         <button type="button" class="request-extra-info-button" data-request-extra-info="<?= htmlspecialchars(json_encode($requestDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>" data-dialog-title="<?= htmlspecialchars(t('Beneficiary Details'),ENT_QUOTES,'UTF-8') ?>" data-close-label="<?= htmlspecialchars(t('Close'),ENT_QUOTES,'UTF-8') ?>"><?= htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8') ?></button>
                                     <?php endif; ?>
 
@@ -514,12 +540,19 @@ require __DIR__ .
                                 </td>
 
 
-                                <!-- SSO -->
-                                <td>
+                                <!-- Submitter account and post -->
+                                <td class="request-submitter-cell">
 
                                     <?= htmlspecialchars(
-                                        $r['sso_name']
+                                        $r['submitter_username'],
+                                        ENT_QUOTES,
+                                        'UTF-8'
                                     ) ?>
+                                    <small class="request-submitter-role"><?= htmlspecialchars(t(match ($r['submitter_role']) {
+                                        'admin' => 'Administrator',
+                                        'subject-officer' => 'Subject Officer',
+                                        default => 'Social Service Officer',
+                                    }), ENT_QUOTES, 'UTF-8') ?></small>
 
                                 </td>
 
@@ -530,17 +563,11 @@ require __DIR__ .
                                     <span
                                         class="request-status-pill
                                         status-<?= htmlspecialchars(
-                                            $r['status']
+                                            $r['display_status']
                                         ) ?>"
                                     >
 
-                                        <?= ucwords(
-                                            str_replace(
-                                                '-',
-                                                ' ',
-                                                $r['status']
-                                            )
-                                        ) ?>
+                                        <?= htmlspecialchars(t(ucwords(str_replace('-', ' ', $r['display_status']))), ENT_QUOTES, 'UTF-8') ?>
 
                                     </span>
 
