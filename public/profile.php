@@ -6,6 +6,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/permissions.php';
 require_once __DIR__ . '/../includes/activity.php';
 require_once __DIR__ . '/../includes/sms.php';
+require_once __DIR__ . '/../includes/form-submissions.php';
 
 requireLogin();
 
@@ -35,6 +36,9 @@ try {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!widmsConsumeFormSubmissionToken($_POST['widms_submission_token'] ?? null)) {
+        $errors[] = 'This form was already submitted or has expired. Refresh the page and try again.';
+    }
     $fullName = trim((string) ($_POST['full_name'] ?? ''));
     $email = strtolower(trim((string) ($_POST['email'] ?? '')));
     $phone = trim((string) ($_POST['phone'] ?? ''));
@@ -137,7 +141,7 @@ $sidebar = $sidebarFiles[$_SESSION['role']] ?? null;
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Edit Profile | WIDMS</title>
+        <title>Edit Profile | SWPCS</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="assets/css/admin-dashboard.css" rel="stylesheet">
     </head>
@@ -178,6 +182,7 @@ $sidebar = $sidebarFiles[$_SESSION['role']] ?? null;
                         <p>You can update your personal details. Your assigned role cannot be changed.</p>
                     </div>
                     <form method="post" enctype="multipart/form-data" class="profile-form">
+                        <?= widmsFormSubmissionField() ?>
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                         <div class="profile-photo-section">
 
@@ -251,6 +256,7 @@ $sidebar = $sidebarFiles[$_SESSION['role']] ?? null;
         </div>
         <script src="assets/js/admin-dashboard.js"></script>
         <script src="assets/js/password-toggle.js?v=2"></script>
+        <script src="assets/js/form-submit-guard.js?v=<?= filemtime(__DIR__ . '/assets/js/form-submit-guard.js') ?>"></script>
         <?= widmsUiTranslationAssetsHtml() ?>
     </body>
 </html>

@@ -46,8 +46,10 @@ reasonDialog.addEventListener('click', (event) => {
     if (event.target === reasonDialog) closeReasonDialog();
 });
 
-document.querySelectorAll('[data-reason-trigger]').forEach((trigger) => {
-    trigger.addEventListener('click', () => {
+// Delegation also covers action buttons inserted by live-filtered tables.
+document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-reason-trigger]');
+        if (!trigger || trigger.disabled) return;
         activeTrigger = trigger;
         reasonDialog.querySelector('h2').textContent = trigger.dataset.dialogTitle;
         confirmButton.textContent = trigger.dataset.dialogConfirm;
@@ -58,7 +60,6 @@ document.querySelectorAll('[data-reason-trigger]').forEach((trigger) => {
         reasonError.hidden = true;
         reasonDialog.showModal();
         reasonInput.focus();
-    });
 });
 
 confirmButton.addEventListener('click', () => {

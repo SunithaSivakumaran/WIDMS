@@ -92,7 +92,8 @@ $reports = [
             d.quantity AS Qty,
             d.distribution_type AS Type,
             d.source AS Source,
-            u.full_name AS Officer,
+            COALESCE((SELECT GROUP_CONCAT(u.full_name SEPARATOR ', ') FROM users u
+                      WHERE u.ds_division_id = p.ds_division_id AND u.role = 'social-service-officer' AND u.status = 'active'), 'Unassigned') AS Officer,
             d.distributed_at AS Date
 
         FROM distributions d
@@ -203,19 +204,16 @@ $reports = [
                 + p.reused
             ) AS Remaining
 
-        FROM officer_pools p
-
-        JOIN users u
-            ON u.id = p.officer_id
+        FROM division_pools p
 
         LEFT JOIN ds_divisions ds
-            ON ds.id = u.ds_division_id
+            ON ds.id = p.ds_division_id
 
         JOIN inventory_items i
             ON i.id = p.item_id
 
         ORDER BY
-            u.full_name,
+            ds.name,
             i.item_name
         "
     ],
@@ -233,7 +231,6 @@ $reports = [
             'Request',
             'Beneficiary',
             'Item',
-            'Prescription Power',
             'Submitted By',
             'Status',
             'Submitted',
@@ -257,12 +254,6 @@ $reports = [
                     CONCAT(' / ', i.variety)
                 )
             ) AS Item,
-
-            IF(
-                ar.prescribed_power IS NULL,
-                '—',
-                FORMAT(ar.prescribed_power, 2)
-            ) AS `Prescription Power`,
 
             u.full_name AS `Submitted By`,
             ar.status AS Status,
@@ -329,6 +320,7 @@ $reports = [
             ) AS Reusable,
 
             r.restore_to AS Destination,
+            r.stock_review_status AS Stock_Status,
             r.processed_at AS Date
 
         FROM item_returns r
@@ -428,7 +420,7 @@ if (
     header('Content-Type: text/csv; charset=UTF-8');
 
     header(
-        'Content-Disposition: attachment; filename="WIDMS-'
+        'Content-Disposition: attachment; filename="SWPCS-'
         . $type
         . '-Report-'
         . date('Y-m-d')
@@ -774,7 +766,7 @@ if (
 
         <div class="footer">
 
-            WIDMS - Subject Officer Report
+            SWPCS - Subject Officer Report
 
         </div>
 
@@ -824,7 +816,7 @@ if (
 
 
     $filename =
-        'WIDMS-'
+        'SWPCS-'
         . ucfirst($type)
         . '-Report-'
         . date('Y-m-d')
@@ -860,7 +852,7 @@ if (
 
 
     <title>
-        Reports | WIDMS
+        Reports | SWPCS
     </title>
 
 

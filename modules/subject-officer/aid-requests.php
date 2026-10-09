@@ -103,6 +103,7 @@ try {
          LEFT JOIN (
             SELECT distribution_id, SUM(quantity) AS returned_quantity
             FROM item_returns
+            WHERE stock_review_status = 'accepted'
             GROUP BY distribution_id
          ) ret ON ret.distribution_id = dist.id
 
@@ -198,17 +199,15 @@ function monitorAge(?string $dob): string
     >
 
 
-    <!-- WIDMS Main CSS -->
+    <!-- SWPCS Main CSS -->
 
-    <link
-        href="assets/css/admin-dashboard.css?v=69"
-        rel="stylesheet"
-    >
+    <link href="assets/css/admin-dashboard.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/admin-dashboard.css') ?>" rel="stylesheet">
+    <link href="assets/css/aid-requests-monitor.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/aid-requests-monitor.css') ?>" rel="stylesheet">
 
 </head>
 
 
-<body>
+<body class="subject-aid-monitor-page">
 
 
 <?php
@@ -243,7 +242,7 @@ require __DIR__ .
             >
                 &#9776;
             </button>
-            <h1>Aid Request</h1>
+            <h1><?= htmlspecialchars(t('Aid Requests'), ENT_QUOTES, 'UTF-8') ?></h1>
 
         </div>
     </header> 
@@ -283,84 +282,6 @@ require __DIR__ .
 
 
             <!-- ========================================================
-                 TABLE HEADER / FILTER AREA
-            ========================================================= -->
-
-            <div class="submitted-header">
-
-
-                <div>
-
-                    <h2>
-                        <?= htmlspecialchars(t('All Aid Requests'), ENT_QUOTES, 'UTF-8') ?>
-                    </h2>
-
-                    <small>
-                        <?= htmlspecialchars(t('Includes SSO, Subject Officer, and Admin requests. Only Admin can approve or reject.'), ENT_QUOTES, 'UTF-8') ?>
-                    </small>
-
-                </div>
-
-
-                <div>
-
-
-                    <!-- Search requests -->
-
-                    <input
-                        id="monitor-search"
-                        type="search"
-                        placeholder="<?= htmlspecialchars(t('Search name, identification or submitter...'), ENT_QUOTES, 'UTF-8') ?>"
-                    >
-
-
-                    <!-- Filter by request status -->
-
-                    <select id="monitor-status">
-
-                        <option value="">
-                            All Status
-                        </option>
-
-                        <option value="pending">
-                            Pending Admin
-                        </option>
-
-                        <option value="approved">
-                            Approved
-                        </option>
-
-                        <option value="rejected">
-                            Rejected
-                        </option>
-
-                        <option value="goods-requested">
-                            Goods Requested
-                        </option>
-
-                        <option value="distributed">
-                            Distributed
-                        </option>
-
-                        <option value="direct-distribution">
-                            <?= htmlspecialchars(t('Direct Distribution'), ENT_QUOTES, 'UTF-8') ?>
-                        </option>
-
-                        <option value="return">
-                            <?= htmlspecialchars(t('Return'), ENT_QUOTES, 'UTF-8') ?>
-                        </option>
-
-                    </select>
-
-
-                </div>
-
-
-            </div>
-
-
-
-            <!-- ========================================================
                  REQUEST TABLE
             ========================================================= -->
 
@@ -370,6 +291,24 @@ require __DIR__ .
                 <strong class="approval-legend-title"><?= htmlspecialchars(t('Approval guide'), ENT_QUOTES, 'UTF-8') ?></strong>
                 <span>🩺 <?= htmlspecialchars(t('Government Medical Officer'), ENT_QUOTES, 'UTF-8') ?></span><span>🏡 <?= htmlspecialchars(t('Grama Niladhari'), ENT_QUOTES, 'UTF-8') ?></span>
                 <span>🏛 <?= htmlspecialchars(t('Social Services Officer'), ENT_QUOTES, 'UTF-8') ?></span><span>📋 <?= htmlspecialchars(t('Divisional Secretary'), ENT_QUOTES, 'UTF-8') ?></span><span>❌ <?= htmlspecialchars(t('Not approved'), ENT_QUOTES, 'UTF-8') ?></span>
+            </div>
+
+            <div class="aid-monitor-filters" role="search" aria-label="<?= htmlspecialchars(t('Filter aid requests'), ENT_QUOTES, 'UTF-8') ?>">
+                <label for="monitor-search"><span><?= htmlspecialchars(t('Search'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input id="monitor-search" type="search" placeholder="<?= htmlspecialchars(t('Search name, identification or submitter...'), ENT_QUOTES, 'UTF-8') ?>">
+                </label>
+                <label for="monitor-status"><span><?= htmlspecialchars(t('Status'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select id="monitor-status">
+                        <option value=""><?= htmlspecialchars(t('All Status'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="pending"><?= htmlspecialchars(t('Pending Admin'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="approved"><?= htmlspecialchars(t('Approved'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="rejected"><?= htmlspecialchars(t('Rejected'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="goods-requested"><?= htmlspecialchars(t('Goods Requested'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="distributed"><?= htmlspecialchars(t('Distributed'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="direct-distribution"><?= htmlspecialchars(t('Direct Distribution'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="return"><?= htmlspecialchars(t('Return'), ENT_QUOTES, 'UTF-8') ?></option>
+                    </select>
+                </label>
             </div>
 
             <div class="submitted-table-wrap">
@@ -507,7 +446,7 @@ require __DIR__ .
                                     <strong class="request-aid-name">
 
                                     <?= htmlspecialchars(
-                                        $r['item_name'] .
+                                        widmsAidItemName((string) $r['item_name']) .
                                         (
                                             $r['variety']
                                                 ? ' — ' . $r['variety']
@@ -608,7 +547,7 @@ require __DIR__ .
 
 
 <!-- ==================================================================
-     WIDMS SHARED JAVASCRIPT
+     SWPCS SHARED JAVASCRIPT
 =================================================================== -->
 
 <script src="assets/js/admin-dashboard.js?v=17"></script>

@@ -16,19 +16,34 @@ widmsLanguage();
 
 function csrfToken(): string
 {
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    // A successful action may clear the legacy key while another form is still
+    // open. Keep one token for the login session instead of invalidating every
+    // other tab or an in-flight repeat submission.
+    if (!isset($_SESSION['csrf_token_stable'])) {
+        $_SESSION['csrf_token_stable'] = is_string($_SESSION['csrf_token'] ?? null)
+            && preg_match('/\A[a-f0-9]{64}\z/D', $_SESSION['csrf_token'])
+            ? $_SESSION['csrf_token']
+            : bin2hex(random_bytes(32));
     }
-
-    return $_SESSION['csrf_token'];
+    $_SESSION['csrf_token'] = $_SESSION['csrf_token_stable'];
+    return $_SESSION['csrf_token_stable'];
 }
 
 function verifyCsrfToken(string $token): bool
 {
-    $valid = isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+    $expected = $_SESSION['csrf_token_stable'] ?? $_SESSION['csrf_token'] ?? null;
+    $valid = is_string($expected) && $token !== '' && hash_equals($expected, $token);
     if ($valid) {
-        require_once __DIR__ . '/notification-sms.php';
-        widmsScheduleNotificationSms();
+        $_SESSION['csrf_token_stable'] = $expected;
+        $_SESSION['csrf_token'] = $expected;
+        // Signing in does not create a workflow notification.  Do not start
+        // the SMS outbox worker here: an unreachable SMS gateway can otherwise
+        // delay the successful login redirect for several seconds.
+        $scriptName = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+        if ($scriptName !== 'login.php') {
+            require_once __DIR__ . '/notification-sms.php';
+            widmsScheduleNotificationSms();
+        }
     }
     return $valid;
 }
@@ -54,7 +69,7 @@ function loginUser(array $user): void
     $_SESSION['username'] = $user['username'];
     $_SESSION['role'] = $user['role'];
     $_SESSION['profile_image'] = $user['profile_image'] ?? null;
-    unset($_SESSION['csrf_token']);
+    unset($_SESSION['csrf_token'], $_SESSION['csrf_token_stable']);
 }
 
 function logoutUser(): void

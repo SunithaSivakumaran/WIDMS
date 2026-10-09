@@ -1,0 +1,10 @@
+.store-receive-page .receive-entry-card .receive-card-header { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.store-receive-page .receive-entry-card .receive-card-header .outline-action { white-space:normal; text-align:center; }
+.store-receive-page .receive-entry-card .receive-form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.store-receive-page .receive-entry-card .receive-form label[hidden],
+.store-receive-page .receive-entry-card .receive-form [hidden] { display:none !important; }
+.store-receive-page #camp-field,.store-receive-page #bulk-cost-field { border-left-color:#218c78; background:#effaf7; }
+.store-receive-page #camp-division-field input[readonly] { color:#174c69; background:#eaf2f8; }
+.store-receive-page .receive-entry-card .receive-form input,.store-receive-page .receive-entry-card .receive-form select { font-size:14px; min-height:42px; }
+.store-receive-page .receive-entry-card .receive-form label { font-size:13px; }
+@media(max-width:750px) { .store-receive-page .receive-entry-card .receive-form-grid { grid-template-columns:1fr; } }

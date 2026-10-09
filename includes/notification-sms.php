@@ -3,13 +3,38 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/sms.php';
 
+/** Queue inside the account-creation transaction, so a rollback cannot send a welcome SMS. */
+function widmsQueueAdminCreatedAccountSms(PDO $db, int $userId): void
+{
+    if (!$db->inTransaction()) { throw new LogicException('Queue the welcome SMS with the new account transaction.'); }
+    $select = $db->prepare("SELECT username FROM users WHERE id=:id AND status='active'");
+    $select->execute(['id' => $userId]);
+    $username = $select->fetchColumn();
+    if ($username === false) { throw new RuntimeException('New account is unavailable.'); }
+    $insert = $db->prepare('INSERT INTO notification_sms_outbox (user_id,notification_key,message)
+        VALUES (:user,:key,:message) ON DUPLICATE KEY UPDATE id=id');
+    $insert->execute(['user' => $userId, 'key' => 'admin-created-account',
+        'message' => widmsAdminCreatedAccountSmsText($username)]);
+}
+
+/** Each suspension is a distinct event; only its notice can reach an inactive account. */
+function widmsQueueAccountSuspendedSms(PDO $db, int $userId): void
+{
+    if (!$db->inTransaction()) { throw new LogicException('Queue the suspension SMS with the suspension transaction.'); }
+    $insert = $db->prepare("INSERT INTO notification_sms_outbox (user_id,notification_key,message)
+        SELECT id,:key,:message FROM users WHERE id=:user AND status='inactive'");
+    $insert->execute(['user' => $userId, 'key' => 'user-suspended-' . bin2hex(random_bytes(16)),
+        'message' => 'Your SWPCS account has been suspended by an administrator. Please contact your administrator for more information.']);
+    if ($insert->rowCount() !== 1) { throw new RuntimeException('Suspended account is unavailable.'); }
+}
+
 function widmsNotificationSmsText(string $role, string $category, string $reference): string
 {
     $roles = ['admin' => 'Admin', 'subject-officer' => 'Subject Officer',
         'store-keeper' => 'Store Keeper', 'social-service-officer' => 'SSO'];
-    // Categories are workflow labels; detailed notification bodies stay in WIDMS.
+    // Categories are workflow labels; detailed notification bodies stay in SWPCS.
     $clean = static fn(string $text): string => trim(preg_replace('/[\r\n\t]+/', ' ', strip_tags($text)) ?? '');
-    return 'WIDMS (' . ($roles[$role] ?? 'User') . '): ' . mb_substr($clean($category), 0, 80)
+    return 'SWPCS (' . ($roles[$role] ?? 'User') . '): ' . mb_substr($clean($category), 0, 80)
         . '. Ref: ' . mb_substr($clean($reference), 0, 60) . '. Sign in to view details.';
 }
 
@@ -45,7 +70,7 @@ function widmsProcessNotificationSms(PDO $db, int $limit = 10, ?callable $sender
     $jobs = $db->query("SELECT id FROM notification_sms_outbox WHERE status='queued' ORDER BY id LIMIT $limit")->fetchAll(PDO::FETCH_COLUMN);
     $claim = $db->prepare("UPDATE notification_sms_outbox SET status='sending',attempted_at=CURRENT_TIMESTAMP
         WHERE id=:id AND status='queued'");
-    $fetch = $db->prepare('SELECT o.message,u.phone,u.status user_status FROM notification_sms_outbox o
+    $fetch = $db->prepare('SELECT o.message,o.notification_key,u.phone,u.status user_status FROM notification_sms_outbox o
         JOIN users u ON u.id=o.user_id WHERE o.id=:id');
     $finish = $db->prepare("UPDATE notification_sms_outbox SET status=:status,error_code=:error,gateway_reference=:reference,
         accepted_at=CASE WHEN :accepted='sent' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=:id AND status='sending'");
@@ -56,7 +81,9 @@ function widmsProcessNotificationSms(PDO $db, int $limit = 10, ?callable $sender
         try {
             $fetch->execute(['id' => $id]);
             $job = $fetch->fetch(PDO::FETCH_ASSOC);
-            if (!$job || $job['user_status'] !== 'active') {
+            $isSuspension = $job && str_starts_with($job['notification_key'], 'user-suspended-');
+            $expectedStatus = $isSuspension ? 'inactive' : 'active';
+            if (!$job || $job['user_status'] !== $expectedStatus) {
                 $result = ['status' => 'skipped', 'error' => 'inactive-recipient'];
             } else {
                 $result = $sender !== null ? $sender($job['phone'], $job['message']) : widmsSendSms($job['phone'], $job['message']);
@@ -95,7 +122,7 @@ function widmsScheduleNotificationSms(): void
             widmsProcessNotificationSms($db);
         } catch (Throwable $exception) {
             // Keep workflow results and the Admin confirmation free of SMS errors.
-            error_log('WIDMS system notification SMS worker could not complete. Check migrations and SMS configuration.');
+            error_log('SWPCS system notification SMS worker could not complete. Check migrations and SMS configuration.');
         }
     });
 }

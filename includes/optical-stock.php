@@ -7,12 +7,12 @@ function widmsPowerKey(float $power): string
     return number_format(round($power, 2), 2, '.', '');
 }
 
-/** Identify optical inventory without relying on a hard-coded item ID. */
+/** Identify Contact Lenses for their quantity-only Central Stock routing. */
 function widmsIsOpticalItem(string $itemName, string $variety = '', string $category = ''): bool
 {
     return (bool) preg_match(
-        '/(?:contact\s*lens|spectacles?|glasses|\bspecs\b)/i',
-        trim($itemName . ' ' . $variety . ' ' . $category)
+        '/contact\s*lens/i',
+        trim($itemName)
     );
 }
 
@@ -33,10 +33,10 @@ function widmsOpticalPowerBalances(PDO $database, int $itemId, bool $lockRows = 
     }
 
     $receiptSql =
-        'SELECT id, quantity, power, power_breakdown
+        "SELECT id, quantity, power, power_breakdown
          FROM stock_receipts
-         WHERE item_id = :item_id
-         ORDER BY id' . ($lockRows ? ' FOR UPDATE' : '');
+         WHERE item_id = :item_id AND stock_destination = 'central'
+         ORDER BY id" . ($lockRows ? ' FOR UPDATE' : '');
     $receiptStatement = $database->prepare($receiptSql);
     $receiptStatement->execute(['item_id' => $itemId]);
 
@@ -129,6 +129,7 @@ function widmsOpticalPowerBalances(PDO $database, int $itemId, bool $lockRows = 
            AND ar.prescribed_power IS NOT NULL
            AND ret.reusable = 1
            AND ret.restore_to = 'central-stock'
+           AND ret.stock_review_status = 'accepted'
          GROUP BY ar.prescribed_power"
     );
     $returnStatement->execute(['item_id' => $itemId]);

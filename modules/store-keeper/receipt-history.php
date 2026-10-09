@@ -78,10 +78,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 try {
-    $rows = database()->query("SELECT r.id, r.quantity, r.received_date, r.total_cost, r.paid_amount, r.balance_amount, r.bill_number, r.payment_status, s.company_name, i.item_name
+    $rows = database()->query("SELECT r.id, r.quantity, r.received_date, r.total_cost, r.paid_amount, r.balance_amount, r.bill_number, r.payment_status, r.stock_destination, r.vision_camp_id,
+            s.company_name, i.item_name, d.name district_name, ds.name division_name
         FROM stock_receipts r
         JOIN suppliers s ON s.id = r.supplier_id
         JOIN inventory_items i ON i.id = r.item_id
+        LEFT JOIN spectacle_camps c ON c.id=r.vision_camp_id
+        LEFT JOIN districts d ON d.id=c.district_id
+        LEFT JOIN ds_divisions ds ON ds.id=r.ds_division_id
         ORDER BY CASE r.payment_status WHEN 'unpaid' THEN 1 WHEN 'partially-paid' THEN 2 WHEN 'fully-paid' THEN 3 ELSE 4 END, r.received_date ASC, r.id ASC")->fetchAll();
     $aidOptions = database()->query("SELECT DISTINCT item_name FROM inventory_items WHERE TRIM(item_name) <> '' ORDER BY item_name")->fetchAll(PDO::FETCH_COLUMN);
 } catch (Throwable $exception) {
@@ -155,20 +159,22 @@ $labels = [
                         <span><?= htmlspecialchars(t('Aid Type'), ENT_QUOTES, 'UTF-8') ?></span>
                         <select id="receipt-aid-filter" aria-label="<?= htmlspecialchars(t('Filter by aid'), ENT_QUOTES, 'UTF-8') ?>">
                             <option value=""><?= htmlspecialchars(t('All aids'), ENT_QUOTES, 'UTF-8') ?></option>
-                            <?php foreach ($aidOptions as $aidOption): ?><option value="<?= htmlspecialchars($aidOption, ENT_QUOTES, 'UTF-8') ?>" <?= $selectedAidName === (string) $aidOption ? 'selected' : '' ?>><?= htmlspecialchars($aidOption, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?>
+                            <?php foreach ($aidOptions as $aidOption): ?><option value="<?= htmlspecialchars($aidOption, ENT_QUOTES, 'UTF-8') ?>" <?= $selectedAidName === (string) $aidOption ? 'selected' : '' ?>><?= htmlspecialchars(widmsAidItemName((string)$aidOption), ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?>
                         </select>
                     </label>
                     <button type="button" class="outline-action receipt-clear-filters" id="receipt-clear-filters" hidden><?= htmlspecialchars(t('Clear filters'), ENT_QUOTES, 'UTF-8') ?></button>
             </div>
             <div class="admin-data-table-wrap store-table-card">
                 <table class="admin-data-table receipt-history-table">
-                    <thead><tr><th><?= t('Batch') ?></th><th><?= t('Aid') ?></th><th><?= t('Qty') ?></th><th><?= t('Date') ?></th><th><?= t('Supplier') ?></th><th><?= t('Bill') ?></th><th><?= t('Total') ?></th><th><?= t('Paid') ?></th><th><?= t('Due') ?></th><th><?= t('Status') ?></th><th><?= t('Action') ?></th></tr></thead>
+                    <thead><tr><th><?= t('Batch') ?></th><th><?= t('Aid') ?></th><th><?= t('Stock Destination') ?></th><th><?= t('Division') ?></th><th><?= t('Qty') ?></th><th><?= t('Date') ?></th><th><?= t('Supplier') ?></th><th><?= t('Bill') ?></th><th><?= t('Total') ?></th><th><?= t('Paid') ?></th><th><?= t('Due') ?></th><th><?= t('Status') ?></th><th><?= t('Action') ?></th></tr></thead>
                     <tbody>
-                    <?php if (!$rows): ?><tr><td colspan="11" class="admin-empty-row"><?= htmlspecialchars(t('No receipt history available.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
+                    <?php if (!$rows): ?><tr><td colspan="13" class="admin-empty-row"><?= htmlspecialchars(t('No receipt history available.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
                     <?php else: foreach ($rows as $row): ?>
                         <tr id="receipt-<?= (int) $row['id'] ?>" class="admin-notification-target" tabindex="-1" data-aid-name="<?= htmlspecialchars($row['item_name'], ENT_QUOTES, 'UTF-8') ?>">
                             <td>BAT-<?= str_pad((string) $row['id'], 4, '0', STR_PAD_LEFT) ?></td>
-                            <td><?= htmlspecialchars($row['item_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?= htmlspecialchars(widmsAidItemName((string)$row['item_name']), ENT_QUOTES, 'UTF-8') ?></td>
+                            <td><?php if($row['stock_destination']==='vision-camp'): ?><span class="role-label green"><?= htmlspecialchars(t('Vision Camp'),ENT_QUOTES,'UTF-8') ?> VC-<?= (int)$row['vision_camp_id'] ?></span><?php else: ?><span class="role-label blue"><?= htmlspecialchars(t('Central Stock'),ENT_QUOTES,'UTF-8') ?></span><?php endif; ?></td>
+                            <td><?= htmlspecialchars($row['stock_destination']==='vision-camp' ? trim(($row['district_name']??'').' / '.($row['division_name']??''),' /') : '—',ENT_QUOTES,'UTF-8') ?></td>
                             <td><?= (int) $row['quantity'] ?></td>
                             <td><?= htmlspecialchars($row['received_date'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($row['company_name'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -180,7 +186,7 @@ $labels = [
                             <td><?php if (!$canRecordPayments): ?><span class="paid-label"><?= htmlspecialchars(t('View only'), ENT_QUOTES, 'UTF-8') ?></span><?php elseif ((float) $row['balance_amount'] > 0): ?><button type="button" class="admin-primary-action receipt-pay-button" data-pay data-id="<?= (int) $row['id'] ?>" data-balance="<?= (float) $row['balance_amount'] ?>"><?= htmlspecialchars(t('Pay'), ENT_QUOTES, 'UTF-8') ?></button><?php else: ?><span class="paid-label"><?= htmlspecialchars(t('Paid'), ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?></td>
                         </tr>
                     <?php endforeach; endif; ?>
-                    <?php if ($rows): ?><tr id="receipt-filter-empty" hidden><td colspan="11" class="admin-empty-row"><?= htmlspecialchars(t('No receipts match the selected filter.'), ENT_QUOTES, 'UTF-8') ?></td></tr><?php endif; ?>
+                    <?php if ($rows): ?><tr id="receipt-filter-empty" hidden><td colspan="13" class="admin-empty-row"><?= htmlspecialchars(t('No receipts match the selected filter.'), ENT_QUOTES, 'UTF-8') ?></td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>

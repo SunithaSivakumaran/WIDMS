@@ -5,6 +5,16 @@ requireRole('subject-officer');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/optical-stock.php';
+require_once __DIR__ . '/../../includes/spectacle-categories.php';
+
+// Approved beneficiary needs are now selected together in the bundle card page.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+    $approvedRequestId = filter_input(INPUT_GET, 'aid_request_id', FILTER_VALIDATE_INT);
+    if ($approvedRequestId) {
+        header('Location: dashboard.php?page=approved-aid-bundles&request_id=' . $approvedRequestId . '#aid-request-' . $approvedRequestId);
+        exit;
+    }
+}
 
 $activePage = 'request-goods';
 $database = database();
@@ -27,7 +37,7 @@ try {
     )->fetchAll();
     $inventoryItems = array_values(array_filter(
         $inventoryItems,
-        static fn(array $item): bool => !widmsIsOpticalItem(
+        static fn(array $item): bool => !widmsIsSpectacleItem((string) $item['item_name']) && !widmsIsOpticalItem(
             (string) $item['item_name'],
             (string) $item['variety'],
             (string) ($item['category_name'] ?? '')
@@ -67,12 +77,12 @@ try {
         );
         $linkedStatement->execute(['id' => $linkedAidRequestId]);
         $linkedAidRequest = $linkedStatement->fetch() ?: null;
-        if ($linkedAidRequest && widmsIsOpticalItem(
+        if ($linkedAidRequest && (widmsIsSpectacleItem((string) $linkedAidRequest['item_name']) || widmsIsOpticalItem(
             (string) $linkedAidRequest['item_name'],
             (string) $linkedAidRequest['variety'],
             (string) $linkedAidRequest['category_name']
-        )) {
-            header('Location: dashboard.php?page=optical-aid-requests&request_id=' . (int) $linkedAidRequest['id'] . '#aid-request-' . (int) $linkedAidRequest['id']);
+        ))) {
+            header('Location: dashboard.php?page=approved-aid-bundles&request_id=' . (int) $linkedAidRequest['id'] . '#aid-request-' . (int) $linkedAidRequest['id']);
             exit;
         }
     }
@@ -188,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ksort($itemTotals, SORT_NUMERIC);
     foreach ($itemTotals as $itemId => $total) {
         if ($total > (int) $itemMap[$itemId]['quantity']) {
-            $errors[] = sprintf(t('Only %d units of %s are available in Central Stock.'), (int) $itemMap[$itemId]['quantity'], $itemMap[$itemId]['item_name']);
+            $errors[] = sprintf(t('Only %d units of %s are available in Central Stock.'), (int) $itemMap[$itemId]['quantity'], widmsAidItemName((string)$itemMap[$itemId]['item_name']));
         }
     }
 
@@ -299,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $_SESSION['flash_success'] = 'Quota request submitted for Admin approval.';
             unset($_SESSION['csrf_token']);
-            header('Location: dashboard.php?page=my-goods-requests#' . rawurlencode(strtolower($batchReference)));
+            header('Location: dashboard.php?page=' . ($linkedAidRequest ? 'my-beneficiary-requests' : 'my-goods-requests') . '#' . rawurlencode(strtolower($batchReference)));
             exit;
         } catch (Throwable $exception) {
             if ($database->inTransaction()) {
@@ -315,7 +325,7 @@ function goodsRequestItemOptions(array $items, mixed $selected = ''): void
 {
     ?><option value=""><?= htmlspecialchars(t('Select an aid item'), ENT_QUOTES, 'UTF-8') ?></option><?php
     foreach ($items as $item) {
-        $label = (string) $item['item_name'];
+        $label = widmsAidItemName((string) $item['item_name']);
         if ((string) $item['variety'] !== '') {
             $label .= ' — ' . $item['variety'];
         }
@@ -326,11 +336,11 @@ function goodsRequestItemOptions(array $items, mixed $selected = ''): void
 }
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="<?= htmlspecialchars(widmsLanguage(), ENT_QUOTES, 'UTF-8') ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= htmlspecialchars(t('New Goods Quota Request'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t('New Goods Quota Request'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css" rel="stylesheet">
 </head>
@@ -372,9 +382,9 @@ function goodsRequestItemOptions(array $items, mixed $selected = ''): void
                             <small><?= htmlspecialchars($linkedAidRequest['district_name'] . ' / ' . $linkedAidRequest['division_name'], ENT_QUOTES, 'UTF-8') ?></small>
                         </div>
                         <div class="quota-linked-stock">
-                            <span><?= htmlspecialchars((string) $linkedAidRequest['item_name'], ENT_QUOTES, 'UTF-8') ?></span>
+                            <span><?= htmlspecialchars(widmsAidItemName((string) $linkedAidRequest['item_name']), ENT_QUOTES, 'UTF-8') ?></span>
                             <strong><?= number_format((int) $linkedAidRequest['available_stock']) ?> <?= htmlspecialchars(t('available'), ENT_QUOTES, 'UTF-8') ?></strong>
-                            <small><?= number_format((int) $linkedAidRequest['quantity']) ?> <?= htmlspecialchars(t('required'), ENT_QUOTES, 'UTF-8') ?><?php if ($linkedAidRequest['prescribed_power'] !== null): ?> &middot; <?= htmlspecialchars(sprintf('%+.2f', (float) $linkedAidRequest['prescribed_power']), ENT_QUOTES, 'UTF-8') ?><?php endif; ?></small>
+                            <small><?= number_format((int) $linkedAidRequest['quantity']) ?> <?= htmlspecialchars(t('required'), ENT_QUOTES, 'UTF-8') ?></small>
                         </div>
                     </aside>
                 <?php endif; ?>

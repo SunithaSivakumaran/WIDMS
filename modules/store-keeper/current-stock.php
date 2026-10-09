@@ -24,11 +24,10 @@ try {
     $stockItems = database()->query(
         "SELECT i.id, i.item_name, i.quantity,
                 COUNT(r.id) AS receipt_count,
-                GROUP_CONCAT(CASE WHEN r.power IS NOT NULL THEN CONCAT(IF(r.power >= 0, '+', ''), FORMAT(r.power, 2), ' × ', r.quantity) END ORDER BY r.power SEPARATOR ', ') AS power_summary,
                 COALESCE(SUM(r.paid_amount), 0) AS total_paid,
                 COALESCE(SUM(r.balance_amount), 0) AS total_balance
          FROM inventory_items i
-         LEFT JOIN stock_receipts r ON r.item_id = i.id
+         LEFT JOIN stock_receipts r ON r.item_id = i.id AND r.stock_destination='central'
          GROUP BY i.id, i.item_name, i.quantity
          ORDER BY i.item_name"
     )->fetchAll();
@@ -73,7 +72,7 @@ $aidOptions = array_values($aidOptions);
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= htmlspecialchars(t('Current Stock'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t('Current Stock'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css?v=43" rel="stylesheet">
 </head>
@@ -108,7 +107,7 @@ $aidOptions = array_values($aidOptions);
                     <span><?= htmlspecialchars(t('Aid Type'), ENT_QUOTES, 'UTF-8') ?></span>
                     <select id="current-stock-aid-filter" aria-label="<?= htmlspecialchars(t('Filter by aid'), ENT_QUOTES, 'UTF-8') ?>">
                         <option value=""><?= htmlspecialchars(t('All aids'), ENT_QUOTES, 'UTF-8') ?></option>
-                        <?php foreach ($aidOptions as $aidOption): ?><option value="<?= htmlspecialchars($aidOption, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($aidOption, ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?>
+                        <?php foreach ($aidOptions as $aidOption): ?><option value="<?= htmlspecialchars($aidOption, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(widmsAidItemName((string)$aidOption), ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?>
                     </select>
                 </label>
                 <button type="button" class="outline-action receipt-clear-filters" id="current-stock-clear-filters" hidden><?= htmlspecialchars(t('Clear filters'), ENT_QUOTES, 'UTF-8') ?></button>
@@ -120,7 +119,7 @@ $aidOptions = array_values($aidOptions);
                     <?php if ($stockItems === []): ?><tr><td colspan="5" class="admin-empty-row"><?= htmlspecialchars(t('No inventory items found.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
                     <?php else: foreach ($stockItems as $item): $paymentStatus = inventoryPaymentStatus($item); $stockStatus = inventoryStockStatus($item, $lowStockThreshold); ?>
                         <tr data-aid-name="<?= htmlspecialchars($item['item_name'], ENT_QUOTES, 'UTF-8') ?>" data-stock-status="<?= htmlspecialchars($stockStatus, ENT_QUOTES, 'UTF-8') ?>">
-                            <td><strong><?= htmlspecialchars($item['item_name'], ENT_QUOTES, 'UTF-8') ?></strong></td>
+                            <td><strong><?= htmlspecialchars(widmsAidItemName((string)$item['item_name']), ENT_QUOTES, 'UTF-8') ?></strong></td>
                             <td><strong><?= (int) $item['quantity'] ?></strong></td>
                             <td><span class="stock-status-badge <?= htmlspecialchars($stockStatus, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($stockStatusLabels[$stockStatus], ENT_QUOTES, 'UTF-8') ?></span></td>
                             <td><?= renderPaymentStatusControl($paymentStatus, t('View Batch Payment Summary'), 'dashboard.php?page=receipt-history&from=current-stock&aid=' . rawurlencode((string) $item['item_name']), t('View batch payment summary for ') . $item['item_name'] . ' — ' . $paymentLabels[$paymentStatus], 'stock-payment-history-button') ?></td>

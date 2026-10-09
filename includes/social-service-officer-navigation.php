@@ -17,10 +17,14 @@ return [
     'Distribution' => [
         ['icon' => '&#128229;', 'label' => 'Pending Aid Handover', 'page' => 'pending-handover'],
         ['icon' => '&#129309;', 'label' => 'Distribute Aid', 'page' => 'distribute-aid'],
+        ['icon' => '&#128203;', 'label' => 'Distribution History', 'page' => 'sso-distribution-history'],
     ],
     'Returns' => [
         ['icon' => '&#128260;', 'label' => 'Process Return', 'page' => 'process-return'],
         ['icon' => '&#128203;', 'label' => 'Return History', 'page' => 'return-history'],
+    ],
+    'Vision Camps' => [
+        ['icon'=>'&#128083;', 'label'=>'My Division Camps', 'page'=>'spectacle-camps'],
     ],
     'Reports & Activity' => [
         ['icon' => '&#128209;', 'label' => 'Request Status Report', 'page' => 'request-status-report'],

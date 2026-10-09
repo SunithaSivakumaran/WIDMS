@@ -14,27 +14,34 @@ function renderStoreDispatchRequestCard(array $row, string $kind): void
     $roleClass = $direct ? 'role-admin' : ($plannedSso !== '' ? 'role-sso' : 'role-subject');
     $cardClass = $direct ? 'dispatch-to-admin' : ($plannedSso !== '' ? 'dispatch-for-sso' : 'dispatch-to-subject');
     $roleLabel = $direct ? 'Administrator' : ($plannedSso !== '' ? 'SSO Planned' : 'Subject Officer');
-    $item = (string) $row['item_name'] . (!empty($row['variety']) ? ' / ' . $row['variety'] : '');
-    $power = $row['prescribed_power'] !== null ? sprintf('%+.2f', (float) $row['prescribed_power']) : '—';
+    $item = widmsAidItemName((string) $row['item_name']) . (!empty($row['variety']) ? ' / ' . $row['variety'] : '');
+    $stockReady = (int) ($row[$direct ? 'central_available' : 'central_stock'] ?? 0) >= (int) $row['quantity'];
+    $powerReady = true;
+    if ($direct && !empty($row['spectacles'])) {
+        $powerReady = (int) ($row['spectacle_category_id'] ?? 0) > 0
+            && (int) ($row['spectacle_available'] ?? 0) >= (int) $row['quantity'];
+    }
+    foreach (($row['linked_aid'] ?? []) as $linked) {
+        if (!empty($linked['spectacles']) && empty($linked['spectacle_matched'])) {
+            $powerReady = false;
+        }
+    }
     $details = $direct
         ? [
             'Beneficiary' => (string) $row['beneficiary_name'],
             'DS Division' => (string) $row['division_name'],
-            'Quantity' => number_format((int) $row['quantity']),
-            'Stock' => number_format((int) $row['central_stock']),
-            'Prescription Power' => $power,
             'Release To' => $requester,
         ]
         : [
-            'Quantity' => number_format((int) $row['quantity']),
-            'Stock' => number_format((int) $row['central_stock']),
             'District / DS Division' => (string) $row['district_name'] . ' / ' . $row['division_name'],
             'Approved By' => (string) $row['approver_name'],
-            'Prescription Power' => $power,
             'Release To' => $requester . ' (' . t('Subject Officer') . ')',
         ];
     if ($plannedSso !== '') {
         $details['Planned SSO'] = $plannedSso;
+    }
+    if ($direct && !empty($row['spectacles'])) {
+        $details['Spectacle Type'] = (string) ($row['spectacle_category_name'] ?? t('Not selected'));
     }
     ?>
     <article id="<?= $direct ? 'aid-request-' : 'goods-request-' ?><?= $requestId ?>" class="admin-correction-item store-dispatch-request-card <?= $cardClass ?> admin-notification-target" tabindex="-1">
@@ -53,10 +60,28 @@ function renderStoreDispatchRequestCard(array $row, string $kind): void
                 <div><dt><?= $escape(t('Document')) ?></dt><dd><a class="outline-action" target="_blank" rel="noopener" href="dashboard.php?page=goods-request-document&amp;request_id=<?= $id ?>&amp;print=1"><?= $escape(t('View PDF')) ?></a></dd></div>
             <?php endif; ?>
         </dl>
+        <?php if ($direct): ?>
+            <?php renderAidStockComparison($item, (int) $row['quantity'], (int) $row['central_available']); ?>
+            <?php if (!empty($row['spectacles'])): ?><p class="aid-bundle-id"><?= $escape(t('Spectacle Type') . ': ' . t((string) ($row['spectacle_category_name'] ?? t('Not selected')))) ?> · <?= (int) ($row['spectacle_available'] ?? 0) ?> <?= $escape(t('available')) ?></p><?php endif; ?>
+        <?php elseif (!empty($row['linked_aid'])): ?>
+            <div class="store-linked-beneficiaries">
+                <?php foreach ($row['linked_aid'] as $linked): ?>
+                    <div class="store-linked-beneficiary">
+                        <strong><?= $escape($linked['beneficiary_name']) ?></strong>
+                        <small><?= $escape($linked['identification'] ?: t('No identification recorded')) ?></small>
+                        <?php renderAidStockComparison($item, (int) $linked['quantity'], (int) $row['central_stock']); ?>
+                        <?php if (!empty($linked['spectacles'])): ?><small><?= $escape(t('Spectacle Type') . ': ' . t((string) ($linked['spectacle_category_name'] ?? t('Not selected')))) ?> · <?= (int) ($linked['spectacle_available'] ?? 0) ?> <?= $escape(t('available')) ?></small><?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <?php renderAidStockComparison($item, (int) $row['quantity'], (int) $row['central_stock']); ?>
+        <?php endif; ?>
         <form method="post" class="store-dispatch-card-actions">
             <input type="hidden" name="csrf_token" value="<?= $escape(csrfToken()) ?>">
             <input type="hidden" name="<?= $direct ? 'admin_direct_release_id' : 'request_id' ?>" value="<?= $id ?>">
-            <button class="admin-primary-action" type="submit"><?= $escape(t($direct ? 'Release to Admin' : 'Release Stock Quota')) ?></button>
+            <button class="admin-primary-action" type="submit" <?= !$stockReady || !$powerReady ? 'disabled' : '' ?>><?= $escape(t($direct ? 'Release to Admin' : 'Release Stock Quota')) ?></button>
+            <?php if (!$stockReady || !$powerReady): ?><small class="fulfillment-warning"><?= $escape(t('Waiting for matching Central Stock')) ?></small><?php endif; ?>
         </form>
     </article>
     <?php

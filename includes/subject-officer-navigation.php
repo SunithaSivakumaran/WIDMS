@@ -8,18 +8,30 @@ return [
     ],
     'Aid Requests' => [
         ['icon' => '📝', 'label' => 'Direct Aid Request', 'page' => 'direct-aid-request'],
+        ['icon' => '📦', 'label' => 'Approved Aid Bundles', 'page' => 'approved-aid-bundles'],
         ['icon' => '📑', 'label' => 'Aid Activity History', 'page' => 'my-aid-requests'],
         ['icon' => '📋', 'label' => 'Aid Requests (Monitor)', 'page' => 'aid-requests'],
     ],
+    'Distribution' => [
+        ['icon' => '📤', 'label' => 'Final Distribution', 'page' => 'distribute-items'],
+        ['icon' => '📑', 'label' => 'Distribution History', 'page' => 'distribution-history'],
+    ],
     'Stock & Quotas' => [
         ['icon' => '&#10133;', 'label' => 'New Quota Request', 'page' => 'request-goods'],
-        ['icon' => '&#128203;', 'label' => 'Quota Request History', 'page' => 'my-goods-requests'],
+        ['icon' => '&#128203;', 'label' => 'SSO Quota History', 'page' => 'my-goods-requests'],
+        ['icon' => '&#128101;', 'label' => 'Beneficiary Request Bundles', 'page' => 'my-beneficiary-requests'],
         ['icon' => '📦', 'label' => 'Current Stock', 'page' => 'current-stock'],
-        ['icon' => '📈', 'label' => 'Social Service Officer Pools', 'page' => 'officer-pools'],
+        ['icon' => '📈', 'label' => 'DS Division Pools', 'page' => 'officer-pools'],
     ],
     'Returns' => [
         ['icon' => '&#128260;', 'label' => 'Process Return', 'page' => 'returns'],
         ['icon' => '&#128203;', 'label' => 'Return History', 'page' => 'return-history'],
+    ],
+    'Vision Camps' => [
+        ['icon'=>'&#10133;', 'label'=>'New Vision Camp', 'page'=>'spectacle-camp-new'],
+        ['icon'=>'&#128197;', 'label'=>'My Camps', 'page'=>'my-spectacle-camps'],
+        ['icon'=>'&#128083;', 'label'=>'All Vision Camps', 'page'=>'spectacle-camps'],
+        ['icon'=>'&#128230;', 'label'=>'Request Camp Stock', 'page'=>'vision-camp-stock-requests'],
     ],
     'Suppliers' => [
         ['icon' => '⚙️', 'label' => 'Register & Allocate', 'page' => 'supplier-config'],

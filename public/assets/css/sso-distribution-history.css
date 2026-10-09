@@ -1,0 +1,13 @@
+.sso-distribution-history-page .admin-data-card { overflow:hidden; }
+.sso-history-filters { display:grid; grid-template-columns:minmax(220px,2fr) repeat(3,minmax(150px,1fr)) auto; align-items:end; gap:12px; padding:18px 20px; }
+.sso-history-filters label { display:grid; gap:6px; color:#173b58; font-size:13px; font-weight:600; }
+.sso-history-filters input,.sso-history-filters select { width:100%; min-height:42px; padding:8px 11px; border:1px solid #b9cddd; border-radius:7px; background:#fff; color:#173f5d; }
+.sso-history-filter-actions { display:flex; gap:8px; }
+.sso-history-filter-actions button,.sso-history-filter-actions a { display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:8px 13px; white-space:nowrap; text-decoration:none; }
+.sso-history-table-wrap { overflow:auto; }
+.sso-history-table { min-width:800px; }
+.sso-history-table th,.sso-history-table td { vertical-align:middle; }
+.sso-history-table td strong,.sso-history-table td small { display:block; }
+.sso-history-table td small { margin-top:4px; color:#647d91; }
+@media (max-width:1200px) { .sso-history-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:600px) { .sso-history-filters { grid-template-columns:1fr; padding:14px; } .sso-history-filter-actions { justify-content:flex-start; } }

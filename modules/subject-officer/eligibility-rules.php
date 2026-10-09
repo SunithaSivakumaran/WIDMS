@@ -5,6 +5,7 @@ declare(strict_types=1);
 requireRole('subject-officer');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
+require_once __DIR__ . '/../../includes/aid-item-deletion.php';
 
 $activePage = 'eligibility-rules';
 $db = database();
@@ -48,8 +49,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ((int) $ruleRecord['is_system'] === 1) {
                 throw new RuntimeException('Built-in aid items cannot be deleted.');
             }
+            $itemLock = $db->prepare('SELECT id FROM inventory_items WHERE id = :item FOR UPDATE');
+            $itemLock->execute(['item' => $itemId]);
+            if (!$itemLock->fetchColumn()) {
+                throw new RuntimeException('The aid item no longer exists.');
+            }
+            if (aidItemHasRecordedUse($db, $itemId)) {
+                throw new RuntimeException('This aid item is already in use and cannot be deleted.');
+            }
 
-            // Permanently remove the rule while retaining inventory referenced by historical records.
+            // Delete only unused configuration; a referenced item keeps its rule.
             $db->prepare('DELETE FROM disability_aid_items WHERE id=:id')
                 ->execute(['id' => $ruleId]);
 
@@ -58,14 +67,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $statement->execute(['item' => $itemId]);
             if (!(int) $statement->fetchColumn()) {
-                try {
-                    $db->prepare('DELETE FROM inventory_items WHERE id=:item')
-                        ->execute(['item' => $itemId]);
-                } catch (PDOException $exception) {
-                    if ($exception->getCode() !== '23000') {
-                        throw $exception;
-                    }
-                }
+                $db->prepare('DELETE FROM inventory_items WHERE id=:item')
+                    ->execute(['item' => $itemId]);
             }
 
             $db->commit();
@@ -82,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             error_log($exception->getMessage());
             $errors[] = $exception instanceof RuntimeException
-                ? $exception->getMessage()
+                ? t($exception->getMessage())
                 : 'Unable to delete the eligibility rule.';
         }
     }
@@ -108,9 +111,17 @@ try {
          GROUP BY dai.id
          ORDER BY dt.name, i.item_name"
     )->fetchAll();
-} catch (PDOException $exception) {
+    $usedItems = [];
+    foreach ($rules as $rule) {
+        $itemId = (int) $rule['item_id'];
+        if (!array_key_exists($itemId, $usedItems)) {
+            $usedItems[$itemId] = aidItemHasRecordedUse($db, $itemId);
+        }
+    }
+} catch (Throwable $exception) {
     error_log($exception->getMessage());
     $rules = [];
+    $usedItems = [];
     $errors[] = 'Eligibility rules are unavailable. Run the latest database migration.';
 }
 ?>
@@ -119,7 +130,7 @@ try {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Configured Eligibility Rules | WIDMS</title>
+    <title>Configured Eligibility Rules | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css?v=38" rel="stylesheet">
 </head>
@@ -164,7 +175,7 @@ try {
                             <tr>
                                 <td><?= htmlspecialchars($rule['disability_name'], ENT_QUOTES, 'UTF-8') ?></td>
                                 <td>
-                                    <strong><?= htmlspecialchars($rule['item_name'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                    <strong><?= htmlspecialchars(widmsAidItemName((string) $rule['item_name']), ENT_QUOTES, 'UTF-8') ?></strong>
                                     <small><?= htmlspecialchars($rule['variety'], ENT_QUOTES, 'UTF-8') ?></small>
                                 </td>
                                 <td>
@@ -175,7 +186,7 @@ try {
                                 <td>
                                     <div class="rule-row-actions">
                                         <a class="outline-action" href="dashboard.php?page=edit-aid-rule&amp;rule_id=<?= (int) $rule['id'] ?>">Edit</a>
-                                        <?php if ((int) $rule['is_system'] !== 1): ?>
+                                        <?php if ((int) $rule['is_system'] !== 1 && empty($usedItems[(int) $rule['item_id']])): ?>
                                         <form method="post" onsubmit="return confirm('<?= htmlspecialchars(t('Delete this eligibility rule permanently?'), ENT_QUOTES, 'UTF-8') ?>')">
                                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                             <input type="hidden" name="action" value="delete-rule">
@@ -183,7 +194,7 @@ try {
                                             <button class="reject-button" type="submit">Delete</button>
                                         </form>
                                         <?php else: ?>
-                                            <span class="disability-system-badge"><?= htmlspecialchars(t('Built-in'), ENT_QUOTES, 'UTF-8') ?></span>
+                                            <span class="disability-system-badge"><?= htmlspecialchars(t((int) $rule['is_system'] === 1 ? 'Built-in' : 'In use — cannot delete'), ENT_QUOTES, 'UTF-8') ?></span>
                                         <?php endif; ?>
                                     </div>
                                 </td>

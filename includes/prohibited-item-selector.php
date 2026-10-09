@@ -45,7 +45,7 @@ function renderProhibitedItemSelector(
         <div class="multi-select-dropdown" data-multi-dropdown hidden>
             <div class="multi-select-options" data-multi-options>
                 <?php foreach ($availableItems as $item): ?>
-                    <?php $label = $item['item_name'] . ($item['variety'] ? ' / ' . $item['variety'] : ''); ?>
+                    <?php $label = widmsAidItemName((string) $item['item_name']) . ($item['variety'] ? ' / ' . $item['variety'] : ''); ?>
                     <label class="multi-select-option" data-multi-option>
                         <input
                             type="checkbox"

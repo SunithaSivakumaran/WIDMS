@@ -163,7 +163,7 @@ $sidebar = $_SESSION['role'] === 'admin' ? __DIR__ . '/admin-sidebar.php' : __DI
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title><?= htmlspecialchars(t($pageTitle), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+        <title><?= htmlspecialchars(t($pageTitle), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="assets/css/admin-dashboard.css?v=37" rel="stylesheet">
     </head>
@@ -254,7 +254,7 @@ $sidebar = $_SESSION['role'] === 'admin' ? __DIR__ . '/admin-sidebar.php' : __DI
                                             <option value="">Select item</option>
                                             <?php foreach ($inventoryItems as $item): ?>
                                             <option value="<?= (int)$item['id'] ?>" <?= $supplierValues['item_id'] === (string)$item['id'] ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($item['item_name'] . ($item['variety'] ? ' — ' . $item['variety'] : ''), ENT_QUOTES, 'UTF-8') ?>
+                                                <?= htmlspecialchars(widmsAidItemName((string)$item['item_name']) . ($item['variety'] ? ' — ' . $item['variety'] : ''), ENT_QUOTES, 'UTF-8') ?>
                                             </option>
                                             <?php endforeach; ?>
                                         </select>
@@ -342,7 +342,7 @@ $sidebar = $_SESSION['role'] === 'admin' ? __DIR__ . '/admin-sidebar.php' : __DI
                                         <?php if ($allocation === null): ?>—<?php else: ?>
                                             <div class="supplier-product-entry">
                                                 <div class="supplier-product-name-row">
-                                                    <strong><?= htmlspecialchars($allocation['item_name'] . ($allocation['variety'] ? ' — ' . $allocation['variety'] : ''), ENT_QUOTES, 'UTF-8') ?></strong>
+                                                    <strong><?= htmlspecialchars(widmsAidItemName((string)$allocation['item_name']) . ($allocation['variety'] ? ' — ' . $allocation['variety'] : ''), ENT_QUOTES, 'UTF-8') ?></strong>
                                                 </div>
                                                 <?php if ($allocation['status'] === 'inactive'): ?>
                                                 <small class="supplier-product-reason"><?= htmlspecialchars(t('Reason:'), ENT_QUOTES, 'UTF-8') ?> <?= htmlspecialchars((string)($allocation['deactivation_reason'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></small>

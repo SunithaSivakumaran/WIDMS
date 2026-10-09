@@ -11,13 +11,17 @@ require_once __DIR__ . '/../../includes/i18n.php';
 $id = (int) ($_GET['receipt_id'] ?? 0);
 $receipt = null;
 $payments = [];
+$spectacleLines = [];
 $db = database();
 
 if ($id > 0) {
-    $query = $db->prepare('SELECT r.id, r.bill_number, r.payment_status, r.paid_amount, r.check_number, r.received_date, r.total_cost, s.company_name FROM stock_receipts r JOIN suppliers s ON s.id = r.supplier_id WHERE r.id = ?');
+    $query = $db->prepare('SELECT r.id, r.bill_number, r.payment_status, r.paid_amount, r.check_number, r.received_date, r.total_cost, r.stock_destination, r.vision_camp_id,ds.name division_name,s.company_name FROM stock_receipts r JOIN suppliers s ON s.id=r.supplier_id LEFT JOIN ds_divisions ds ON ds.id=r.ds_division_id WHERE r.id=?');
     $query->execute([$id]);
     $receipt = $query->fetch();
     if ($receipt) {
+        $lineQuery = $db->prepare('SELECT category.name, line.quantity, line.unit_cost, line.total_cost FROM stock_receipt_spectacle_lines line JOIN spectacle_categories category ON category.id = line.spectacle_category_id WHERE line.stock_receipt_id = ? ORDER BY category.display_order, category.name');
+        $lineQuery->execute([$id]);
+        $spectacleLines = $lineQuery->fetchAll();
         $query = $db->prepare('SELECT id, amount, check_number, payment_date FROM supplier_payments WHERE receipt_id = ? ORDER BY payment_date, id');
         $query->execute([$id]);
         $storedPayments = $query->fetchAll();
@@ -79,10 +83,18 @@ if ($id > 0) {
         <div class="admin-data-header">
             <div>
                 <h2><?= htmlspecialchars(t('Payment History'), ENT_QUOTES, 'UTF-8') ?></h2>
-                <p><?= $receipt ? 'BAT-' . str_pad((string) $receipt['id'], 4, '0', STR_PAD_LEFT) . ' · ' . htmlspecialchars($receipt['company_name'], ENT_QUOTES, 'UTF-8') : htmlspecialchars(t('Receipt not found'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p><?= $receipt ? 'BAT-' . str_pad((string) $receipt['id'], 4, '0', STR_PAD_LEFT) . ' · ' . htmlspecialchars($receipt['company_name'], ENT_QUOTES, 'UTF-8') . ($receipt['stock_destination']==='vision-camp' ? ' · VC-'.(int)$receipt['vision_camp_id'].' · '.htmlspecialchars((string)$receipt['division_name'],ENT_QUOTES,'UTF-8') : ' · '.htmlspecialchars(t('Central Stock'),ENT_QUOTES,'UTF-8')) : htmlspecialchars(t('Receipt not found'), ENT_QUOTES, 'UTF-8') ?></p>
             </div>
         </div>
         <?php if ($receipt): ?>
+            <?php if ($spectacleLines): ?>
+            <div class="admin-data-table-wrap store-table-card">
+                <table class="admin-data-table payment-history-table">
+                    <thead><tr><th><?= htmlspecialchars(t('Spectacle Type'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Unit Price (Rs)'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Total'), ENT_QUOTES, 'UTF-8') ?></th></tr></thead>
+                    <tbody><?php foreach ($spectacleLines as $line): ?><tr><td><?= htmlspecialchars(t((string) $line['name']), ENT_QUOTES, 'UTF-8') ?></td><td><?= (int) $line['quantity'] ?></td><td>Rs <?= number_format((float) $line['unit_cost'], 2) ?></td><td>Rs <?= number_format((float) $line['total_cost'], 2) ?></td></tr><?php endforeach; ?></tbody>
+                </table>
+            </div>
+            <?php endif; ?>
             <div class="admin-data-table-wrap store-table-card">
                 <table class="admin-data-table payment-history-table">
                     <thead><tr><th><?= t('Payment') ?></th><th><?= t('Check Number') ?></th><th><?= t('Payment Date') ?></th><th><?= t('Amount Paid') ?></th><th><?= t('Payment Type') ?></th><?php if (hasRole('store-keeper')): ?><th><?= t('Action') ?></th><?php endif; ?></tr></thead>

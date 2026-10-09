@@ -5,9 +5,13 @@ requireRole('subject-officer');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/optical-stock.php';
+require_once __DIR__ . '/../../includes/notifications.php';
 require_once __DIR__ . '/../../includes/ui-messages.php';
+require_once __DIR__ . '/../../includes/aid-stock-comparison.php';
+require_once __DIR__ . '/../../includes/approved-aid-bundle-availability.php';
+require_once __DIR__ . '/../../includes/goods-request-actor.php';
 
-$activePage = 'optical-aid-requests';
+$activePage = 'approved-aid-bundles';
 $database = database();
 $userId = (int) $_SESSION['user_id'];
 $errors = [];
@@ -26,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = t('Your session expired. Please refresh the page and try again.');
     }
     if ($selectedIds === [] || count($selectedIds) > 50) {
-        $errors[] = t('Select between 1 and 50 optical requests.');
+        $errors[] = t('Select between 1 and 50 approved aid requests.');
     }
     if (mb_strlen($justification) < 10 || mb_strlen($justification) > 1000) {
         $errors[] = t('Provide a justification between 10 and 1000 characters.');
@@ -43,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } while ($statement->fetchColumn());
 
             $requestStatement = $database->prepare(
-                "SELECT ar.id, ar.item_id, ar.quantity, ar.prescribed_power,
+                "SELECT ar.id, ar.item_id, ar.quantity, ar.spectacle_category_id,
                         b.ds_division_id, i.item_name, i.variety, c.name AS category_name
                  FROM aid_requests ar
                  JOIN beneficiaries b ON b.id = ar.beneficiary_id
@@ -51,15 +55,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  JOIN item_categories c ON c.id = i.category_id
                  JOIN users submitter ON submitter.id = ar.submitted_by
                  WHERE ar.id = :id
-                   AND (ar.submitted_by = :user_id OR submitter.role IN ('social-service-officer', 'admin'))
+                   AND submitter.role IN ('subject-officer', 'social-service-officer', 'admin')
                    AND ar.status = 'approved'
-                   AND ar.prescribed_power IS NOT NULL
                    AND NOT EXISTS (SELECT 1 FROM distributions d WHERE d.aid_request_id = ar.id)
+                   AND NOT EXISTS (SELECT 1 FROM goods_fulfillments f WHERE f.aid_request_id = ar.id)
+                   AND NOT EXISTS (SELECT 1 FROM admin_direct_releases direct_release WHERE direct_release.aid_request_id = ar.id)
+                   AND NOT EXISTS (SELECT 1 FROM goods_requests goods WHERE goods.aid_request_id = ar.id AND goods.status <> 'rejected')
                    AND NOT EXISTS (
                        SELECT 1
                        FROM goods_request_aid_requests link
                        JOIN goods_requests goods ON goods.id = link.goods_request_id
                        WHERE link.aid_request_id = ar.id AND goods.status <> 'rejected'
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1 FROM users sso
+                       JOIN division_pools pool ON pool.ds_division_id = sso.ds_division_id AND pool.item_id = ar.item_id
+                       WHERE sso.role = 'social-service-officer' AND sso.status = 'active'
+                         AND sso.ds_division_id = b.ds_division_id AND b.status = 'active'
+                         AND i.can_sso_distribute = 1
+                         AND (pool.allocated - pool.distributed + pool.reused) >= ar.quantity
                    )
                  FOR UPDATE"
             );
@@ -76,32 +90,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  VALUES (:goods_request_id, :aid_request_id)'
             );
 
+            $selectedRequests = [];
+            $itemTotals = [];
+            $spectacleTotals = [];
+
             foreach ($selectedIds as $requestId) {
-                $requestStatement->execute(['id' => $requestId, 'user_id' => $userId]);
+                $requestStatement->execute(['id' => $requestId]);
                 $request = $requestStatement->fetch();
-                if (!$request || !widmsIsOpticalItem(
-                    (string) $request['item_name'],
-                    (string) $request['variety'],
-                    (string) $request['category_name']
-                )) {
-                    throw new RuntimeException(t('One selected request is no longer available for optical stock processing.'));
+                if (!$request) throw new RuntimeException(t('One selected approved aid request is no longer available.'));
+                $itemId=(int)$request['item_id'];
+                $itemTotals[$itemId]=($itemTotals[$itemId]??0)+(int)$request['quantity'];
+                if (widmsIsSpectacleItem((string) $request['item_name'])) {
+                    $spectacleCategoryId = (int) ($request['spectacle_category_id'] ?? 0);
+                    if ($spectacleCategoryId < 1) {
+                        throw new RuntimeException(t('A spectacle request is missing its type.'));
+                    }
+                    $spectacleTotals[$itemId][$spectacleCategoryId] =
+                        ($spectacleTotals[$itemId][$spectacleCategoryId] ?? 0) + (int) $request['quantity'];
                 }
+                $selectedRequests[]=$request;
+            }
 
-                $available = widmsOpticalPowerAvailable(
-                    $database,
-                    (int) $request['item_id'],
-                    (float) $request['prescribed_power'],
-                    true
-                );
-                if ($available < (int) $request['quantity']) {
-                    throw new RuntimeException(sprintf(
-                        t('Power %s has only %d units available; %d are required.'),
-                        sprintf('%+.2f', (float) $request['prescribed_power']),
-                        $available,
-                        (int) $request['quantity']
-                    ));
+            ksort($itemTotals,SORT_NUMERIC);
+            $stockStatement=$database->prepare('SELECT quantity FROM inventory_items WHERE id=? FOR UPDATE');
+            $reservedStatement=$database->prepare("SELECT COALESCE(SUM(quantity),0) FROM goods_requests WHERE item_id=? AND status IN ('pending-admin-approval','approved-awaiting-dispatch')");
+            foreach ($itemTotals as $itemId=>$needed) {
+                $stockStatement->execute([$itemId]);
+                $stock=$stockStatement->fetchColumn();
+                $reservedStatement->execute([$itemId]);
+                $available=$stock===false?0:max(0,(int)$stock-(int)$reservedStatement->fetchColumn());
+                if ($available<$needed) throw new RuntimeException(sprintf(t('Only %d units of %s are available in Central Stock.'),$available,widmsAidItemName((string)$selectedRequests[0]['item_name'])));
+                if (isset($spectacleTotals[$itemId])) {
+                    $categoryBalances = widmsSpectacleCategoryBalances($database, $itemId);
+                    foreach ($spectacleTotals[$itemId] as $categoryId => $categoryNeeded) {
+                        if (($categoryBalances[$categoryId] ?? 0) < $categoryNeeded) {
+                            throw new RuntimeException(t('Not enough Central Stock in the selected spectacle type.'));
+                        }
+                    }
                 }
+            }
 
+            $firstGoodsRequestId=0;
+            foreach ($selectedRequests as $request) {
                 $insertGoods->execute([
                     'aid_request_id' => (int) $request['id'],
                     'batch_reference' => $batchReference,
@@ -111,22 +141,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'justification' => $justification,
                     'requested_by' => $userId,
                 ]);
+                $goodsRequestId=(int)$database->lastInsertId();
+                if ($firstGoodsRequestId===0) $firstGoodsRequestId=$goodsRequestId;
                 $insertLink->execute([
-                    'goods_request_id' => (int) $database->lastInsertId(),
+                    'goods_request_id' => $goodsRequestId,
                     'aid_request_id' => (int) $request['id'],
                 ]);
             }
 
+            $admins=$database->query("SELECT id FROM users WHERE role='admin' AND status='active'")->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($admins as $adminId) notifyUser(
+                $database,(int)$adminId,'aid-bundle-'.strtolower($batchReference),
+                'Approved aid bundle request',$batchReference.' needs approval',
+                count($selectedRequests).' approved beneficiary requests are ready for stock review.',
+                'dashboard.php?page=goods-requests#goods-request-'.$firstGoodsRequestId
+            );
+
             $database->commit();
             logActivity(
-                'Optical Aid Requests',
-                'Submitted ' . count($selectedIds) . ' power-matched optical request(s) for Admin approval',
+                'Approved Aid Bundles',
+                'Submitted ' . count($selectedIds) . ' approved aid request(s) for Admin approval',
                 $batchReference,
                 'pending'
             );
-            $_SESSION['flash_success'] = 'Power-matched optical goods request submitted for Admin approval.';
+            $_SESSION['flash_success'] = 'Approved aid bundle submitted for Admin approval.';
             unset($_SESSION['csrf_token']);
-            header('Location: dashboard.php?page=my-goods-requests#' . rawurlencode(strtolower($batchReference)));
+            header('Location: dashboard.php?page=my-beneficiary-requests#' . rawurlencode(strtolower($batchReference)));
             exit;
         } catch (Throwable $exception) {
             if ($database->inTransaction()) {
@@ -135,72 +175,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log($exception->getMessage());
             $errors[] = $exception instanceof RuntimeException
                 ? $exception->getMessage()
-                : t('Unable to submit the optical goods request.');
+                : t('Unable to submit the approved aid bundle.');
         }
     }
 }
 
 $availableRequests = [];
+$waitingRequests = [];
 $unavailableCount = 0;
 try {
-    $statement = $database->prepare(
-        "SELECT ar.id, ar.quantity, ar.prescribed_power, ar.created_at,
-                b.full_name AS beneficiary_name, b.nic,
-                i.id AS item_id, i.item_name, i.variety,
-                c.name AS category_name, ds.name AS division_name, d.name AS district_name,
-                submitter.full_name AS submitter_name, submitter.role AS submitter_role
-         FROM aid_requests ar
-         JOIN beneficiaries b ON b.id = ar.beneficiary_id
-         JOIN inventory_items i ON i.id = ar.item_id
-         JOIN item_categories c ON c.id = i.category_id
-         JOIN users submitter ON submitter.id = ar.submitted_by
-         JOIN ds_divisions ds ON ds.id = b.ds_division_id
-         JOIN districts d ON d.id = ds.district_id
-         WHERE (ar.submitted_by = :user_id OR submitter.role IN ('social-service-officer', 'admin'))
-           AND ar.status = 'approved'
-           AND ar.prescribed_power IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM distributions distribution WHERE distribution.aid_request_id = ar.id)
-           AND NOT EXISTS (
-               SELECT 1
-               FROM goods_request_aid_requests link
-               JOIN goods_requests goods ON goods.id = link.goods_request_id
-               WHERE link.aid_request_id = ar.id AND goods.status <> 'rejected'
-           )
-         ORDER BY ar.created_at, ar.id"
-    );
-    $statement->execute(['user_id' => $userId]);
-    $balancesByItem = [];
-    foreach ($statement->fetchAll() as $request) {
-        if (!widmsIsOpticalItem(
-            (string) $request['item_name'],
-            (string) $request['variety'],
-            (string) $request['category_name']
-        )) {
-            continue;
-        }
-        $itemId = (int) $request['item_id'];
-        $balancesByItem[$itemId] ??= widmsOpticalPowerBalances($database, $itemId);
-        $available = max(0, (int) ($balancesByItem[$itemId][widmsPowerKey((float) $request['prescribed_power'])] ?? 0));
-        $request['power_available'] = $available;
-        if ($available >= (int) $request['quantity']) {
-            $availableRequests[] = $request;
-        } else {
-            $unavailableCount++;
-        }
-    }
+    $bundleAvailability = widmsApprovedAidBundleAvailability($database);
+    $availableRequests = $bundleAvailability['available'];
+    $waitingRequests = $bundleAvailability['waiting'];
+    $unavailableCount = count($waitingRequests);
 } catch (PDOException $exception) {
     error_log($exception->getMessage());
-    $errors[] = t('Optical aid requests are temporarily unavailable.');
+    $errors[] = t('Approved aid requests are temporarily unavailable.');
 }
+$readyBundleCount = count($availableRequests);
 ?>
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= htmlspecialchars(t('Power-Matched Optical Requests'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t('Approved Aid Bundles'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css?v=92" rel="stylesheet">
+    <link href="assets/css/approved-aid-bundles.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/approved-aid-bundles.css') ?>" rel="stylesheet">
 </head>
 <body>
 <?php require __DIR__ . '/../../includes/subject-officer-sidebar.php'; ?>
@@ -208,7 +210,7 @@ try {
     <header class="topbar">
         <div class="d-flex align-items-center gap-3">
             <button class="menu-button" id="menu-button" type="button" aria-label="<?= htmlspecialchars(t('Open navigation'), ENT_QUOTES, 'UTF-8') ?>">&#9776;</button>
-            <div><h1><?= htmlspecialchars(t('Power-Matched Optical Requests'), ENT_QUOTES, 'UTF-8') ?></h1><p><?= htmlspecialchars(t('Select approved spectacles and contact-lens requests only when their exact signed power is in Central Stock.'), ENT_QUOTES, 'UTF-8') ?></p></div>
+            <div><h1><?= htmlspecialchars(t('Approved Aid Bundles'), ENT_QUOTES, 'UTF-8') ?></h1></div>
         </div>
     </header>
     <main class="dashboard-content optical-request-page widms-unified-ui">
@@ -217,55 +219,39 @@ try {
 
         <section class="admin-data-card optical-request-card">
             <div class="admin-data-header">
-                <div><h2><?= htmlspecialchars(t('Available Power Matches'), ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars(t('Each selected request keeps its prescribed power through approval, release, and beneficiary distribution.'), ENT_QUOTES, 'UTF-8') ?></p></div>
+                <div><h2><?= htmlspecialchars(t('Ready for a bundle'), ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars(t('Choose approved beneficiaries with matching Central Stock, then send one bundle to Admin.'), ENT_QUOTES, 'UTF-8') ?> <?= htmlspecialchars(t('Select one or more approved requests.'), ENT_QUOTES, 'UTF-8') ?></p></div>
                 <span class="fulfillment-count"><?= count($availableRequests) ?> <?= htmlspecialchars(t('available'), ENT_QUOTES, 'UTF-8') ?></span>
             </div>
 
             <?php if ($unavailableCount > 0): ?>
-                <div class="optical-stock-note"><?= htmlspecialchars(sprintf(t('%d approved optical request(s) are hidden because the exact power is not currently in stock.'), $unavailableCount), ENT_QUOTES, 'UTF-8') ?></div>
+                <div class="optical-stock-note"><?= htmlspecialchars(sprintf(t('%d approved request(s) are waiting for enough Central Stock or the correct spectacle type.'), $unavailableCount), ENT_QUOTES, 'UTF-8') ?></div>
             <?php endif; ?>
 
             <form method="post" class="optical-request-form">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
-                <div class="admin-data-table-wrap">
-                    <table class="admin-data-table optical-request-table">
-                        <thead><tr>
-                            <th class="optical-select-column"><?= htmlspecialchars(t('Select'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th><?= htmlspecialchars(t('Request'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th><?= htmlspecialchars(t('Submitted By'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th><?= htmlspecialchars(t('Aid Item'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th><?= htmlspecialchars(t('Prescribed Power'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th><?= htmlspecialchars(t('Required'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th><?= htmlspecialchars(t('Exact-Power Stock'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th><?= htmlspecialchars(t('Location'), ENT_QUOTES, 'UTF-8') ?></th>
-                        </tr></thead>
-                        <tbody>
-                        <?php if ($availableRequests === []): ?>
-                            <tr><td colspan="9" class="admin-empty-row"><?= htmlspecialchars(t('No approved optical requests currently have an exact power match in Central Stock.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
-                        <?php else: foreach ($availableRequests as $request): ?>
-                            <?php $requestId = (int) $request['id']; ?>
-                            <tr id="aid-request-<?= $requestId ?>" class="admin-notification-target" tabindex="-1">
-                                <td><input type="checkbox" name="request_ids[]" value="<?= $requestId ?>" aria-label="<?= htmlspecialchars(t('Select request') . ' AR-' . str_pad((string) $requestId, 4, '0', STR_PAD_LEFT), ENT_QUOTES, 'UTF-8') ?>" <?= $highlightRequestId === $requestId ? 'checked' : '' ?>></td>
-                                <td><strong>AR-<?= str_pad((string) $requestId, 4, '0', STR_PAD_LEFT) ?></strong></td>
-                                <td><strong><?= htmlspecialchars((string) $request['beneficiary_name'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars((string) ($request['nic'] ?: t('No NIC')), ENT_QUOTES, 'UTF-8') ?></small></td>
-                                <td><strong><?= htmlspecialchars((string) $request['submitter_name'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars(t(ucwords(str_replace('-', ' ', (string) $request['submitter_role']))), ENT_QUOTES, 'UTF-8') ?></small></td>
-                                <td><?= htmlspecialchars((string) $request['item_name'] . ((string) $request['variety'] !== '' ? ' — ' . $request['variety'] : ''), ENT_QUOTES, 'UTF-8') ?></td>
-                                <td><span class="optical-power-badge"><?= sprintf('%+.2f', (float) $request['prescribed_power']) ?></span></td>
-                                <td><?= number_format((int) $request['quantity']) ?></td>
-                                <td><span class="optical-stock-available"><?= number_format((int) $request['power_available']) ?> <?= htmlspecialchars(t('available'), ENT_QUOTES, 'UTF-8') ?></span></td>
-                                <td><?= htmlspecialchars($request['district_name'] . ' / ' . $request['division_name'], ENT_QUOTES, 'UTF-8') ?></td>
-                            </tr>
-                        <?php endforeach; endif; ?>
-                        </tbody>
-                    </table>
-                </div>
+                <?php if ($availableRequests === [] && $waitingRequests === []): ?><div class="aid-bundle-empty"><?= htmlspecialchars(t('No approved requests currently have enough matching Central Stock.'), ENT_QUOTES, 'UTF-8') ?></div><?php else: ?>
+                <div class="aid-bundle-grid">
+                    <?php foreach (array_merge($availableRequests, $waitingRequests) as $request): $requestId=(int)$request['id']; $ready = $request['central_available'] >= (int)$request['quantity'] && (!$request['is_spectacles'] || ($request['spectacle_available']??0) >= (int)$request['quantity']); ?>
+                    <label id="aid-request-<?= $requestId ?>" class="aid-bundle-beneficiary-card admin-notification-target <?= $ready ? '' : 'aid-bundle-waiting' ?>">
+                        <span class="aid-bundle-top"><span class="aid-bundle-ref">AR-<?= str_pad((string)$requestId,4,'0',STR_PAD_LEFT) ?></span><?php if ($ready): ?><input type="checkbox" name="request_ids[]" value="<?= $requestId ?>" aria-label="<?= htmlspecialchars(t('Select request').' AR-'.str_pad((string)$requestId,4,'0',STR_PAD_LEFT),ENT_QUOTES,'UTF-8') ?>" <?= $highlightRequestId===$requestId || in_array($requestId,array_map('intval',is_array($_POST['request_ids']??null)?$_POST['request_ids']:[]),true)?'checked':'' ?>><?php else: ?><span class="aid-bundle-waiting-badge"><?= htmlspecialchars(t('Waiting for stock'),ENT_QUOTES,'UTF-8') ?></span><?php endif; ?></span>
+                        <strong class="aid-bundle-name"><?= htmlspecialchars((string)$request['beneficiary_name'],ENT_QUOTES,'UTF-8') ?></strong>
+                        <?php if ($request['is_spectacles']): ?><span class="aid-bundle-id"><?= htmlspecialchars(t('Spectacle Type') . ': ' . t((string) ($request['spectacle_category_name'] ?? t('Not selected'))), ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
+                        <span class="aid-bundle-id"><?= htmlspecialchars($request['nic']?'NIC: '.$request['nic']:($request['elders_card_number']?'Elder Card: '.$request['elders_card_number']:t('No identification recorded')),ENT_QUOTES,'UTF-8') ?></span>
+                        <?php renderAidStockComparison(widmsAidItemName((string)$request['item_name']).((string)$request['variety']!==''?' — '.$request['variety']:''), (int)$request['quantity'], (int)$request['central_available']); ?>
+                        <?php if ($request['is_spectacles'] && (int) $request['spectacle_available'] < (int) $request['quantity']): ?>
+                            <span class="fulfillment-warning"><?= htmlspecialchars(t('Selected spectacle type is short in Central Stock.'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <?php endif; ?>
+                        <span class="aid-bundle-location"><?= htmlspecialchars($request['district_name'].' / '.$request['division_name'],ENT_QUOTES,'UTF-8') ?></span>
+                        <span class="aid-bundle-source subject-actor-label"><span><?= htmlspecialchars(t('Submitted By'), ENT_QUOTES, 'UTF-8') ?></span><strong><?= htmlspecialchars((string) $request['submitter_username'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars(t(widmsGoodsRequestRoleLabel((string) $request['submitter_role'])), ENT_QUOTES, 'UTF-8') ?></small></span>
+                    </label>
+                    <?php endforeach; ?>
+                </div><?php endif; ?>
 
                 <?php if ($availableRequests): ?>
                     <div class="optical-request-submit">
                         <label>
                             <span><?= htmlspecialchars(t('Request Justification'), ENT_QUOTES, 'UTF-8') ?> *</span>
-                            <textarea name="justification" minlength="10" maxlength="1000" required placeholder="<?= htmlspecialchars(t('Explain why these power-matched items should be released to you for beneficiary distribution.'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($justification, ENT_QUOTES, 'UTF-8') ?></textarea>
+                            <textarea name="justification" minlength="10" maxlength="1000" required placeholder="<?= htmlspecialchars(t('Explain why these approved items should be released to you for beneficiary distribution.'), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($justification, ENT_QUOTES, 'UTF-8') ?></textarea>
                         </label>
                         <button class="admin-primary-action" type="submit"><?= htmlspecialchars(t('Submit Selected for Admin Approval'), ENT_QUOTES, 'UTF-8') ?> &rarr;</button>
                     </div>

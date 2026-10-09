@@ -28,7 +28,9 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/eligibility.php';
 require_once __DIR__ . '/../../includes/aid-request-details.php';
+require_once __DIR__ . '/../../includes/beneficiary-division-guard.php';
 require_once __DIR__ . '/../../includes/notifications.php';
+require_once __DIR__ . '/../../includes/spectacle-categories.php';
 
 
 /*
@@ -65,6 +67,7 @@ $db = database();
 $userId = (int) $_SESSION['user_id'];
 
 $errors = [];
+$approvalError = '';
 
 $success = (string) ($_SESSION['flash_success'] ?? '');
 
@@ -132,6 +135,7 @@ $v = [
     'beneficiary_detail_value' => '',
     'beneficiary_details_json' => '',
     'prescribed_power' => '',
+    'spectacle_category_id' => '',
     'notes' => '',
 ];
 
@@ -219,6 +223,7 @@ if ($showRequestForm && $editingRequestId && $canCreateRequest) {
             'beneficiary_detail_value' => (string) ($editRequest['beneficiary_detail_value'] ?? ''),
             'beneficiary_details_json' => (string) ($editRequest['beneficiary_details_json'] ?? ''),
             'prescribed_power' => (string) ($editRequest['prescribed_power'] ?? ''),
+            'spectacle_category_id' => (string) ($editRequest['spectacle_category_id'] ?? ''),
             'notes' => (string) ($editRequest['notes'] ?? ''),
         ];
         $approvalSelections = [
@@ -372,6 +377,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
 
     $approvalSelections = $signoffs;
     $editingRequestId = filter_input(INPUT_POST, 'edit_request_id', FILTER_VALIDATE_INT) ?: 0;
+
+    // Only a normal SSO submission requires every official sign-off. Drafts
+    // can still be saved, and direct Admin/Subject Officer requests are unchanged.
+    if (!$directRequestMode && !$saveDraft && in_array(false, $signoffs, true)) {
+        $approvalError = t('All four official approvals are required before submitting an aid request.');
+    }
 
 
     /*
@@ -586,8 +597,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
     |--------------------------------------------------------------------------
     | Record official approvals
     |--------------------------------------------------------------------------
-    | Approvals may be recorded when available, but they never block a request
-    | from being submitted for review.
+    | The SSO submission gate above requires all four approvals; Admin and
+    | Subject Officer direct requests retain their existing behavior.
     |--------------------------------------------------------------------------
     */
 
@@ -598,7 +609,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
     |--------------------------------------------------------------------------
     */
 
-    if (!$errors) {
+    if (!$errors && $approvalError === '') {
 
         try {
 
@@ -769,15 +780,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
                 (string) ($aid['variety'] ?? '') . ' ' .
                 (string) ($aid['category_name'] ?? '')
             ));
-            $isOpticalAid = str_contains($aidText, 'lens')
-                || str_contains($aidText, 'spectacle')
-                || str_contains($aidText, 'glasses');
-            if ($currentRole === 'subject-officer' && !$saveDraft && $isOpticalAid
+            $isSpectacleAid = widmsIsSpectacleItem((string) $aid['item_name']);
+            $isContactLensAid = (bool) preg_match('/contact\s*lens/i', (string) $aid['item_name']);
+            $isOpticalAid = str_contains($aidText, 'lens');
+            if ($currentRole === 'subject-officer' && !$saveDraft && ($isOpticalAid || $isSpectacleAid)
                 && (int) ($aid['quantity'] ?? 0) < (int) $qty) {
                 throw new RuntimeException(sprintf(
                     t('Only %d units of %s are available in Central Stock.'),
                     max(0, (int) ($aid['quantity'] ?? 0)),
-                    (string) $aid['item_name']
+                    widmsAidItemName((string) $aid['item_name'])
                 ));
             }
 
@@ -826,6 +837,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
             $submittedDetails = [];
             $detailLabel = null;
             $detailValue = null;
+            $spectacleCategoryId = null;
             $previousDetails = [];
 
             if ($editingRequestId) {
@@ -909,12 +921,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
                     if ($fieldValue === '') {
                         throw new RuntimeException($fieldLabel . ' is required for the selected aid item.');
                     }
+                    if ($isSpectacleAid && mb_strtolower(trim($fieldLabel)) === 'spectacle type') {
+                        $selectedCategoryId = filter_var($fieldValue, FILTER_VALIDATE_INT);
+                        $categoryQuery = $db->prepare(
+                            "SELECT name FROM spectacle_categories WHERE id = ? AND status = 'active'"
+                        );
+                        $categoryQuery->execute([$selectedCategoryId ?: 0]);
+                        $selectedCategoryName = $categoryQuery->fetchColumn();
+                        if ($selectedCategoryName === false) {
+                            throw new RuntimeException('Select an active spectacle type.');
+                        }
+                        $spectacleCategoryId = (int) $selectedCategoryId;
+                        $fieldValue = (string) $selectedCategoryName;
+                    }
                     if ($fieldType === 'number' && !is_numeric($fieldValue)) {
                         throw new RuntimeException($fieldLabel . ' must be a number.');
                     }
-                    // Optical power must retain an explicit positive or
-                    // negative sign wherever the beneficiary value appears.
-                    if ($fieldType === 'number' && mb_strtolower(trim($fieldLabel)) === 'power') {
+                    // A configured Contact Lens Power field is ordinary
+                    // beneficiary information, not a stock-matching value.
+                    if (!$isContactLensAid && $fieldType === 'number' && in_array(mb_strtolower(trim($fieldLabel)), ['power', 'prescription power', 'prescribed power'], true)) {
                         $fieldValue = sprintf('%+.2f', (float) $fieldValue);
                     }
                     if ($fieldType === 'date' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fieldValue)) {
@@ -940,20 +965,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
             }
             $detailsJson=$submittedDetails?json_encode($submittedDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES):null;
 
-            // Keep the generic configured value and the indexed legacy column
-            // in sync so optical stock/fulfilment screens can show the power.
+            // Contact Lens stock is matched by quantity. Configured beneficiary
+            // fields (even one named Power) remain in beneficiary_details_json.
+            // Keep the legacy stock-matching column empty for new requests.
             $power = null;
-            foreach ($submittedDetails as $submittedDetail) {
-                if (($submittedDetail['type'] ?? '') === 'number'
-                    && mb_strtolower(trim((string) ($submittedDetail['label'] ?? ''))) === 'power') {
-                    $power = (float) ($submittedDetail['value'] ?? 0);
-                    break;
-                }
+            if ($isSpectacleAid && !$saveDraft && !$spectacleCategoryId) {
+                throw new RuntimeException('Select a spectacle type.');
             }
-            if ($isOpticalAid && !$saveDraft && $power === null) {
-                throw new RuntimeException(
-                    'Enter the signed prescribed power for spectacles or contact lenses.'
-                );
+            if ($isSpectacleAid && !$saveDraft && $currentRole === 'subject-officer') {
+                $categoryBalances = widmsSpectacleCategoryBalances($db, (int) $aid['id']);
+                if (($categoryBalances[$spectacleCategoryId] ?? 0) < (int) $qty) {
+                    throw new RuntimeException('The selected spectacle type does not have enough Central Stock.');
+                }
             }
 
             /*
@@ -985,6 +1008,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
                 }
 
                 $beneficiary = (int) $savedIdentification['id'];
+                assertBeneficiaryRecordDivision($db, $beneficiary, (int)$ds);
                 if (!empty($savedIdentification['nic'])) {
                     $nic = (string) $savedIdentification['nic'];
                     $useNic = true;
@@ -1031,6 +1055,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
                     }
                 }
             }
+
+    assertBeneficiaryIdentityDivision($db, (string) ($nic ?? ''), (string) ($eldersCardNumber ?? ''), (int) $ds);
 
     $conditions = [];
     $params = [];
@@ -1084,12 +1110,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
 
             if ($admin && !$editingRequestId) {
                 throw new RuntimeException(t('This identification belongs to an existing beneficiary. Direct distribution registration is for a new beneficiary.'));
-            }
-
-            if (!$directRequestMode && (int) $matches[0]['ds_division_id'] !== $ds) {
-                throw new RuntimeException(
-                    t('This beneficiary belongs to another DS Division and cannot be changed by this officer.')
-                );
             }
 
             $beneficiary =
@@ -1338,6 +1358,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
                      SET beneficiary_id = :beneficiary, item_id = :item,
                          quantity = :qty, disability_notes = :disability,
                          prescribed_power = :power,
+                         spectacle_category_id = :spectacle_category_id,
                          beneficiary_detail_label = :detail_label,
                          beneficiary_detail_value = :detail_value,
                          beneficiary_details_json = :details_json, notes = :notes,
@@ -1357,6 +1378,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
                     'qty' => $qty,
                     'disability' => $v['disability_notes'],
                     'power' => $power,
+                    'spectacle_category_id' => $spectacleCategoryId,
                     'detail_label' => $detailLabel ?: null,
                     'detail_value' => $detailValue,
                     'details_json' => $detailsJson,
@@ -1381,6 +1403,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
                     quantity,
                     disability_notes,
                     prescribed_power,
+                    spectacle_category_id,
                     beneficiary_detail_label,
                     beneficiary_detail_value,
                     beneficiary_details_json,
@@ -1401,6 +1424,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
                     :qty,
                     :disability,
                     :power,
+                    :spectacle_category_id,
                     :detail_label,
                     :detail_value,
                     :details_json,
@@ -1430,6 +1454,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $showRequestForm && ($_POST['reques
 
                 'power' =>
                     $power,
+
+                'spectacle_category_id' =>
+                    $spectacleCategoryId,
 
                 'detail_label' =>
                     $detailLabel ?: null,
@@ -1667,16 +1694,18 @@ try {
     |--------------------------------------------------------------------------
     | Load aid types.
     |
-    | requires_power becomes true for:
-    | - Contact Lens
-    | - Spectacles
-    | - Glasses
+    | Contact Lens uses quantity only; Spectacles use a type.
     |--------------------------------------------------------------------------
     */
 
     // Only items configured for an active disability appear in the request form.
+    $spectacleCategories = widmsSpectacleCategories($db);
+    foreach ($spectacleCategories as &$spectacleCategory) {
+        $spectacleCategory['display_name'] = t($spectacleCategory['name']);
+    }
+    unset($spectacleCategory);
     $aidTypes = $db->query(
-        "SELECT i.id,i.item_name,i.variety,i.quantity AS central_stock,dt.name disability_name,dai.id eligibility_rule_id,
+        "SELECT i.id,i.item_name,i.variety,c.name AS category_name,i.quantity AS central_stock,dt.name disability_name,dai.id eligibility_rule_id,
                 dai.beneficiary_field_label,dai.beneficiary_field_type
          FROM disability_aid_items dai
          JOIN disability_types dt ON dt.id=dai.disability_type_id AND dt.status='active'
@@ -1701,8 +1730,9 @@ try {
         ];
     }
     foreach ($aidTypes as &$aidType) {
+        $configuredFields = $fieldsByRule[(int) $aidType['eligibility_rule_id']] ?? [];
         $aidType['beneficiary_fields'] = json_encode(
-            $fieldsByRule[(int) $aidType['eligibility_rule_id']] ?? [],
+            $configuredFields,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
         );
     }
@@ -1722,22 +1752,13 @@ try {
     |--------------------------------------------------------------------------
     */
 
-    // SSO history includes its own requests and only Admin direct issues for
-    // beneficiaries in its currently assigned division. Never expose another
-    // division's Admin activity merely because a notification URL names a row.
+    // The request history belongs to the division, including requests made
+    // by a predecessor SSO who can no longer log in.
     $historyScope = 'ar.submitted_by = :user';
     $historyParams = ['user' => $userId];
     if ($currentRole === 'social-service-officer' && $hasAssignedDivision) {
-        $historyScope = "(ar.submitted_by = :user OR (
-            b.ds_division_id = :assigned_ds
-            AND distribution.distribution_type = 'direct'
-            AND ar.submitted_by = distribution.distributed_by
-            AND EXISTS (
-                SELECT 1 FROM users direct_admin
-                WHERE direct_admin.id = distribution.distributed_by
-                  AND direct_admin.role = 'admin'
-            )
-        ))";
+        $historyScope = 'b.ds_division_id = :assigned_ds';
+        $historyParams = [];
         $historyParams['assigned_ds'] = $assignedDsDivisionId;
     }
     $adminDistributionFilter = $admin
@@ -1758,7 +1779,7 @@ try {
             EXISTS (
                 SELECT 1
                 FROM item_returns item_return
-                WHERE item_return.distribution_id = distribution.id
+                WHERE item_return.distribution_id = distribution.id AND item_return.stock_review_status = \'accepted\'
             ) AS has_recorded_return
 
          FROM aid_requests ar
@@ -1800,6 +1821,7 @@ try {
     $districts =
     $dsDivisions =
     $gnDivisions =
+    $spectacleCategories =
     $aidTypes =
     $requests = [];
 
@@ -1925,7 +1947,7 @@ function requestSubmitted(string $date): string
         content="width=device-width,initial-scale=1"
     >
 
-    <title><?= htmlspecialchars(t($directRequestMode ? ($directHistoryPage ? $historyPageTitle : ($admin ? 'Direct Aid Distribution' : 'Direct Aid Request')) : ($showRequestForm ? 'New Aid Request' : $historyPageTitle)), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t($directRequestMode ? ($directHistoryPage ? $historyPageTitle : ($admin ? 'Direct Aid Distribution' : 'Direct Aid Request')) : ($showRequestForm ? 'New Aid Request' : $historyPageTitle)), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
 
 
     <!-- Bootstrap -->
@@ -1936,10 +1958,10 @@ function requestSubmitted(string $date): string
     >
 
 
-    <!-- WIDMS main dashboard CSS -->
+    <!-- SWPCS main dashboard CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css?v=24"
+        href="assets/css/admin-dashboard.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/admin-dashboard.css') ?>"
         rel="stylesheet"
     >
 
@@ -2055,7 +2077,7 @@ function directRequestDocumentUrl(?string $path): string
                     name="csrf_token"
                     value="<?= htmlspecialchars(csrfToken()) ?>"
                 >
-                <input type="hidden" id="existing-beneficiary-details" name="beneficiary_details_json" value="<?= htmlspecialchars($v['beneficiary_details_json'], ENT_QUOTES, 'UTF-8') ?>" data-legacy-value="<?= htmlspecialchars($v['beneficiary_detail_value'], ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" id="existing-beneficiary-details" name="beneficiary_details_json" value="<?= htmlspecialchars($v['beneficiary_details_json'], ENT_QUOTES, 'UTF-8') ?>" data-legacy-value="<?= htmlspecialchars($v['beneficiary_detail_value'], ENT_QUOTES, 'UTF-8') ?>" data-spectacle-category-id="<?= htmlspecialchars($v['spectacle_category_id'], ENT_QUOTES, 'UTF-8') ?>">
 
 
                 <!-- ====================================================
@@ -2457,6 +2479,8 @@ function directRequestDocumentUrl(?string $path): string
                                         data-stock="<?= max(0, (int) ($i['central_stock'] ?? 0)) ?>"
 
                                         data-optical="<?= preg_match('/(?:lens|spectacle|glasses)/i', (string) (($i['item_name'] ?? '') . ' ' . ($i['variety'] ?? ''))) ? '1' : '0' ?>"
+                                        data-contact-lens="<?= preg_match('/contact\s*lens/i', (string) ($i['item_name'] ?? '')) ? '1' : '0' ?>"
+                                        data-spectacle="<?= widmsIsSpectacleItem((string) $i['item_name']) ? '1' : '0' ?>"
 
                                         data-disability="<?= htmlspecialchars(
                                             $i['disability_name'] ?? '',
@@ -2478,7 +2502,7 @@ function directRequestDocumentUrl(?string $path): string
 
                                         <?= htmlspecialchars(
 
-                                            ($i['item_name'] ?? '') .
+                                            widmsAidItemName((string) ($i['item_name'] ?? '')) .
 
                                             (
                                                 !empty($i['variety'])
@@ -2969,7 +2993,7 @@ function directRequestDocumentUrl(?string $path): string
 
                                     <?= htmlspecialchars(
 
-                                        $r['item_name'] .
+                                        widmsAidItemName((string) $r['item_name']) .
 
                                         (
                                             $r['variety']
@@ -3151,6 +3175,18 @@ function directRequestDocumentUrl(?string $path): string
             </div>
         </dialog>
 
+        <?php if (!$directRequestMode): ?>
+        <dialog class="aid-approval-error-dialog" id="aid-approval-error-dialog" aria-labelledby="aid-approval-error-title">
+            <div class="aid-approval-error-card">
+                <span class="aid-approval-error-icon" aria-hidden="true">!</span>
+                <h2 id="aid-approval-error-title"><?= htmlspecialchars(t('Official Approvals'), ENT_QUOTES, 'UTF-8') ?></h2>
+                <p><?= htmlspecialchars(t('All four official approvals are required before submitting an aid request.'), ENT_QUOTES, 'UTF-8') ?></p>
+                <ul id="aid-approval-missing-list"></ul>
+                <button type="button" id="aid-approval-error-close"><?= htmlspecialchars(t('Close'), ENT_QUOTES, 'UTF-8') ?></button>
+            </div>
+        </dialog>
+        <?php endif; ?>
+
 
     </main>
 
@@ -3160,7 +3196,7 @@ function directRequestDocumentUrl(?string $path): string
 
 
 <!-- ==================================================================
-     WIDMS SHARED DASHBOARD JAVASCRIPT
+     SWPCS SHARED DASHBOARD JAVASCRIPT
 =================================================================== -->
 
 <script src="assets/js/admin-dashboard.js?v=17"></script>
@@ -3179,6 +3215,48 @@ function directRequestDocumentUrl(?string $path): string
 
 <script src="assets/js/aid-request-identification.js?v=2"></script>
 <script src="assets/js/aid-request-actions.js?v=1"></script>
+<?php if (!$directRequestMode): ?>
+<script>
+(() => {
+    const form = document.getElementById('aid-request-form');
+    const dialog = document.getElementById('aid-approval-error-dialog');
+    const missingList = document.getElementById('aid-approval-missing-list');
+    const requiredMessage = <?= json_encode(t('All four official approvals are required before submitting an aid request.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    if (!dialog) return;
+
+    const officers = [
+        ['medical_officer', <?= json_encode(t('Government Medical Officer'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>],
+        ['grama_niladhari', <?= json_encode(t('Grama Niladhari'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>],
+        ['social_services', <?= json_encode(t('Social Services Officer'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>],
+        ['divisional_secretary', <?= json_encode(t('Divisional Secretary'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>],
+    ];
+
+    function showMissingApprovals() {
+        const missing = officers.filter(([name]) => !form?.elements[name]?.checked).map(([, label]) => label);
+        if (missing.length === 0) return false;
+        missingList.replaceChildren(...missing.map((label) => {
+            const item = document.createElement('li');
+            item.textContent = label;
+            return item;
+        }));
+        if (typeof dialog.showModal === 'function') dialog.showModal();
+        else window.alert(`${requiredMessage}\n${missing.join(', ')}`);
+        return true;
+    }
+
+    form?.querySelector('[name="submit_action"][value="submit"]')?.addEventListener('click', (event) => {
+        if (showMissingApprovals()) event.preventDefault();
+    });
+    form?.addEventListener('submit', (event) => {
+        if (event.submitter?.value === 'draft') return;
+        if (showMissingApprovals()) event.preventDefault();
+    });
+    document.getElementById('aid-approval-error-close')?.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+    <?php if ($approvalError !== ''): ?>showMissingApprovals();<?php endif; ?>
+})();
+</script>
+<?php endif; ?>
 <script>
 /*
 |--------------------------------------------------------------------------
@@ -3204,6 +3282,7 @@ const item =
         document.getElementById('aid-stock-availability');
 
 const requireOpticalStock = <?= $currentRole === 'subject-officer' ? 'true' : 'false' ?>;
+const spectacleCategories = <?= json_encode($spectacleCategories ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
 
 
 function updateAidStockAvailability() {
@@ -3242,6 +3321,32 @@ function beneficiaryDetailField() {
             (configuredField.id && Number(detail.field_id || 0) === Number(configuredField.id)) ||
             (!detail.field_id && detail.label === configuredField.label && (detail.type || 'text') === configuredField.type)
         ) || existingDetails[index] || {};
+        if (selected?.dataset.spectacle === '1' && configuredField.label.trim().toLocaleLowerCase() === 'spectacle type') {
+            const group = document.createElement('fieldset');
+            group.className = 'spectacle-type-choice';
+            const legend = document.createElement('legend');
+            legend.textContent = <?= json_encode(t('Spectacle Type'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + ' *';
+            group.append(legend);
+            const options = document.createElement('div');
+            options.className = 'spectacle-type-options';
+            const selectedId = existingDetailsInput?.dataset.spectacleCategoryId || '';
+            spectacleCategories.forEach(category => {
+                const choice = document.createElement('label');
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = `beneficiary_details[${fieldKey}]`;
+                radio.value = String(category.id);
+                radio.required = true;
+                radio.checked = selectedId === String(category.id) || (!selectedId && existing.value === category.name);
+                const text = document.createElement('span');
+                text.textContent = category.display_name || category.name;
+                choice.append(radio, text);
+                options.append(choice);
+            });
+            group.append(options);
+            fieldsContainer.append(group);
+            return;
+        }
         const label = document.createElement('label');
         const caption = document.createElement('span');
         const typeName = ({ text: 'Text', number: 'Number', date: 'Date', image: 'Image file', pdf: 'PDF document' })[configuredField.type] || 'Text';
@@ -3266,7 +3371,7 @@ function beneficiaryDetailField() {
                 label.append(caption, input, saved, preview);
             } else label.append(caption, input, preview);
         } else {
-            const isPower = configuredField.type === 'number' && configuredField.label.trim().toLocaleLowerCase() === 'power';
+            const isPower = selected?.dataset.contactLens !== '1' && configuredField.type === 'number' && configuredField.label.trim().toLocaleLowerCase() === 'power';
             if (isPower) {
                 // Keep the optical sign visibly in front of the magnitude.
                 const savedPower = String(existing.value || '');

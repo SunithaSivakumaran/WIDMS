@@ -65,6 +65,10 @@ function beneficiaryEligibility(PDO $db,int $beneficiaryId,int $itemId,int $excl
         LEFT JOIN disability_item_prohibitions blocked ON blocked.disability_aid_item_id=source_rule.id AND blocked.prohibited_item_id=:requested_item
         WHERE d.beneficiary_id=:beneficiary
           AND source_rule.restriction_months>0
+          -- A fully returned issue no longer starts a waiting period.
+          AND (SELECT COALESCE(SUM(ret.quantity),0)
+               FROM item_returns ret WHERE ret.distribution_id=d.id
+                 AND ret.stock_review_status='accepted') < d.quantity
           AND (d.item_id=:same_item OR blocked.prohibited_item_id IS NOT NULL)
         ORDER BY d.distributed_at DESC");
     $q->execute(['requested_item'=>$itemId,'same_item'=>$itemId,'beneficiary'=>$beneficiaryId]);$history=$q->fetchAll();

@@ -34,10 +34,25 @@ function widmsLanguage(): string
     return $language;
 }
 
+/** Translate only the protected, built-in aid names; custom inventory names stay as entered. */
+function widmsAidItemName(string $name): string
+{
+    return match (mb_strtolower(trim($name), 'UTF-8')) {
+        'contact lens' => t('Contact Lens'),
+        'spectacles' => t('Spectacles'),
+        default => $name,
+    };
+}
+
 function widmsTranslations(): array
 {
     return [
         'si' => [
+            'DS Division Pools' => 'ප්‍රාදේශීය ලේකම් කොට්ඨාස සංචිත',
+            'DS Division / District' => 'ප්‍රාදේශීය ලේකම් කොට්ඨාසය / දිස්ත්‍රික්කය',
+            'Assigned SSO' => 'අනුයුක්ත සමාජ සේවා නිලධාරි',
+            'This aid item is already in use and cannot be deleted.' => 'මෙම ආධාර අයිතමය දැනට භාවිතයේ ඇති බැවින් මකා දැමිය නොහැක.',
+            'In use — cannot delete' => 'භාවිතයේ ඇත — මකා දැමිය නොහැක',
             'Disability Type Management'=>'ආබාධිතභාව වර්ග කළමනාකරණය','Create and maintain the disability types used by eligibility rules.'=>'සුදුසුකම් නීති සඳහා භාවිත කරන ආබාධිතභාව වර්ග සාදා කළමනාකරණය කරන්න.','Aid Item Rule Builder'=>'ආධාර අයිතම නීති සාදනය','Select a disability type and build an aid-item eligibility rule.'=>'ආබාධිතභාව වර්ගයක් තෝරා ආධාර අයිතම සුදුසුකම් නීතියක් සාදන්න.',
             'Manage Disability Types'=>'ආබාධිතභාව වර්ග කළමනාකරණය','Remove only disability types that are not used by an eligibility rule.'=>'සුදුසුකම් නීතියක භාවිත නොවන ආබාධිතභාව වර්ග පමණක් ඉවත් කරන්න.','No disability types are available.'=>'ආබාධිතභාව වර්ග නොමැත.','Remove this disability type permanently?'=>'මෙම ආබාධිතභාව වර්ගය ස්ථිරවම ඉවත් කරන්නද?','Disability type removed permanently.'=>'ආබාධිතභාව වර්ගය ස්ථිරවම ඉවත් කරන ලදී.',
             'Select prohibited items'=>'තහනම් කළ යුතු අයිතම තෝරන්න','Search prohibited items'=>'තහනම් අයිතම සොයන්න','Type to search items...'=>'අයිතම සෙවීමට ටයිප් කරන්න...','No matching items found.'=>'ගැළපෙන අයිතම හමු නොවීය.','Remove'=>'ඉවත් කරන්න',
@@ -46,6 +61,9 @@ function widmsTranslations(): array
             'Overview' => 'සමස්ත දසුන', 'Dashboard' => 'ප්‍රධාන පුවරුව', 'Pending Approvals' => 'අනුමැතිය අපේක්ෂිත',
             'User Management' => 'පරිශීලක කළමනාකරණය', 'Users' => 'පරිශීලකයින්', 'Divisions' => 'කොට්ඨාස',
             'Operations' => 'මෙහෙයුම්', 'Goods Requests' => 'භාණ්ඩ ඉල්ලීම්', 'Vision Camp Requests' => 'දෘෂ්ටි කඳවුරු ඉල්ලීම්',
+            'Contact Lens' => 'ස්පර්ශ කාච', 'Contact Lenses' => 'ස්පර්ශ කාච', 'Spectacles' => 'ඇස් කණ්ණාඩි',
+            'Total Number of Contact Lenses' => 'ස්පර්ශ කාච මුළු ගණන', 'Total Number of Spectacles' => 'ඇස් කණ්ණාඩි මුළු ගණන',
+            'Lens count for this power' => 'මෙම බලයට අදාළ කාච ගණන', 'Spectacle count for this power' => 'මෙම බලයට අදාළ ඇස් කණ්ණාඩි ගණන',
             'Contact Lens Orders' => 'ස්පර්ශ කාච ඇණවුම්', 'Item Requests' => 'අයිතම ඉල්ලීම්', 'Beneficiaries' => 'ප්‍රතිලාභීන්',
             'Correction Requests' => 'නිවැරදි කිරීමේ ඉල්ලීම්', 'Procurement' => 'ප්‍රසම්පාදනය', 'Central Stock' => 'මධ්‍යම තොගය',
             'Suppliers' => 'සැපයුම්කරුවන්', 'Payments' => 'ගෙවීම්', 'Monitoring' => 'අධීක්ෂණය', 'Reports' => 'වාර්තා',
@@ -63,20 +81,30 @@ function widmsTranslations(): array
             'Administrator' => 'පරිපාලක', 'Subject Officer' => 'විෂය නිලධාරී', 'Store Keeper' => 'ගබඩා භාරකරු',
             'Social Service Officer' => 'සමාජ සේවා නිලධාරී', 'Sign Out' => 'පිටවන්න',
             'Welcome back' => 'නැවත සාදරයෙන් පිළිගනිමු', 'Sign in to your account' => 'ඔබගේ ගිණුමට පිවිසෙන්න',
-            'Enter your approved WIDMS credentials to continue.' => 'ඉදිරියට යාමට ඔබගේ අනුමත WIDMS පිවිසුම් තොරතුරු ඇතුළත් කරන්න.',
+            'Enter your approved SWPCS credentials to continue.' => 'ඉදිරියට යාමට ඔබගේ අනුමත SWPCS පිවිසුම් තොරතුරු ඇතුළත් කරන්න.',
             'Username' => 'පරිශීලක නාමය', 'Password' => 'මුරපදය', 'Sign In' => 'පිවිසෙන්න',
-            'New to WIDMS?' => 'WIDMS සඳහා අලුත්ද?', 'Request an account' => 'ගිණුමක් ඉල්ලන්න',
+            'New to SWPCS?' => 'SWPCS සඳහා අලුත්ද?', 'Request an account' => 'ගිණුමක් ඉල්ලන්න',
             'SSO Division Assignments'=>'SSO කොට්ඨාස පැවරුම්','Approved SSO by DS Division'=>'DS කොට්ඨාසය අනුව අනුමත SSO','Service Division'=>'සේවා කොට්ඨාසය','Unavailable: active SSO assigned'=>'ලබාගත නොහැක: සක්‍රිය SSO නිලධාරියෙකු පවරා ඇත','This division already has an active Social Service Officer.'=>'මෙම කොට්ඨාසයට දැනටමත් සක්‍රිය සමාජ සේවා නිලධාරියෙකු පවරා ඇත.','Delete this eligibility rule permanently?'=>'මෙම සුදුසුකම් නීතිය ස්ථිරවම මකා දමන්නද?',
             'Review active and deactivated Social Service Officer assignments.'=>'සක්‍රිය සහ අක්‍රිය කළ සමාජ සේවා නිලධාරී පැවරුම් සමාලෝචනය කරන්න.',
+            'Review active Social Service Officer assignments.'=>'සක්‍රිය සමාජ සේවා නිලධාරී පැවරුම් සමාලෝචනය කරන්න.','All districts'=>'සියලු දිස්ත්‍රික්ක','All DS Divisions'=>'සියලු ප්‍රාදේශීය ලේකම් කොට්ඨාස','No DS Divisions match these filters.'=>'මෙම පෙරහන්වලට ගැලපෙන ප්‍රාදේශීය ලේකම් කොට්ඨාස නොමැත.','Suspended at'=>'අත්හිටුවූ දිනය සහ වේලාව','The assigned DS Division is no longer active.'=>'පවරා ඇති ප්‍රාදේශීය ලේකම් කොට්ඨාසය තවදුරටත් සක්‍රිය නැත.',
             'District'=>'දිස්ත්‍රික්කය','DS Division'=>'ප්‍රාදේශීය ලේකම් කොට්ඨාසය','Approved SSO'=>'අනුමත SSO','Contact'=>'සම්බන්ධතා','Status'=>'තත්ත්වය','Reason'=>'හේතුව','Action'=>'ක්‍රියාව',
             'Active'=>'සක්‍රිය','Deactivated'=>'අක්‍රිය කළ','No approved SSO'=>'අනුමත SSO නොමැත','No DS Divisions available.'=>'DS කොට්ඨාස නොමැත.',
             'Deactivate'=>'අක්‍රිය කරන්න','Reactivate'=>'නැවත සක්‍රිය කරන්න','Reason required for deactivation'=>'අක්‍රිය කිරීමට හේතුව අවශ්‍යයි','Reason required for rejection'=>'ප්‍රතික්ෂේප කිරීමට හේතුව අවශ්‍යයි',
             'A deactivation reason is required.'=>'අක්‍රිය කිරීමට හේතුවක් අවශ්‍යයි.','A rejection reason is required.'=>'ප්‍රතික්ෂේප කිරීමට හේතුවක් අවශ්‍යයි.',
+            'The rejection reason must not exceed 200 characters.'=>'ප්‍රතික්ෂේප කිරීමේ හේතුව අක්ෂර 200 නොඉක්මවිය යුතුය.',
+            'All roles'=>'සියලු භූමිකා',
+            'Search name, username, email, salary number or phone'=>'නම, පරිශීලක නාමය, ඊමේල්, වැටුප් අංකය හෝ දුරකථන අංකය සොයන්න',
+            'No users match these filters.'=>'මෙම පෙරහන්වලට ගැළපෙන පරිශීලකයින් නොමැත.',
             'Social Service Officer deactivated successfully.'=>'සමාජ සේවා නිලධාරියා සාර්ථකව අක්‍රිය කරන ලදී.','Social Service Officer reactivated successfully.'=>'සමාජ සේවා නිලධාරියා නැවත සක්‍රිය කරන ලදී.',
             'Rejection reason'=>'ප්‍රතික්ෂේප කිරීමේ හේතුව','Deactivation reason'=>'අක්‍රිය කිරීමේ හේතුව','Enter a clear reason before rejecting'=>'ප්‍රතික්ෂේප කිරීමට පෙර පැහැදිලි හේතුවක් ඇතුළත් කරන්න','Enter a clear reason before deactivating'=>'අක්‍රිය කිරීමට පෙර පැහැදිලි හේතුවක් ඇතුළත් කරන්න','Approve'=>'අනුමත කරන්න','Reject'=>'ප්‍රතික්ෂේප කරන්න',
             'Reject registration request'=>'ලියාපදිංචි ඉල්ලීම ප්‍රතික්ෂේප කරන්න','Confirm rejection'=>'ප්‍රතික්ෂේප කිරීම තහවුරු කරන්න','Deactivate Social Service Officer'=>'සමාජ සේවා නිලධාරියා අක්‍රිය කරන්න','Confirm deactivation'=>'අක්‍රිය කිරීම තහවුරු කරන්න',
         ],
         'ta' => [
+            'DS Division Pools' => 'பிரதேச செயலாளர் பிரிவு இருப்புகள்',
+            'DS Division / District' => 'பிரதேச செயலாளர் பிரிவு / மாவட்டம்',
+            'Assigned SSO' => 'ஒதுக்கப்பட்ட சமூக சேவை அலுவலர்',
+            'This aid item is already in use and cannot be deleted.' => 'இந்த உதவிப் பொருள் ஏற்கனவே பயன்பாட்டில் இருப்பதால் நீக்க முடியாது.',
+            'In use — cannot delete' => 'பயன்பாட்டில் உள்ளது — நீக்க முடியாது',
             'Disability Type Management'=>'மாற்றுத்திறன் வகை மேலாண்மை','Create and maintain the disability types used by eligibility rules.'=>'தகுதி விதிகளில் பயன்படுத்தப்படும் மாற்றுத்திறன் வகைகளை உருவாக்கி நிர்வகிக்கவும்.','Aid Item Rule Builder'=>'உதவிப் பொருள் விதி உருவாக்கி','Select a disability type and build an aid-item eligibility rule.'=>'மாற்றுத்திறன் வகையைத் தேர்ந்தெடுத்து உதவிப் பொருள் தகுதி விதியை உருவாக்கவும்.',
             'Manage Disability Types'=>'மாற்றுத்திறன் வகைகளை நிர்வகிக்கவும்','Remove only disability types that are not used by an eligibility rule.'=>'தகுதி விதியில் பயன்படுத்தப்படாத மாற்றுத்திறன் வகைகளை மட்டும் அகற்றவும்.','No disability types are available.'=>'மாற்றுத்திறன் வகைகள் எதுவும் கிடைக்கவில்லை.','Remove this disability type permanently?'=>'இந்த மாற்றுத்திறன் வகையை நிரந்தரமாக அகற்றவா?','Disability type removed permanently.'=>'மாற்றுத்திறன் வகை நிரந்தரமாக அகற்றப்பட்டது.',
             'Select prohibited items'=>'தடைசெய்ய வேண்டிய பொருட்களைத் தேர்ந்தெடுக்கவும்','Search prohibited items'=>'தடைசெய்யப்பட்ட பொருட்களைத் தேடவும்','Type to search items...'=>'பொருட்களைத் தேட தட்டச்சு செய்யவும்...','No matching items found.'=>'பொருந்தும் பொருட்கள் எதுவும் கிடைக்கவில்லை.','Remove'=>'அகற்று',
@@ -85,7 +113,10 @@ function widmsTranslations(): array
             'Overview' => 'கண்ணோட்டம்', 'Dashboard' => 'முகப்புப் பலகை', 'Pending Approvals' => 'நிலுவை ஒப்புதல்கள்',
             'User Management' => 'பயனர் மேலாண்மை', 'Users' => 'பயனர்கள்', 'Divisions' => 'பிரிவுகள்',
             'Operations' => 'செயற்பாடுகள்', 'Goods Requests' => 'பொருள் கோரிக்கைகள்', 'Vision Camp Requests' => 'பார்வை முகாம் கோரிக்கைகள்',
-            'Contact Lens Orders' => 'தொடர்பு வில்லை ஆணைகள்', 'Item Requests' => 'பொருள் கோரிக்கைகள்', 'Beneficiaries' => 'பயனாளிகள்',
+            'Contact Lens' => 'தொடு வில்லை', 'Contact Lenses' => 'தொடு வில்லைகள்', 'Spectacles' => 'மூக்குக் கண்ணாடி',
+            'Total Number of Contact Lenses' => 'தொடு வில்லைகளின் மொத்த எண்ணிக்கை', 'Total Number of Spectacles' => 'மூக்குக் கண்ணாடிகளின் மொத்த எண்ணிக்கை',
+            'Lens count for this power' => 'இந்த வலிமைக்கான தொடு வில்லைகள் எண்ணிக்கை', 'Spectacle count for this power' => 'இந்த வலிமைக்கான மூக்குக் கண்ணாடிகள் எண்ணிக்கை',
+            'Contact Lens Orders' => 'தொடு வில்லை ஆணைகள்', 'Item Requests' => 'பொருள் கோரிக்கைகள்', 'Beneficiaries' => 'பயனாளிகள்',
             'Correction Requests' => 'திருத்தக் கோரிக்கைகள்', 'Procurement' => 'கொள்முதல்', 'Central Stock' => 'மத்திய கையிருப்பு',
             'Suppliers' => 'வழங்குநர்கள்', 'Payments' => 'கொடுப்பனவுகள்', 'Monitoring' => 'கண்காணிப்பு', 'Reports' => 'அறிக்கைகள்',
             'Audit Log' => 'தணிக்கைப் பதிவு', 'System' => 'அமைப்பு', 'System Config' => 'அமைப்பு உள்ளமைவு',
@@ -102,15 +133,20 @@ function widmsTranslations(): array
             'Administrator' => 'நிர்வாகி', 'Subject Officer' => 'விடய அலுவலர்', 'Store Keeper' => 'களஞ்சியப் பொறுப்பாளர்',
             'Social Service Officer' => 'சமூக சேவை அலுவலர்', 'Sign Out' => 'வெளியேறு',
             'Welcome back' => 'மீண்டும் வரவேற்கிறோம்', 'Sign in to your account' => 'உங்கள் கணக்கில் உள்நுழைக',
-            'Enter your approved WIDMS credentials to continue.' => 'தொடர உங்கள் அங்கீகரிக்கப்பட்ட WIDMS உள்நுழைவு விவரங்களை உள்ளிடுக.',
+            'Enter your approved SWPCS credentials to continue.' => 'தொடர உங்கள் அங்கீகரிக்கப்பட்ட SWPCS உள்நுழைவு விவரங்களை உள்ளிடுக.',
             'Username' => 'பயனர் பெயர்', 'Password' => 'கடவுச்சொல்', 'Sign In' => 'உள்நுழைக',
-            'New to WIDMS?' => 'WIDMS-க்கு புதியவரா?', 'Request an account' => 'கணக்கைக் கோருக',
+            'New to SWPCS?' => 'SWPCS-க்கு புதியவரா?', 'Request an account' => 'கணக்கைக் கோருக',
             'SSO Division Assignments'=>'SSO பிரிவு நியமனங்கள்','Approved SSO by DS Division'=>'DS பிரிவின்படி அங்கீகரிக்கப்பட்ட SSO','Service Division'=>'சேவைப் பிரிவு','Unavailable: active SSO assigned'=>'கிடைக்காது: செயலில் உள்ள SSO நியமிக்கப்பட்டுள்ளார்','This division already has an active Social Service Officer.'=>'இந்தப் பிரிவுக்கு ஏற்கனவே செயலில் உள்ள சமூக சேவை அலுவலர் நியமிக்கப்பட்டுள்ளார்.','Delete this eligibility rule permanently?'=>'இந்தத் தகுதி விதியை நிரந்தரமாக நீக்கவா?',
             'Review active and deactivated Social Service Officer assignments.'=>'செயலில் உள்ள மற்றும் செயலிழக்கப்பட்ட சமூக சேவை அலுவலர் நியமனங்களை மதிப்பாய்வு செய்க.',
+            'Review active Social Service Officer assignments.'=>'செயலில் உள்ள சமூக சேவை அலுவலர் நியமனங்களை மதிப்பாய்வு செய்க.','All districts'=>'அனைத்து மாவட்டங்களும்','All DS Divisions'=>'அனைத்து பிரதேச செயலகப் பிரிவுகளும்','No DS Divisions match these filters.'=>'இந்த வடிகட்டிகளுக்குப் பொருந்தும் பிரதேச செயலகப் பிரிவுகள் இல்லை.','Suspended at'=>'இடைநிறுத்தப்பட்ட தேதி மற்றும் நேரம்','The assigned DS Division is no longer active.'=>'ஒதுக்கப்பட்ட பிரதேச செயலகப் பிரிவு இனி செயலில் இல்லை.',
             'District'=>'மாவட்டம்','DS Division'=>'பிரதேச செயலகப் பிரிவு','Approved SSO'=>'அங்கீகரிக்கப்பட்ட SSO','Contact'=>'தொடர்பு','Status'=>'நிலை','Reason'=>'காரணம்','Action'=>'செயல்',
             'Active'=>'செயலில்','Deactivated'=>'செயலிழக்கப்பட்டது','No approved SSO'=>'அங்கீகரிக்கப்பட்ட SSO இல்லை','No DS Divisions available.'=>'DS பிரிவுகள் இல்லை.',
             'Deactivate'=>'செயலிழக்கச் செய்','Reactivate'=>'மீண்டும் செயல்படுத்து','Reason required for deactivation'=>'செயலிழக்கச் செய்வதற்கான காரணம் தேவை','Reason required for rejection'=>'நிராகரிப்பதற்கான காரணம் தேவை',
             'A deactivation reason is required.'=>'செயலிழக்கச் செய்வதற்கான காரணம் அவசியம்.','A rejection reason is required.'=>'நிராகரிப்பதற்கான காரணம் அவசியம்.',
+            'The rejection reason must not exceed 200 characters.'=>'நிராகரிப்பதற்கான காரணம் 200 எழுத்துகளைத் தாண்டக்கூடாது.',
+            'All roles'=>'அனைத்து பங்குகளும்',
+            'Search name, username, email, salary number or phone'=>'பெயர், பயனர்பெயர், மின்னஞ்சல், சம்பள எண் அல்லது தொலைபேசி எண்ணைத் தேடவும்',
+            'No users match these filters.'=>'இந்த வடிகட்டிகளுக்குப் பொருந்தும் பயனர்கள் இல்லை.',
             'Social Service Officer deactivated successfully.'=>'சமூக சேவை அலுவலர் வெற்றிகரமாக செயலிழக்கச் செய்யப்பட்டார்.','Social Service Officer reactivated successfully.'=>'சமூக சேவை அலுவலர் மீண்டும் செயல்படுத்தப்பட்டார்.',
             'Rejection reason'=>'நிராகரிப்பதற்கான காரணம்','Deactivation reason'=>'செயலிழக்கச் செய்வதற்கான காரணம்','Enter a clear reason before rejecting'=>'நிராகரிப்பதற்கு முன் தெளிவான காரணத்தை உள்ளிடுக','Enter a clear reason before deactivating'=>'செயலிழக்கச் செய்வதற்கு முன் தெளிவான காரணத்தை உள்ளிடுக','Approve'=>'அங்கீகரி','Reject'=>'நிராகரி',
             'Reject registration request'=>'பதிவுக் கோரிக்கையை நிராகரி','Confirm rejection'=>'நிராகரிப்பை உறுதிப்படுத்து','Deactivate Social Service Officer'=>'சமூக சேவை அலுவலரை செயலிழக்கச் செய்','Confirm deactivation'=>'செயலிழப்பை உறுதிப்படுத்து',
@@ -268,6 +304,17 @@ function widmsGoodsRequestTranslations(): array
             'No stock quota allocations are assigned to you.' => 'ඔබට තොග කෝටා වෙන් කිරීම් පවරා නොමැත.',
             'Awaiting Store Keeper Release' => 'ගබඩා භාරකරුගේ නිකුතුව බලාපොරොත්තුවෙන්',
             'Released to Subject Officer' => 'විෂය නිලධාරියා වෙත නිකුත් කර ඇත',
+            'Stock match' => 'තොග ගැළපීම',
+            'Requested aid' => 'ඉල්ලා ඇති ආධාරය',
+            'Enough stock' => 'ප්‍රමාණවත් තොග ඇත',
+            'Insufficient stock' => 'තොග ප්‍රමාණවත් නොවේ',
+            'Exact optical power' => 'නිවැරදි දෘෂ්ටි බලය',
+            'Waiting for matching Central Stock' => 'ගැළපෙන මධ්‍යම තොගය බලාපොරොත්තුවෙන්',
+            'Waiting for stock' => 'තොගය බලාපොරොත්තුවෙන්',
+            'Ready for beneficiary' => 'ප්‍රතිලාභියාට ලබා දීමට සූදානම්',
+            'Power matched' => 'දෘෂ්ටි බලය ගැළපේ',
+            'No prescription power was recorded for this optical request.' => 'මෙම දෘෂ්ටි ආධාර ඉල්ලීම සඳහා වෛද්‍ය නිර්දේශිත බලය සටහන් කර නැත.',
+            'Power %s is short: %d of %d units available in Central Stock.' => '%s බලය ප්‍රමාණවත් නොවේ: මධ්‍යම තොගයේ ඒකක %d ක් ඇත; %d ක් අවශ්‍යයි.',
             'Added to My Pool' => 'මගේ සංචිතයට එක් කර ඇත',
             'Approved - Awaiting Dispatch' => 'අනුමතයි - නිකුත් කිරීම බලාපොරොත්තුවෙන්',
             'Approved Stock Quota Requests' => 'අනුමත තොග කෝටා ඉල්ලීම්',
@@ -319,7 +366,7 @@ function widmsGoodsRequestTranslations(): array
             'Item distributed directly to the beneficiary.' => 'பொருள் பயனாளிக்கு நேரடியாக வழங்கப்பட்டது.',
             'Optical Aid Requests' => 'பார்வை உதவிக் கோரிக்கைகள்',
             'Power-Matched Optical Requests' => 'திறன் பொருந்திய பார்வை உதவிக் கோரிக்கைகள்',
-            'Select approved spectacles and contact-lens requests only when their exact signed power is in Central Stock.' => 'சரியான குறியிட்ட திறன் மத்திய கையிருப்பில் இருக்கும்போது மட்டுமே அங்கீகரிக்கப்பட்ட மூக்குக் கண்ணாடி மற்றும் தொடர்பு லென்ஸ் கோரிக்கைகளைத் தேர்ந்தெடுக்கவும்.',
+            'Select approved spectacles and contact-lens requests only when their exact signed power is in Central Stock.' => 'சரியான குறியிட்ட திறன் மத்திய கையிருப்பில் இருக்கும்போது மட்டுமே அங்கீகரிக்கப்பட்ட மூக்குக் கண்ணாடி மற்றும் தொடு வில்லை கோரிக்கைகளைத் தேர்ந்தெடுக்கவும்.',
             'Available Power Matches' => 'கிடைக்கும் திறன் பொருத்தங்கள்',
             'Each selected request keeps its prescribed power through approval, release, and beneficiary distribution.' => 'தேர்ந்தெடுக்கப்பட்ட ஒவ்வொரு கோரிக்கையும் ஒப்புதல், வெளியீடு மற்றும் பயனாளர் விநியோகம் வரை பரிந்துரைக்கப்பட்ட திறனை வைத்திருக்கும்.',
             '%d approved optical request(s) are hidden because the exact power is not currently in stock.' => 'சரியான திறன் தற்போது கையிருப்பில் இல்லாததால் %d அங்கீகரிக்கப்பட்ட பார்வை உதவிக் கோரிக்கைகள் மறைக்கப்பட்டுள்ளன.',
@@ -440,6 +487,17 @@ function widmsGoodsRequestTranslations(): array
             'No stock quota allocations are assigned to you.' => 'உங்களுக்கு கையிருப்பு ஒதுக்கீடுகள் எதுவும் ஒதுக்கப்படவில்லை.',
             'Awaiting Store Keeper Release' => 'களஞ்சியப் பொறுப்பாளரின் வெளியீட்டிற்காகக் காத்திருக்கிறது',
             'Released to Subject Officer' => 'விடய அலுவலருக்கு வழங்கப்பட்டது',
+            'Stock match' => 'கையிருப்பு பொருத்தம்',
+            'Requested aid' => 'கோரப்பட்ட உதவி',
+            'Enough stock' => 'போதுமான கையிருப்பு உள்ளது',
+            'Insufficient stock' => 'கையிருப்பு போதவில்லை',
+            'Exact optical power' => 'துல்லியமான பார்வைத் திறன்',
+            'Waiting for matching Central Stock' => 'பொருந்தும் மத்திய கையிருப்புக்காகக் காத்திருக்கிறது',
+            'Waiting for stock' => 'கையிருப்புக்காகக் காத்திருக்கிறது',
+            'Ready for beneficiary' => 'பயனாளிக்கு வழங்கத் தயார்',
+            'Power matched' => 'பார்வைத் திறன் பொருந்துகிறது',
+            'No prescription power was recorded for this optical request.' => 'இந்தப் பார்வை உதவிக் கோரிக்கைக்கு பரிந்துரைக்கப்பட்ட வலிமை பதிவு செய்யப்படவில்லை.',
+            'Power %s is short: %d of %d units available in Central Stock.' => '%s வலிமை பற்றாக்குறை: மத்திய கையிருப்பில் %d அலகுகள் உள்ளன; %d அலகுகள் தேவை.',
             'Added to My Pool' => 'எனது கையிருப்பில் சேர்க்கப்பட்டது',
             'Approved - Awaiting Dispatch' => 'அங்கீகரிக்கப்பட்டது - அனுப்பப்படக் காத்திருக்கிறது',
             'Approved Stock Quota Requests' => 'அங்கீகரிக்கப்பட்ட கையிருப்பு ஒதுக்கீட்டுக் கோரிக்கைகள்',
@@ -476,6 +534,148 @@ function t(string $english): string
     if ($language === 'en') {
         return $english;
     }
+    $correctionHistoryLabels = [
+        'si' => [
+            'Correction Request History' => 'නිවැරදි කිරීමේ ඉල්ලීම් ඉතිහාසය',
+            'ready to bundle' => 'කට්ටලයට සූදානම්',
+            'Filter correction request history' => 'නිවැරදි කිරීමේ ඉල්ලීම් ඉතිහාසය පෙරන්න',
+            'Search reference, error or response' => 'යොමුව, දෝෂය හෝ පිළිතුර සොයන්න',
+            'All error types' => 'සියලු දෝෂ වර්ග',
+            'Done' => 'සම්පූර්ණයි',
+            'Proposed Fix' => 'යෝජිත නිවැරදි කිරීම',
+            'No correction requests submitted yet.' => 'තවම නිවැරදි කිරීමේ ඉල්ලීම් ඉදිරිපත් කර නැත.',
+            'No correction requests match these filters.' => 'මෙම පෙරහන්වලට ගැළපෙන නිවැරදි කිරීමේ ඉල්ලීම් නොමැත.',
+        ],
+        'ta' => [
+            'Correction Request History' => 'திருத்தக் கோரிக்கை வரலாறு',
+            'ready to bundle' => 'தொகுப்புக்குத் தயார்',
+            'Filter correction request history' => 'திருத்தக் கோரிக்கை வரலாற்றை வடிகட்டவும்',
+            'Search reference, error or response' => 'குறிப்பு, பிழை அல்லது பதிலைத் தேடவும்',
+            'All error types' => 'அனைத்து பிழை வகைகளும்',
+            'Done' => 'முடிந்தது',
+            'Proposed Fix' => 'பரிந்துரைக்கப்பட்ட திருத்தம்',
+            'No correction requests submitted yet.' => 'திருத்தக் கோரிக்கைகள் இன்னும் சமர்ப்பிக்கப்படவில்லை.',
+            'No correction requests match these filters.' => 'இந்த வடிகட்டிகளுக்குப் பொருந்தும் திருத்தக் கோரிக்கைகள் இல்லை.',
+        ],
+    ];
+    if (isset($correctionHistoryLabels[$language][$english])) {
+        return $correctionHistoryLabels[$language][$english];
+    }
+    $returnStockReviewLabels = [
+        'si' => [
+            'Return Stock Review' => 'ආපසු ලැබුණු තොග සමාලෝචනය',
+            'Reject returned stock' => 'ආපසු ලැබුණු භාණ්ඩය ප්‍රතික්ෂේප කරන්න',
+            'Enter a reason before rejecting this return.' => 'මෙම ආපසු භාරදීම ප්‍රතික්ෂේප කිරීමට පෙර හේතුවක් ඇතුළත් කරන්න.',
+            'Previously Restocked' => 'පෙර තොගයට එක් කරන ලදී',
+            'Recorded before Store Keeper review was required.' => 'ගබඩා භාරකරුගේ සමාලෝචනය අවශ්‍ය වීමට පෙර සටහන් කරන ලදී.',
+            'Central Stock updates only after Store Keeper acceptance.' => 'ගබඩා භාරකරු අනුමත කළ පසු පමණක් මධ්‍යම තොගය යාවත්කාලීන වේ.',
+            'Stock Status' => 'තොග තත්ත්වය',
+            'Awaiting Central Stock' => 'මධ්‍යම තොගයට එක් කිරීමට බලාපොරොත්තුවෙන්',
+            'Not restocked' => 'තොගයට එක් කර නැත',
+            'Pending Store Keeper' => 'ගබඩා භාරකරුගේ අනුමැතිය බලාපොරොත්තුවෙන්',
+            'Return awaiting stock acceptance' => 'ආපසු ලැබුණු භාණ්ඩය තොගයට එක් කිරීමට බලාපොරොත්තුවෙන්',
+            'Good return awaiting acceptance' => 'හොඳ තත්ත්වයේ ආපසු ලැබුණු භාණ්ඩය අනුමැතිය බලාපොරොත්තුවෙන්',
+            'Return stock review' => 'ආපසු ලැබුණු තොග සමාලෝචනය',
+            'Return accepted' => 'ආපසු ලැබුණු භාණ්ඩය පිළිගන්නා ලදී',
+            'Return rejected' => 'ආපසු ලැබුණු භාණ්ඩය ප්‍රතික්ෂේප කරන ලදී',
+            'Return recorded. Central Stock will update after Store Keeper acceptance.' => 'ආපසු භාරදීම සටහන් විය. ගබඩා භාරකරු අනුමත කළ පසු මධ්‍යම තොගය යාවත්කාලීන වේ.',
+            'Return accepted and Central Stock updated.' => 'ආපසු භාරදීම පිළිගෙන මධ්‍යම තොගය යාවත්කාලීන කරන ලදී.',
+            'Return rejected. Central Stock was not changed.' => 'ආපසු භාරදීම ප්‍රතික්ෂේප කරන ලදී. මධ්‍යම තොගය වෙනස් නොවීය.',
+            'Rejection reason' => 'ප්‍රතික්ෂේප කිරීමේ හේතුව',
+            'All statuses' => 'සියලු තත්ත්වයන්',
+            'Accepted' => 'පිළිගත්',
+            'Rejected' => 'ප්‍රතික්ෂේප කළ',
+            'Pending' => 'බලාපොරොත්තුවෙන්',
+            'Accept' => 'පිළිගන්න',
+            'Reject' => 'ප්‍රතික්ෂේප කරන්න',
+            'pending' => 'බලාපොරොත්තුවෙන්',
+            'returned this item' => 'මෙම භාණ්ඩය ආපසු භාර දුන්නේය',
+        ],
+        'ta' => [
+            'Return Stock Review' => 'திரும்பப் பெறப்பட்ட இருப்பு மதிப்பாய்வு',
+            'Reject returned stock' => 'திரும்பப் பெற்ற பொருளை நிராகரிக்கவும்',
+            'Enter a reason before rejecting this return.' => 'இந்தத் திரும்பப் பெறுதலை நிராகரிக்கும் முன் காரணத்தை உள்ளிடவும்.',
+            'Previously Restocked' => 'முன்னரே இருப்பில் சேர்க்கப்பட்டது',
+            'Recorded before Store Keeper review was required.' => 'களஞ்சிய பொறுப்பாளர் மதிப்பாய்வு தேவையானதற்கு முன் பதிவு செய்யப்பட்டது.',
+            'Central Stock updates only after Store Keeper acceptance.' => 'களஞ்சிய பொறுப்பாளர் ஏற்ற பிறகே மத்திய இருப்பு புதுப்பிக்கப்படும்.',
+            'Stock Status' => 'இருப்பு நிலை',
+            'Awaiting Central Stock' => 'மத்திய இருப்பில் சேர்க்கக் காத்திருக்கிறது',
+            'Not restocked' => 'இருப்பில் சேர்க்கப்படவில்லை',
+            'Pending Store Keeper' => 'களஞ்சிய பொறுப்பாளர் ஒப்புதலுக்காகக் காத்திருக்கிறது',
+            'Return awaiting stock acceptance' => 'திரும்பப் பெற்ற பொருள் இருப்பில் சேர்க்க ஒப்புதலுக்காகக் காத்திருக்கிறது',
+            'Good return awaiting acceptance' => 'நல்ல நிலையில் திரும்பப் பெற்ற பொருள் ஒப்புதலுக்காகக் காத்திருக்கிறது',
+            'Return stock review' => 'திரும்பப் பெற்ற இருப்பு மதிப்பாய்வு',
+            'Return accepted' => 'திரும்பப் பெற்ற பொருள் ஏற்கப்பட்டது',
+            'Return rejected' => 'திரும்பப் பெற்ற பொருள் நிராகரிக்கப்பட்டது',
+            'Return recorded. Central Stock will update after Store Keeper acceptance.' => 'திரும்பப் பெறுதல் பதிவு செய்யப்பட்டது. களஞ்சிய பொறுப்பாளர் ஏற்ற பிறகு மத்திய இருப்பு புதுப்பிக்கப்படும்.',
+            'Return accepted and Central Stock updated.' => 'திரும்பப் பெறுதல் ஏற்கப்பட்டு மத்திய இருப்பு புதுப்பிக்கப்பட்டது.',
+            'Return rejected. Central Stock was not changed.' => 'திரும்பப் பெறுதல் நிராகரிக்கப்பட்டது. மத்திய இருப்பு மாற்றப்படவில்லை.',
+            'Rejection reason' => 'நிராகரிப்பு காரணம்',
+            'All statuses' => 'அனைத்து நிலைகளும்',
+            'Accepted' => 'ஏற்கப்பட்டது',
+            'Rejected' => 'நிராகரிக்கப்பட்டது',
+            'Pending' => 'நிலுவையில்',
+            'Accept' => 'ஏற்கவும்',
+            'Reject' => 'நிராகரிக்கவும்',
+            'pending' => 'நிலுவையில்',
+            'returned this item' => 'இந்தப் பொருளைத் திருப்பிக் கொடுத்தார்',
+        ],
+    ];
+    if (isset($returnStockReviewLabels[$language][$english])) {
+        return $returnStockReviewLabels[$language][$english];
+    }
+    $ssoAidPermissionLabels = [
+        'si' => [
+            'Allow SSO to distribute this aid' => 'සමාජ සේවා නිලධාරියාට මෙම ආධාරය බෙදා හැරීමට අවසර දෙන්න',
+            'This aid can be returned' => 'මෙම ආධාරය ආපසු භාර දිය හැක',
+            'This aid must be distributed by the Subject Officer.' => 'මෙම ආධාරය විෂය නිලධාරියා විසින් බෙදා හැරිය යුතුය.',
+        ],
+        'ta' => [
+            'Allow SSO to distribute this aid' => 'சமூக சேவை அலுவலர் இந்த உதவிப் பொருளை வழங்க அனுமதி',
+            'This aid can be returned' => 'இந்த உதவிப் பொருளைத் திருப்பிக் கொடுக்கலாம்',
+            'This aid must be distributed by the Subject Officer.' => 'இந்த உதவிப் பொருளை துறை அலுவலர் வழங்க வேண்டும்.',
+        ],
+    ];
+    if (isset($ssoAidPermissionLabels[$language][$english])) {
+        return $ssoAidPermissionLabels[$language][$english];
+    }
+    $returnScopeLabels = [
+        'si' => [
+            'Returnable aid from any division can be processed here.' => 'ඕනෑම ප්‍රාදේශීය ලේකම් කොට්ඨාසයක ආපසු භාරදිය හැකි ආධාර මෙහි සැකසිය හැක.',
+            'Only returnable aid for beneficiaries in your assigned DS Division can be processed here.' => 'ඔබට පැවරූ ප්‍රාදේශීය ලේකම් කොට්ඨාසයේ ප්‍රතිලාභීන්ගේ ආපසු භාරදිය හැකි ආධාර පමණක් මෙහි සැකසිය හැක.',
+            'This returnable distribution is unavailable to you.' => 'මෙම ආපසු භාරදිය හැකි බෙදාහැරීම ඔබට සැකසිය නොහැක.',
+        ],
+        'ta' => [
+            'Returnable aid from any division can be processed here.' => 'எந்தப் பிரதேசச் செயலாளர் பிரிவிலிருந்தும் திருப்பிக் கொடுக்கக்கூடிய உதவிப் பொருட்களை இங்கு செயலாக்கலாம்.',
+            'Only returnable aid for beneficiaries in your assigned DS Division can be processed here.' => 'உங்களுக்கு ஒதுக்கப்பட்ட பிரதேசச் செயலாளர் பிரிவின் பயனாளிகளின் திருப்பிக் கொடுக்கக்கூடிய உதவிப் பொருட்களை மட்டுமே இங்கு செயலாக்கலாம்.',
+            'This returnable distribution is unavailable to you.' => 'இந்தத் திருப்பிக் கொடுக்கக்கூடிய விநியோகத்தை நீங்கள் செயலாக்க முடியாது.',
+        ],
+    ];
+    if (isset($returnScopeLabels[$language][$english])) {
+        return $returnScopeLabels[$language][$english];
+    }
+    if ($english === 'All four official approvals are required before submitting an aid request.') {
+        return $language === 'si'
+            ? 'ආධාර ඉල්ලීමක් ඉදිරිපත් කිරීමට පෙර නිලධාරීන් සිව්දෙනාගේම අනුමැතිය අවශ්‍ය වේ.'
+            : 'உதவிக் கோரிக்கையைச் சமர்ப்பிக்கும் முன் நான்கு அதிகாரிகளின் ஒப்புதல்களும் அவசியம்.';
+    }
+    if ($english === 'Contact lens handover') {
+        return $language === 'si' ? 'ස්පර්ශ කාච භාරදීම' : 'தொடு வில்லை ஒப்படைப்பு';
+    }
+    // Spectacle categories are controlled stock classifications. Keep their
+    // names consistent in English across Sinhala and Tamil interfaces.
+    if (in_array($english, [
+        'Reading Only', 'Distance Only', 'Bifocal', 'Cylinder Bifocal',
+        'Cylinder Distance', 'Child',
+    ], true)) {
+        return $english;
+    }
+    static $spectacleCategoryLabels = null;
+    $spectacleCategoryLabels ??= require __DIR__ . '/spectacle-category-i18n.php';
+    if (isset($spectacleCategoryLabels[$language][$english])) return $spectacleCategoryLabels[$language][$english];
+    static $campLabels = null;
+    $campLabels ??= require __DIR__ . '/spectacle-camp-i18n.php';
+    if (isset($campLabels[$language][$english])) return $campLabels[$language][$english];
 
     // Shared action text keeps newly linked dashboard cards trilingual.
     $sharedActions = [
@@ -487,10 +687,18 @@ function t(string $english): string
         'si' => [
             'Returned By'=>'ආපසු භාරදුන් තැනැත්තා',
             'Select beneficiary'=>'ප්‍රතිලාභියා තෝරන්න',
+            'Search beneficiary by name or ID'=>'නම හෝ හැඳුනුම් අංකය අනුව ප්‍රතිලාභියා සොයන්න',
+            'Select a beneficiary from the suggestions.'=>'යෝජනා අතරින් ප්‍රතිලාභියෙකු තෝරන්න.',
+            'Show beneficiaries'=>'ප්‍රතිලාභීන් පෙන්වන්න',
+            'No matching beneficiaries'=>'ගැළපෙන ප්‍රතිලාභීන් නොමැත',
             'Name of person returning the item'=>'අයිතමය ආපසු භාරදෙන පුද්ගලයාගේ නම',
             'Enter the name of the person who returned the item.'=>'අයිතමය ආපසු භාරදුන් පුද්ගලයාගේ නම ඇතුළත් කරන්න.',
             'Return History'=>'ආපසු භාරදීම් ඉතිහාසය',
             'View Return History'=>'ආපසු භාරදීම් ඉතිහාසය බලන්න',
+            'Filter return history'=>'ආපසු භාරදීම් ඉතිහාසය පෙරහන් කරන්න',
+            'Search return ID, beneficiary or aid item'=>'ආපසු භාරදීමේ අංකය, ප්‍රතිලාභියා හෝ ආධාර අයිතමය සොයන්න',
+            'All conditions'=>'සියලු තත්ත්ව',
+            'No returns match these filters.'=>'මෙම පෙරහන්වලට ගැළපෙන ආපසු භාරදීම් නොමැත.',
             'Only returns processed by you are shown here.'=>'ඔබ සැකසූ ආපසු භාරදීම් පමණක් මෙහි දැක්වේ.',
             'Only items marked returnable can be processed. Good items return to your role-specific stock; damaged items are excluded.'=>'ආපසු භාරදිය හැකි ලෙස සලකුණු කළ අයිතම පමණක් සැකසිය හැක. හොඳ අයිතම ඔබේ භූමිකාවට අදාළ තොගයට යයි; හානි වූ අයිතම ඉවත් කෙරේ.',
             'Good items restore to'=>'හොඳ අයිතම නැවත එක්වන්නේ',
@@ -517,10 +725,18 @@ function t(string $english): string
         'ta' => [
             'Returned By'=>'திருப்பிக் கொடுத்தவர்',
             'Select beneficiary'=>'பயனாளியைத் தேர்ந்தெடுக்கவும்',
+            'Search beneficiary by name or ID'=>'பெயர் அல்லது அடையாள எண்ணால் பயனாளியைத் தேடவும்',
+            'Select a beneficiary from the suggestions.'=>'பரிந்துரைகளிலிருந்து ஒரு பயனாளியைத் தேர்ந்தெடுக்கவும்.',
+            'Show beneficiaries'=>'பயனாளிகளைக் காட்டு',
+            'No matching beneficiaries'=>'பொருந்தும் பயனாளிகள் இல்லை',
             'Name of person returning the item'=>'பொருளைத் திருப்பிக் கொடுப்பவரின் பெயர்',
             'Enter the name of the person who returned the item.'=>'பொருளைத் திருப்பிக் கொடுத்தவரின் பெயரை உள்ளிடவும்.',
             'Return History'=>'திருப்பிக் கொடுத்த வரலாறு',
             'View Return History'=>'திருப்பிக் கொடுத்த வரலாற்றைப் பார்க்கவும்',
+            'Filter return history'=>'திருப்பல் வரலாற்றை வடிகட்டவும்',
+            'Search return ID, beneficiary or aid item'=>'திருப்பல் எண், பயனாளர் அல்லது உதவிப் பொருளைத் தேடவும்',
+            'All conditions'=>'அனைத்து நிலைகளும்',
+            'No returns match these filters.'=>'இந்த வடிகட்டிகளுக்குப் பொருந்தும் திருப்பல்கள் இல்லை.',
             'Only returns processed by you are shown here.'=>'நீங்கள் செயலாக்கிய திருப்பல்களே இங்கே காட்டப்படும்.',
             'Only items marked returnable can be processed. Good items return to your role-specific stock; damaged items are excluded.'=>'திருப்பிக் கொடுக்கக்கூடியதாகக் குறிக்கப்பட்ட பொருட்கள் மட்டுமே செயலாக்கப்படும். நல்ல பொருட்கள் உங்கள் பணிக்கு உரிய இருப்பிற்குச் செல்லும்; சேதமடைந்தவை விலக்கப்படும்.',
             'Good items restore to'=>'நல்ல பொருட்கள் மீண்டும் சேரும் இடம்',
@@ -560,7 +776,7 @@ function t(string $english): string
             'Official workflow record generated from the live system.'=>'සජීවී පද්ධතියෙන් ජනනය කළ නිල කාර්ය ප්‍රවාහ වාර්තාව.',
             'Receiving Officer'=>'ලබාගන්නා නිලධාරියා', 'Optical Unit ID'=>'දෘශ්‍ය ඒකක හැඳුනුම්පත',
             'Fulfillment Status'=>'සම්පූර්ණ කිරීමේ තත්ත්වය',
-            'This document reflects the current WIDMS workflow record.'=>'මෙම ලේඛනය වත්මන් WIDMS කාර්ය ප්‍රවාහ වාර්තාව පෙන්වයි.',
+            'This document reflects the current SWPCS workflow record.'=>'මෙම ලේඛනය වත්මන් SWPCS කාර්ය ප්‍රවාහ වාර්තාව පෙන්වයි.',
         ],
         'ta' => [
             'Document'=>'ஆவணம்', 'View PDF'=>'PDF பார்க்க',
@@ -575,7 +791,7 @@ function t(string $english): string
             'Official workflow record generated from the live system.'=>'நேரடி அமைப்பிலிருந்து உருவாக்கப்பட்ட அதிகாரப்பூர்வ பணிப்பாய்வு பதிவு.',
             'Receiving Officer'=>'பெறும் அலுவலர்', 'Optical Unit ID'=>'பார்வை அலகு அடையாளம்',
             'Fulfillment Status'=>'நிறைவேற்றல் நிலை',
-            'This document reflects the current WIDMS workflow record.'=>'இந்த ஆவணம் தற்போதைய WIDMS பணிப்பாய்வு பதிவைக் காட்டுகிறது.',
+            'This document reflects the current SWPCS workflow record.'=>'இந்த ஆவணம் தற்போதைய SWPCS பணிப்பாய்வு பதிவைக் காட்டுகிறது.',
         ],
     ];
 
@@ -597,6 +813,9 @@ function t(string $english): string
             'Ready from your pool' => 'ඔබගේ සංචිතයෙන් නිකුත් කිරීමට සූදානම්',
             'Only approved requests with sufficient pool stock are listed.' => 'ප්‍රමාණවත් සංචිත තොග ඇති අනුමත ඉල්ලීම් පමණක් මෙහි දැක්වේ.',
             'No approved requests can currently be fulfilled from your pool.' => 'ඔබගේ සංචිතයෙන් දැනට සපුරාලිය හැකි අනුමත ඉල්ලීම් නොමැත.',
+            'Approved aid ready to distribute' => 'බෙදාහැරීමට සූදානම් අනුමත ආධාර',
+            'Admin-approved beneficiary requests with enough stock in your DS Division pool.' => 'ඔබගේ ප්‍රාදේශීය ලේකම් කොට්ඨාස සංචිතයේ ප්‍රමාණවත් තොග ඇති පරිපාලක අනුමත ප්‍රතිලාභී ඉල්ලීම්.',
+            'Approved aid' => 'අනුමත ආධාරය', 'Distribute' => 'බෙදාහරින්න', 'optional' => 'විකල්ප',
             'Approved Needs — Awaiting Goods' => 'අනුමත අවශ්‍යතා — භාණ්ඩ බලාපොරොත්තුවෙන්',
             'Approved beneficiary needs by aid item' => 'ආධාර අයිතමය අනුව අනුමත ප්‍රතිලාභී අවශ්‍යතා',
             'aid item types' => 'ආධාර අයිතම වර්ග',
@@ -656,6 +875,9 @@ function t(string $english): string
             'Ready from your pool' => 'உங்கள் இருப்பிலிருந்து வழங்கத் தயார்',
             'Only approved requests with sufficient pool stock are listed.' => 'போதுமான இருப்பு உள்ள அங்கீகரிக்கப்பட்ட கோரிக்கைகள் மட்டுமே பட்டியலிடப்படுகின்றன.',
             'No approved requests can currently be fulfilled from your pool.' => 'உங்கள் இருப்பிலிருந்து தற்போது நிறைவேற்றக்கூடிய அங்கீகரிக்கப்பட்ட கோரிக்கைகள் இல்லை.',
+            'Approved aid ready to distribute' => 'விநியோகிக்கத் தயாரான அங்கீகரிக்கப்பட்ட உதவி',
+            'Admin-approved beneficiary requests with enough stock in your DS Division pool.' => 'உங்கள் பிரதேச செயலகப் பிரிவு இருப்பில் போதுமான பொருள் உள்ள நிர்வாகி அங்கீகரித்த பயனாளர் கோரிக்கைகள்.',
+            'Approved aid' => 'அங்கீகரிக்கப்பட்ட உதவி', 'Distribute' => 'விநியோகிக்கவும்', 'optional' => 'விருப்பமானது',
             'Approved Needs — Awaiting Goods' => 'அங்கீகரிக்கப்பட்ட தேவைகள் — பொருட்களுக்காகக் காத்திருக்கிறது',
             'Approved beneficiary needs by aid item' => 'உதவிப் பொருள் வாரியான அங்கீகரிக்கப்பட்ட பயனாளர் தேவைகள்',
             'aid item types' => 'உதவிப் பொருள் வகைகள்',
@@ -947,6 +1169,7 @@ function t(string $english): string
     // Aid Request workflow copy is grouped here so its long form and table stay consistent.
     $aidRequest = [
         'si' => [
+            'This beneficiary is registered in %s District, %s DS Division and cannot be assigned to another DS Division.' => 'මෙම ප්‍රතිලාභියා %s දිස්ත්‍රික්කයේ %s ප්‍රාදේශීය ලේකම් කොට්ඨාසයේ ලියාපදිංචි වී ඇත. වෙනත් ප්‍රාදේශීය ලේකම් කොට්ඨාසයකට පැවරිය නොහැක.',
             'Location Details'=>'ස්ථාන විස්තර','Beneficiary Location'=>'ප්‍රතිලාභියාගේ ස්ථානය','District'=>'දිස්ත්‍රික්කය','Select District'=>'දිස්ත්‍රික්කය තෝරන්න','D.S. Division'=>'ප්‍රාදේශීය ලේකම් කොට්ඨාසය','Select DS Division'=>'ප්‍රාදේශීය ලේකම් කොට්ඨාසය තෝරන්න','G.N. Division'=>'ග්‍රාම නිලධාරී කොට්ඨාසය','Select GN Division'=>'ග්‍රාම නිලධාරී කොට්ඨාසය තෝරන්න','Select District, DS Division, and GN Division.'=>'දිස්ත්‍රික්කය, ප්‍රාදේශීය ලේකම් කොට්ඨාසය සහ ග්‍රාම නිලධාරී කොට්ඨාසය තෝරන්න.','Select the beneficiary GN Division.'=>'ප්‍රතිලාභියාගේ ග්‍රාම නිලධාරී කොට්ඨාසය තෝරන්න.','You must be assigned to an active DS Division before creating an aid request. Contact an administrator.'=>'ආධාර ඉල්ලීමක් සෑදීමට පෙර ඔබ සක්‍රිය ප්‍රාදේශීය ලේකම් කොට්ඨාසයකට පවරා තිබිය යුතුය. පරිපාලකයෙකු අමතන්න.','This beneficiary belongs to another DS Division and cannot be changed by this officer.'=>'මෙම ප්‍රතිලාභියා වෙනත් ප්‍රාදේශීය ලේකම් කොට්ඨාසයකට අයත් බැවින් මෙම නිලධාරියාට එය වෙනස් කළ නොහැක.','Direct Aid Request'=>'සෘජු ආධාර ඉල්ලීම','Optional'=>'විකල්ප','Reason for Direct Request'=>'සෘජු ඉල්ලීමට හේතුව','A direct request may be submitted without NIC or Elder’s Identity Card.'=>'හැඳුනුම්පතක් හෝ වැඩිහිටි හැඳුනුම්පතක් නොමැතිව සෘජු ඉල්ලීමක් ඉදිරිපත් කළ හැක.','Explain the reason for this direct request using at least 10 characters.'=>'මෙම සෘජු ඉල්ලීමට හේතුව අවම වශයෙන් අක්ෂර 10කින් පැහැදිලි කරන්න.','Explain why this request must bypass normal identification or waiting-period restrictions.'=>'මෙම ඉල්ලීම සාමාන්‍ය හඳුනාගැනීමේ හෝ පොරොත්තු කාල සීමාවන් ඉක්මවා යා යුත්තේ මන්දැයි පැහැදිලි කරන්න.',
             'Beneficiary Details'=>'ප්‍රතිලාභියාගේ විස්තර','My Direct Requests'=>'මගේ සෘජු ඉල්ලීම්','Full Name'=>'සම්පූර්ණ නම','As per NIC / Birth Certificate'=>'හැඳුනුම්පත / උප්පැන්න සහතිකය අනුව','Identification'=>'හඳුනාගැනීම','Elders\' Identity Card'=>'වැඩිහිටි හැඳුනුම්පත','NIC Number'=>'හැඳුනුම්පත් අංකය','Elders\' Identity Card Number'=>'වැඩිහිටි හැඳුනුම්පත් අංකය','Date of Birth'=>'උපන් දිනය','Gender'=>'ස්ත්‍රී පුරුෂ භාවය','Select'=>'තෝරන්න','Male'=>'පිරිමි','Female'=>'ගැහැණු','Other'=>'වෙනත්','Phone Number'=>'දුරකථන අංකය','Address'=>'ලිපිනය',
             'Disability & Aid Requested'=>'ආබාධිත තත්ත්වය සහ ඉල්ලා ඇති ආධාරය','Nature of Disability'=>'ආබාධිත තත්ත්වයේ ස්වභාවය','Select disability'=>'ආබාධිත තත්ත්වය තෝරන්න','Managed by Admin in System Configuration'=>'පද්ධති සැකසුම් තුළ පරිපාලක විසින් කළමනාකරණය කරයි','Aid Requested'=>'ඉල්ලා ඇති ආධාරය','Select Aid Type'=>'ආධාර වර්ගය තෝරන්න','Quantity'=>'ප්‍රමාණය','Prescription Power'=>'වෛද්‍ය නිර්දේශිත බලය','Additional Notes'=>'අමතර සටහන්','Supporting Document'=>'උපකාරක ලේඛනය','You may attach one PDF up to 5 MB.'=>'ඔබට 5 MB දක්වා එක් PDF ගොනුවක් ඇමිණිය හැක.','View current supporting PDF'=>'වත්මන් උපකාරක PDF බලන්න','View PDF'=>'PDF බලන්න','Open supporting PDF'=>'උපකාරක PDF විවෘත කරන්න','All Aid Requests'=>'සියලුම ආධාර ඉල්ලීම්','Includes SSO, Subject Officer, and Admin requests. Only Admin can approve or reject.'=>'SSO, විෂය නිලධාරී සහ පරිපාලක ඉල්ලීම් ඇතුළත් වේ. අනුමත කිරීමට හෝ ප්‍රතික්ෂේප කිරීමට හැක්කේ පරිපාලකට පමණි.','Search name, identification or submitter...'=>'නම, හඳුනාගැනීම හෝ ඉදිරිපත් කළ පුද්ගලයා සොයන්න...','The supporting PDF could not be uploaded.'=>'උපකාරක PDF ගොනුව උඩුගත කළ නොහැකි විය.','The supporting PDF must be 5 MB or smaller.'=>'උපකාරක PDF ගොනුව 5 MB හෝ ඊට අඩු විය යුතුය.','The supporting document must be a PDF file.'=>'උපකාරක ලේඛනය PDF ගොනුවක් විය යුතුය.','The supporting PDF could not be saved.'=>'උපකාරක PDF ගොනුව සුරැකිය නොහැකි විය.','Aid request created and approved successfully.'=>'ආධාර ඉල්ලීම සාර්ථකව සාදා අනුමත කරන ලදී.',
@@ -954,6 +1177,7 @@ function t(string $english): string
             'My Submitted Requests'=>'මා ඉදිරිපත් කළ ඉල්ලීම්','Search name or NIC...'=>'නම හෝ හැඳුනුම්පත සොයන්න...','All Status'=>'සියලු තත්ත්ව','Draft'=>'කෙටුම්පත','Pending'=>'පොරොත්තුවෙන්','Approved'=>'අනුමත','Rejected'=>'ප්‍රතික්ෂේපිත','Goods Requested'=>'භාණ්ඩ ඉල්ලා ඇත','Distributed'=>'බෙදා දී ඇත','ID'=>'අංකය','Beneficiary'=>'ප්‍රතිලාභියා','Age'=>'වයස','Approvals'=>'අනුමැතීන්','Submitted'=>'ඉදිරිපත් කළ දිනය','Notes'=>'සටහන්','No requests yet.'=>'තවම ඉල්ලීම් නොමැත.'
         ],
         'ta' => [
+            'This beneficiary is registered in %s District, %s DS Division and cannot be assigned to another DS Division.' => 'இந்தப் பயனாளர் %s மாவட்டத்தின் %s பிரதேச செயலகப் பிரிவில் பதிவு செய்யப்பட்டுள்ளார். வேறொரு பிரதேச செயலகப் பிரிவுக்கு மாற்ற முடியாது.',
             'Location Details'=>'இருப்பிட விவரங்கள்','Beneficiary Location'=>'பயனாளியின் இருப்பிடம்','District'=>'மாவட்டம்','Select District'=>'மாவட்டத்தைத் தேர்ந்தெடுக்கவும்','D.S. Division'=>'பிரதேச செயலகப் பிரிவு','Select DS Division'=>'பிரதேச செயலகப் பிரிவைத் தேர்ந்தெடுக்கவும்','G.N. Division'=>'கிராம அலுவலர் பிரிவு','Select GN Division'=>'கிராம அலுவலர் பிரிவைத் தேர்ந்தெடுக்கவும்','Select District, DS Division, and GN Division.'=>'மாவட்டம், பிரதேச செயலகப் பிரிவு மற்றும் கிராம அலுவலர் பிரிவைத் தேர்ந்தெடுக்கவும்.','Select the beneficiary GN Division.'=>'பயனாளியின் கிராம அலுவலர் பிரிவைத் தேர்ந்தெடுக்கவும்.','You must be assigned to an active DS Division before creating an aid request. Contact an administrator.'=>'உதவிக் கோரிக்கையை உருவாக்குவதற்கு முன் நீங்கள் செயலில் உள்ள பிரதேச செயலகப் பிரிவுக்கு நியமிக்கப்பட்டிருக்க வேண்டும். நிர்வாகியைத் தொடர்புகொள்ளவும்.','This beneficiary belongs to another DS Division and cannot be changed by this officer.'=>'இந்தப் பயனாளர் வேறு பிரதேச செயலகப் பிரிவைச் சேர்ந்தவர்; இந்த அதிகாரியால் அவரை மாற்ற முடியாது.','Direct Aid Request'=>'நேரடி உதவிக் கோரிக்கை','Optional'=>'விருப்பத்தேர்வு','Reason for Direct Request'=>'நேரடி கோரிக்கைக்கான காரணம்','A direct request may be submitted without NIC or Elder’s Identity Card.'=>'தேசிய அடையாள அட்டை அல்லது முதியோர் அடையாள அட்டை இல்லாமலும் நேரடி கோரிக்கையைச் சமர்ப்பிக்கலாம்.','Explain the reason for this direct request using at least 10 characters.'=>'இந்த நேரடி கோரிக்கைக்கான காரணத்தை குறைந்தது 10 எழுத்துகளில் விளக்கவும்.','Explain why this request must bypass normal identification or waiting-period restrictions.'=>'இந்தக் கோரிக்கை வழக்கமான அடையாள அல்லது காத்திருப்பு காலக் கட்டுப்பாடுகளை ஏன் மீற வேண்டும் என்பதை விளக்கவும்.',
             'Beneficiary Details'=>'பயனாளி விவரங்கள்','My Direct Requests'=>'எனது நேரடி கோரிக்கைகள்','Full Name'=>'முழுப் பெயர்','As per NIC / Birth Certificate'=>'அடையாள அட்டை / பிறப்புச் சான்றிதழின்படி','Identification'=>'அடையாளம்','Elders\' Identity Card'=>'முதியோர் அடையாள அட்டை','NIC Number'=>'அடையாள அட்டை எண்','Elders\' Identity Card Number'=>'முதியோர் அடையாள அட்டை எண்','Date of Birth'=>'பிறந்த தேதி','Gender'=>'பாலினம்','Select'=>'தேர்ந்தெடுக்கவும்','Male'=>'ஆண்','Female'=>'பெண்','Other'=>'மற்றவை','Phone Number'=>'தொலைபேசி எண்','Address'=>'முகவரி',
             'Disability & Aid Requested'=>'மாற்றுத்திறன் மற்றும் கோரப்பட்ட உதவி','Nature of Disability'=>'மாற்றுத்திறனின் தன்மை','Select disability'=>'மாற்றுத்திறனைத் தேர்ந்தெடுக்கவும்','Managed by Admin in System Configuration'=>'கணினி அமைப்பில் நிர்வாகியால் நிர்வகிக்கப்படுகிறது','Aid Requested'=>'கோரப்பட்ட உதவி','Select Aid Type'=>'உதவி வகையைத் தேர்ந்தெடுக்கவும்','Quantity'=>'அளவு','Prescription Power'=>'மருத்துவப் பரிந்துரை வலிமை','Additional Notes'=>'கூடுதல் குறிப்புகள்','Supporting Document'=>'ஆதார ஆவணம்','You may attach one PDF up to 5 MB.'=>'5 MB வரை ஒரு PDF கோப்பை இணைக்கலாம்.','View current supporting PDF'=>'தற்போதைய ஆதார PDF ஐப் பார்க்கவும்','View PDF'=>'PDF ஐப் பார்க்கவும்','Open supporting PDF'=>'ஆதார PDF ஐத் திறக்கவும்','All Aid Requests'=>'அனைத்து உதவிக் கோரிக்கைகளும்','Includes SSO, Subject Officer, and Admin requests. Only Admin can approve or reject.'=>'SSO, விடய அலுவலர் மற்றும் நிர்வாகி கோரிக்கைகள் இதில் அடங்கும். நிர்வாகி மட்டுமே அங்கீகரிக்கவோ நிராகரிக்கவோ முடியும்.','Search name, identification or submitter...'=>'பெயர், அடையாளம் அல்லது சமர்ப்பித்தவரைத் தேடவும்...','The supporting PDF could not be uploaded.'=>'ஆதார PDF ஐ பதிவேற்ற முடியவில்லை.','The supporting PDF must be 5 MB or smaller.'=>'ஆதார PDF 5 MB அல்லது அதற்குக் குறைவாக இருக்க வேண்டும்.','The supporting document must be a PDF file.'=>'ஆதார ஆவணம் PDF கோப்பாக இருக்க வேண்டும்.','The supporting PDF could not be saved.'=>'ஆதார PDF ஐச் சேமிக்க முடியவில்லை.','Aid request created and approved successfully.'=>'உதவிக் கோரிக்கை வெற்றிகரமாக உருவாக்கப்பட்டு அங்கீகரிக்கப்பட்டது.',
@@ -991,15 +1215,15 @@ function t(string $english): string
     $authAndSharedInterface = [
         'si' => [
             'Southern Province'=>'දකුණු පළාත','Welfare services, connected'=>'සම්බන්ධිත සුබසාධන සේවා','Support reaches people faster when every step is visible.'=>'සෑම පියවරක්ම දෘශ්‍යමාන වන විට සහාය ජනතාව වෙත වේගයෙන් ළඟා වේ.','Manage welfare inventory, requests, approvals and distributions through one secure workspace.'=>'එක් ආරක්ෂිත වැඩබිමක් තුළ සුබසාධන තොග, ඉල්ලීම්, අනුමැතීන් සහ බෙදාහැරීම් කළමනාකරණය කරන්න.','Secure access'=>'ආරක්ෂිත ප්‍රවේශය','Clear approvals'=>'පැහැදිලි අනුමැතීන්','Reliable records'=>'විශ්වාසදායක වාර්තා','Welfare Inventory & Distribution Management System'=>'සුබසාධන තොග හා බෙදාහැරීම් කළමනාකරණ පද්ධතිය','Welfare Inventory & Distribution Management'=>'සුබසාධන තොග හා බෙදාහැරීම් කළමනාකරණය',
-            'Join WIDMS'=>'WIDMS සමඟ එක්වන්න','One coordinated service'=>'එක් සම්බන්ධීකෘත සේවාවක්','Create access for your role in the welfare distribution network.'=>'සුබසාධන බෙදාහැරීම් ජාලයේ ඔබගේ භූමිකාව සඳහා ප්‍රවේශය සාදන්න.','Your request is reviewed by an administrator before the account becomes active.'=>'ගිණුම සක්‍රිය වීමට පෙර ඔබගේ ඉල්ලීම පරිපාලකයෙකු විසින් සමාලෝචනය කරනු ලැබේ.','Enter your official details'=>'ඔබගේ නිල තොරතුරු ඇතුළත් කරන්න','Select your assigned role'=>'ඔබට පවරා ඇති භූමිකාව තෝරන්න','Wait for administrator approval'=>'පරිපාලක අනුමැතිය සඳහා රැඳී සිටින්න','Secure registration for authorized officers'=>'බලයලත් නිලධාරීන් සඳහා ආරක්ෂිත ලියාපදිංචිය','Officer registration'=>'නිලධාරී ලියාපදිංචිය','Complete your details. An administrator will review your request before access is granted.'=>'ඔබගේ තොරතුරු සම්පූර්ණ කරන්න. ප්‍රවේශය ලබාදීමට පෙර පරිපාලකයෙකු ඔබගේ ඉල්ලීම සමාලෝචනය කරනු ඇත.','Full name'=>'සම්පූර්ණ නම','Email address'=>'විද්‍යුත් තැපැල් ලිපිනය','Confirm password'=>'මුරපදය තහවුරු කරන්න','Requested role'=>'ඉල්ලා සිටින භූමිකාව','Select a role'=>'භූමිකාවක් තෝරන්න','Select a district'=>'දිස්ත්‍රික්කයක් තෝරන්න','Select a DS Division'=>'ප්‍රාදේශීය ලේකම් කොට්ඨාසයක් තෝරන්න','Required only for Social Service Officers.'=>'සමාජ සේවා නිලධාරීන් සඳහා පමණක් අවශ්‍යයි.','Send request'=>'ඉල්ලීම යවන්න','Already registered?'=>'දැනටමත් ලියාපදිංචි වී තිබේද?','Back to sign in'=>'පිවිසුමට ආපසු යන්න',
+            'Join SWPCS'=>'SWPCS සමඟ එක්වන්න','One coordinated service'=>'එක් සම්බන්ධීකෘත සේවාවක්','Create access for your role in the welfare distribution network.'=>'සුබසාධන බෙදාහැරීම් ජාලයේ ඔබගේ භූමිකාව සඳහා ප්‍රවේශය සාදන්න.','Your request is reviewed by an administrator before the account becomes active.'=>'ගිණුම සක්‍රිය වීමට පෙර ඔබගේ ඉල්ලීම පරිපාලකයෙකු විසින් සමාලෝචනය කරනු ලැබේ.','Enter your official details'=>'ඔබගේ නිල තොරතුරු ඇතුළත් කරන්න','Select your assigned role'=>'ඔබට පවරා ඇති භූමිකාව තෝරන්න','Wait for administrator approval'=>'පරිපාලක අනුමැතිය සඳහා රැඳී සිටින්න','Secure registration for authorized officers'=>'බලයලත් නිලධාරීන් සඳහා ආරක්ෂිත ලියාපදිංචිය','Officer registration'=>'නිලධාරී ලියාපදිංචිය','Complete your details. An administrator will review your request before access is granted.'=>'ඔබගේ තොරතුරු සම්පූර්ණ කරන්න. ප්‍රවේශය ලබාදීමට පෙර පරිපාලකයෙකු ඔබගේ ඉල්ලීම සමාලෝචනය කරනු ඇත.','Full name'=>'සම්පූර්ණ නම','Email address'=>'විද්‍යුත් තැපැල් ලිපිනය','Confirm password'=>'මුරපදය තහවුරු කරන්න','Requested role'=>'ඉල්ලා සිටින භූමිකාව','Select a role'=>'භූමිකාවක් තෝරන්න','Select a district'=>'දිස්ත්‍රික්කයක් තෝරන්න','Select a DS Division'=>'ප්‍රාදේශීය ලේකම් කොට්ඨාසයක් තෝරන්න','Required only for Social Service Officers.'=>'සමාජ සේවා නිලධාරීන් සඳහා පමණක් අවශ්‍යයි.','Send request'=>'ඉල්ලීම යවන්න','Already registered?'=>'දැනටමත් ලියාපදිංචි වී තිබේද?','Back to sign in'=>'පිවිසුමට ආපසු යන්න',
             'Your session expired. Please try again.'=>'ඔබගේ සැසිය කල් ඉකුත් විය. නැවත උත්සාහ කරන්න.','Enter your username and password.'=>'ඔබගේ පරිශීලක නාමය සහ මුරපදය ඇතුළත් කරන්න.','Invalid username or password.'=>'පරිශීලක නාමය හෝ මුරපදය වලංගු නොවේ.','Unable to connect to the system. Make sure MySQL is running and the database is installed.'=>'පද්ධතියට සම්බන්ධ විය නොහැක. MySQL ක්‍රියාත්මක වන අතර දත්ත සමුදාය ස්ථාපනය කර ඇති බව තහවුරු කරන්න.','Your session expired. Please refresh the page and try again.'=>'ඔබගේ සැසිය කල් ඉකුත් විය. පිටුව නැවුම් කර නැවත උත්සාහ කරන්න.','Enter a valid name between 2 and 100 characters.'=>'අක්ෂර 2ත් 100ත් අතර වලංගු නමක් ඇතුළත් කරන්න.','Enter a valid email address.'=>'වලංගු විද්‍යුත් තැපැල් ලිපිනයක් ඇතුළත් කරන්න.','Enter a valid phone number.'=>'වලංගු දුරකථන අංකයක් ඇතුළත් කරන්න.','Select a valid role.'=>'වලංගු භූමිකාවක් තෝරන්න.','Select a district and DS Division for the Social Service Officer.'=>'සමාජ සේවා නිලධාරියා සඳහා දිස්ත්‍රික්කයක් සහ ප්‍රාදේශීය ලේකම් කොට්ඨාසයක් තෝරන්න.','The selected DS Division does not belong to the selected district.'=>'තෝරාගත් ප්‍රාදේශීය ලේකම් කොට්ඨාසය තෝරාගත් දිස්ත්‍රික්කයට අයත් නොවේ.','Password must contain at least 8 characters.'=>'මුරපදයේ අවම වශයෙන් අක්ෂර 8ක් තිබිය යුතුය.','Password and confirm password do not match.'=>'මුරපදය සහ තහවුරු කළ මුරපදය නොගැළපේ.','This email already has an account or a pending request.'=>'මෙම විද්‍යුත් තැපෑලට දැනටමත් ගිණුමක් හෝ පොරොත්තු ඉල්ලීමක් ඇත.','Your request was sent to the administrator. You will receive an email after it is reviewed.'=>'ඔබගේ ඉල්ලීම පරිපාලකයා වෙත යවා ඇත. එය සමාලෝචනය කළ පසු ඔබට විද්‍යුත් තැපෑලක් ලැබෙනු ඇත.','Unable to submit the request. Ask the administrator to install the registration database migration.'=>'ඉල්ලීම ඉදිරිපත් කළ නොහැක. ලියාපදිංචි දත්ත සමුදා සංක්‍රමණය ස්ථාපනය කිරීමට පරිපාලකයාගෙන් ඉල්ලා සිටින්න.',
-            'User Registration Requests'=>'පරිශීලක ලියාපදිංචි ඉල්ලීම්','Reviewed Correction Requests'=>'සමාලෝචිත නිවැරදි කිරීමේ ඉල්ලීම්','Admin note'=>'පරිපාලක සටහන','Required when rejecting the request'=>'ඉල්ලීම ප්‍රතික්ෂේප කරන විට අවශ්‍යයි','Official Approvals'=>'නිල අනුමැතීන්','Approved'=>'අනුමතයි','Not approved'=>'අනුමත කර නැත','Recorded Value'=>'වාර්තා කළ අගය','Proposed Value'=>'යෝජිත අගය','Reason for Correction'=>'නිවැරදි කිරීමට හේතුව','Approve & Apply'=>'අනුමත කර යොදන්න','No pending aid requests'=>'පොරොත්තු ආධාර ඉල්ලීම් නොමැත','New aid requests will appear here for approval.'=>'නව ආධාර ඉල්ලීම් අනුමැතිය සඳහා මෙහි දිස්වනු ඇත.','No pending user registration requests'=>'පොරොත්තු පරිශීලක ලියාපදිංචි ඉල්ලීම් නොමැත','New registration requests will appear here for approval.'=>'නව ලියාපදිංචි ඉල්ලීම් අනුමැතිය සඳහා මෙහි දිස්වනු ඇත.','Government Medical Officer'=>'රජයේ වෛද්‍ය නිලධාරී','Grama Niladhari'=>'ග්‍රාම නිලධාරී','Social Services Officer'=>'සමාජ සේවා නිලධාරී','Divisional Secretary'=>'ප්‍රාදේශීය ලේකම්','About WIDMS'=>'WIDMS පිළිබඳව','System benefits'=>'පද්ධති ප්‍රතිලාභ','About WIDMS registration'=>'WIDMS ලියාපදිංචිය පිළිබඳව','District and DS Division information is currently unavailable.'=>'දිස්ත්‍රික් සහ ප්‍රාදේශීය ලේකම් කොට්ඨාස තොරතුරු දැනට ලබාගත නොහැක.','Items requiring your attention'=>'ඔබගේ අවධානය අවශ්‍ය අයිතම','Open dashboard'=>'ප්‍රධාන පුවරුව විවෘත කරන්න','Loading notifications…'=>'දැනුම්දීම් පූරණය වෙමින්…','There are no requests waiting for review.'=>'සමාලෝචනය සඳහා බලා සිටින ඉල්ලීම් නොමැත.','Notifications are temporarily unavailable.'=>'දැනුම්දීම් තාවකාලිකව ලබාගත නොහැක.','New request received'=>'නව ඉල්ලීමක් ලැබුණි','Review'=>'සමාලෝචනය','Correction request'=>'නිවැරදි කිරීමේ ඉල්ලීම','User registration'=>'පරිශීලක ලියාපදිංචිය','Aid request'=>'ආධාර ඉල්ලීම','Stock release request'=>'තොග නිකුත් කිරීමේ ඉල්ලීම','Approved stock release'=>'අනුමත තොග නිකුතුව','Supplier payment reminder'=>'සැපයුම්කරු ගෙවීම් මතක් කිරීම','Goods received'=>'භාණ්ඩ ලැබුණි','Pending handover'=>'පොරොත්තු භාරදීම','Contact lens handover'=>'ස්පර්ශ කාච භාරදීම','Ready for dispatch'=>'නිකුත් කිරීමට සූදානම්','Distribution action required'=>'බෙදාහැරීමේ ක්‍රියාව අවශ්‍යයි','Final distribution required'=>'අවසන් බෙදාහැරීම අවශ්‍යයි','Identity verification required'=>'අනන්‍යතාව තහවුරු කිරීම අවශ්‍යයි','New account request'=>'නව ගිණුම් ඉල්ලීම','Submitted by'=>'ඉදිරිපත් කළේ','Requested by'=>'ඉල්ලා සිටියේ','For'=>'සඳහා','Balance'=>'ශේෂය','Bill'=>'බිල්පත','Power'=>'බලය','pending'=>'පොරොත්තු',
+            'User Registration Requests'=>'පරිශීලක ලියාපදිංචි ඉල්ලීම්','Reviewed Correction Requests'=>'සමාලෝචිත නිවැරදි කිරීමේ ඉල්ලීම්','Admin note'=>'පරිපාලක සටහන','Required when rejecting the request'=>'ඉල්ලීම ප්‍රතික්ෂේප කරන විට අවශ්‍යයි','Official Approvals'=>'නිල අනුමැතීන්','Approved'=>'අනුමතයි','Not approved'=>'අනුමත කර නැත','Recorded Value'=>'වාර්තා කළ අගය','Proposed Value'=>'යෝජිත අගය','Reason for Correction'=>'නිවැරදි කිරීමට හේතුව','Approve & Apply'=>'අනුමත කර යොදන්න','No pending aid requests'=>'පොරොත්තු ආධාර ඉල්ලීම් නොමැත','New aid requests will appear here for approval.'=>'නව ආධාර ඉල්ලීම් අනුමැතිය සඳහා මෙහි දිස්වනු ඇත.','No pending user registration requests'=>'පොරොත්තු පරිශීලක ලියාපදිංචි ඉල්ලීම් නොමැත','New registration requests will appear here for approval.'=>'නව ලියාපදිංචි ඉල්ලීම් අනුමැතිය සඳහා මෙහි දිස්වනු ඇත.','Government Medical Officer'=>'රජයේ වෛද්‍ය නිලධාරී','Grama Niladhari'=>'ග්‍රාම නිලධාරී','Social Services Officer'=>'සමාජ සේවා නිලධාරී','Divisional Secretary'=>'ප්‍රාදේශීය ලේකම්','About SWPCS'=>'SWPCS පිළිබඳව','System benefits'=>'පද්ධති ප්‍රතිලාභ','About SWPCS registration'=>'SWPCS ලියාපදිංචිය පිළිබඳව','District and DS Division information is currently unavailable.'=>'දිස්ත්‍රික් සහ ප්‍රාදේශීය ලේකම් කොට්ඨාස තොරතුරු දැනට ලබාගත නොහැක.','Items requiring your attention'=>'ඔබගේ අවධානය අවශ්‍ය අයිතම','Open dashboard'=>'ප්‍රධාන පුවරුව විවෘත කරන්න','Loading notifications…'=>'දැනුම්දීම් පූරණය වෙමින්…','There are no requests waiting for review.'=>'සමාලෝචනය සඳහා බලා සිටින ඉල්ලීම් නොමැත.','Notifications are temporarily unavailable.'=>'දැනුම්දීම් තාවකාලිකව ලබාගත නොහැක.','New request received'=>'නව ඉල්ලීමක් ලැබුණි','Review'=>'සමාලෝචනය','Correction request'=>'නිවැරදි කිරීමේ ඉල්ලීම','User registration'=>'පරිශීලක ලියාපදිංචිය','Aid request'=>'ආධාර ඉල්ලීම','Stock release request'=>'තොග නිකුත් කිරීමේ ඉල්ලීම','Approved stock release'=>'අනුමත තොග නිකුතුව','Supplier payment reminder'=>'සැපයුම්කරු ගෙවීම් මතක් කිරීම','Goods received'=>'භාණ්ඩ ලැබුණි','Pending handover'=>'පොරොත්තු භාරදීම','Contact lens handover'=>'ස්පර්ශ කාච භාරදීම','Ready for dispatch'=>'නිකුත් කිරීමට සූදානම්','Distribution action required'=>'බෙදාහැරීමේ ක්‍රියාව අවශ්‍යයි','Final distribution required'=>'අවසන් බෙදාහැරීම අවශ්‍යයි','Identity verification required'=>'අනන්‍යතාව තහවුරු කිරීම අවශ්‍යයි','New account request'=>'නව ගිණුම් ඉල්ලීම','Submitted by'=>'ඉදිරිපත් කළේ','Requested by'=>'ඉල්ලා සිටියේ','For'=>'සඳහා','Balance'=>'ශේෂය','Bill'=>'බිල්පත','Power'=>'බලය','pending'=>'පොරොත්තු',
         ],
         'ta' => [
             'Southern Province'=>'தென் மாகாணம்','Welfare services, connected'=>'இணைக்கப்பட்ட நலன்புரிச் சேவைகள்','Support reaches people faster when every step is visible.'=>'ஒவ்வொரு படியும் தெளிவாகத் தெரியும் போது உதவி மக்களை விரைவாகச் சென்றடைகிறது.','Manage welfare inventory, requests, approvals and distributions through one secure workspace.'=>'ஒரே பாதுகாப்பான பணித்தளத்தில் நலன்புரி இருப்பு, கோரிக்கைகள், ஒப்புதல்கள் மற்றும் விநியோகங்களை நிர்வகிக்கவும்.','Secure access'=>'பாதுகாப்பான அணுகல்','Clear approvals'=>'தெளிவான ஒப்புதல்கள்','Reliable records'=>'நம்பகமான பதிவுகள்','Welfare Inventory & Distribution Management System'=>'நலன்புரி இருப்பு மற்றும் விநியோக மேலாண்மை அமைப்பு','Welfare Inventory & Distribution Management'=>'நலன்புரி இருப்பு மற்றும் விநியோக மேலாண்மை',
-            'Join WIDMS'=>'WIDMS-இல் இணையுங்கள்','One coordinated service'=>'ஒருங்கிணைந்த ஒரு சேவை','Create access for your role in the welfare distribution network.'=>'நலன்புரி விநியோக வலையமைப்பில் உங்கள் பங்கிற்கான அணுகலை உருவாக்குங்கள்.','Your request is reviewed by an administrator before the account becomes active.'=>'கணக்கு செயற்படும் முன் உங்கள் கோரிக்கை நிர்வாகியால் மதிப்பாய்வு செய்யப்படும்.','Enter your official details'=>'உங்கள் அதிகாரப்பூர்வ விவரங்களை உள்ளிடுங்கள்','Select your assigned role'=>'உங்களுக்கு ஒதுக்கப்பட்ட பங்கைத் தேர்ந்தெடுக்கவும்','Wait for administrator approval'=>'நிர்வாகி ஒப்புதலுக்காக காத்திருக்கவும்','Secure registration for authorized officers'=>'அங்கீகரிக்கப்பட்ட அலுவலர்களுக்கான பாதுகாப்பான பதிவு','Officer registration'=>'அலுவலர் பதிவு','Complete your details. An administrator will review your request before access is granted.'=>'உங்கள் விவரங்களைப் பூர்த்தி செய்யுங்கள். அணுகல் வழங்கப்படும் முன் நிர்வாகி உங்கள் கோரிக்கையை மதிப்பாய்வு செய்வார்.','Full name'=>'முழுப் பெயர்','Email address'=>'மின்னஞ்சல் முகவரி','Confirm password'=>'கடவுச்சொல்லை உறுதிப்படுத்தவும்','Requested role'=>'கோரப்பட்ட பங்கு','Select a role'=>'ஒரு பங்கைத் தேர்ந்தெடுக்கவும்','Select a district'=>'ஒரு மாவட்டத்தைத் தேர்ந்தெடுக்கவும்','Select a DS Division'=>'ஒரு பிரதேச செயலகப் பிரிவைத் தேர்ந்தெடுக்கவும்','Required only for Social Service Officers.'=>'சமூக சேவை அலுவலர்களுக்கு மட்டும் அவசியம்.','Send request'=>'கோரிக்கையை அனுப்பவும்','Already registered?'=>'ஏற்கனவே பதிவு செய்துள்ளீர்களா?','Back to sign in'=>'உள்நுழைவுக்குத் திரும்பவும்',
+            'Join SWPCS'=>'SWPCS-இல் இணையுங்கள்','One coordinated service'=>'ஒருங்கிணைந்த ஒரு சேவை','Create access for your role in the welfare distribution network.'=>'நலன்புரி விநியோக வலையமைப்பில் உங்கள் பங்கிற்கான அணுகலை உருவாக்குங்கள்.','Your request is reviewed by an administrator before the account becomes active.'=>'கணக்கு செயற்படும் முன் உங்கள் கோரிக்கை நிர்வாகியால் மதிப்பாய்வு செய்யப்படும்.','Enter your official details'=>'உங்கள் அதிகாரப்பூர்வ விவரங்களை உள்ளிடுங்கள்','Select your assigned role'=>'உங்களுக்கு ஒதுக்கப்பட்ட பங்கைத் தேர்ந்தெடுக்கவும்','Wait for administrator approval'=>'நிர்வாகி ஒப்புதலுக்காக காத்திருக்கவும்','Secure registration for authorized officers'=>'அங்கீகரிக்கப்பட்ட அலுவலர்களுக்கான பாதுகாப்பான பதிவு','Officer registration'=>'அலுவலர் பதிவு','Complete your details. An administrator will review your request before access is granted.'=>'உங்கள் விவரங்களைப் பூர்த்தி செய்யுங்கள். அணுகல் வழங்கப்படும் முன் நிர்வாகி உங்கள் கோரிக்கையை மதிப்பாய்வு செய்வார்.','Full name'=>'முழுப் பெயர்','Email address'=>'மின்னஞ்சல் முகவரி','Confirm password'=>'கடவுச்சொல்லை உறுதிப்படுத்தவும்','Requested role'=>'கோரப்பட்ட பங்கு','Select a role'=>'ஒரு பங்கைத் தேர்ந்தெடுக்கவும்','Select a district'=>'ஒரு மாவட்டத்தைத் தேர்ந்தெடுக்கவும்','Select a DS Division'=>'ஒரு பிரதேச செயலகப் பிரிவைத் தேர்ந்தெடுக்கவும்','Required only for Social Service Officers.'=>'சமூக சேவை அலுவலர்களுக்கு மட்டும் அவசியம்.','Send request'=>'கோரிக்கையை அனுப்பவும்','Already registered?'=>'ஏற்கனவே பதிவு செய்துள்ளீர்களா?','Back to sign in'=>'உள்நுழைவுக்குத் திரும்பவும்',
             'Your session expired. Please try again.'=>'உங்கள் அமர்வு காலாவதியானது. மீண்டும் முயற்சிக்கவும்.','Enter your username and password.'=>'உங்கள் பயனர் பெயர் மற்றும் கடவுச்சொல்லை உள்ளிடவும்.','Invalid username or password.'=>'தவறான பயனர் பெயர் அல்லது கடவுச்சொல்.','Unable to connect to the system. Make sure MySQL is running and the database is installed.'=>'அமைப்புடன் இணைக்க முடியவில்லை. MySQL இயங்குவதையும் தரவுத்தளம் நிறுவப்பட்டிருப்பதையும் உறுதிப்படுத்தவும்.','Your session expired. Please refresh the page and try again.'=>'உங்கள் அமர்வு காலாவதியானது. பக்கத்தைப் புதுப்பித்து மீண்டும் முயற்சிக்கவும்.','Enter a valid name between 2 and 100 characters.'=>'2 முதல் 100 எழுத்துகளுக்குள் செல்லுபடியான பெயரை உள்ளிடவும்.','Enter a valid email address.'=>'செல்லுபடியான மின்னஞ்சல் முகவரியை உள்ளிடவும்.','Enter a valid phone number.'=>'செல்லுபடியான தொலைபேசி எண்ணை உள்ளிடவும்.','Select a valid role.'=>'செல்லுபடியான பங்கைத் தேர்ந்தெடுக்கவும்.','Select a district and DS Division for the Social Service Officer.'=>'சமூக சேவை அலுவலருக்கான மாவட்டத்தையும் பிரதேச செயலகப் பிரிவையும் தேர்ந்தெடுக்கவும்.','The selected DS Division does not belong to the selected district.'=>'தேர்ந்தெடுத்த பிரதேச செயலகப் பிரிவு தேர்ந்தெடுத்த மாவட்டத்தைச் சேர்ந்ததல்ல.','Password must contain at least 8 characters.'=>'கடவுச்சொல்லில் குறைந்தது 8 எழுத்துகள் இருக்க வேண்டும்.','Password and confirm password do not match.'=>'கடவுச்சொல்லும் உறுதிப்படுத்திய கடவுச்சொல்லும் பொருந்தவில்லை.','This email already has an account or a pending request.'=>'இந்த மின்னஞ்சலுக்கு ஏற்கனவே ஒரு கணக்கு அல்லது நிலுவைக் கோரிக்கை உள்ளது.','Your request was sent to the administrator. You will receive an email after it is reviewed.'=>'உங்கள் கோரிக்கை நிர்வாகிக்கு அனுப்பப்பட்டது. மதிப்பாய்வுக்குப் பிறகு மின்னஞ்சல் கிடைக்கும்.','Unable to submit the request. Ask the administrator to install the registration database migration.'=>'கோரிக்கையைச் சமர்ப்பிக்க முடியவில்லை. பதிவு தரவுத்தள இடமாற்றத்தை நிறுவ நிர்வாகியைக் கேளுங்கள்.',
-            'User Registration Requests'=>'பயனர் பதிவுக் கோரிக்கைகள்','Reviewed Correction Requests'=>'மதிப்பாய்வு செய்யப்பட்ட திருத்தக் கோரிக்கைகள்','Admin note'=>'நிர்வாகி குறிப்பு','Required when rejecting the request'=>'கோரிக்கையை நிராகரிக்கும் போது அவசியம்','Official Approvals'=>'அதிகாரப்பூர்வ ஒப்புதல்கள்','Approved'=>'அங்கீகரிக்கப்பட்டது','Not approved'=>'அங்கீகரிக்கப்படவில்லை','Recorded Value'=>'பதிவுசெய்யப்பட்ட மதிப்பு','Proposed Value'=>'பரிந்துரைக்கப்பட்ட மதிப்பு','Reason for Correction'=>'திருத்தத்திற்கான காரணம்','Approve & Apply'=>'அங்கீகரித்து செயல்படுத்து','No pending aid requests'=>'நிலுவை உதவிக் கோரிக்கைகள் இல்லை','New aid requests will appear here for approval.'=>'புதிய உதவிக் கோரிக்கைகள் ஒப்புதலுக்காக இங்கே தோன்றும்.','No pending user registration requests'=>'நிலுவை பயனர் பதிவுக் கோரிக்கைகள் இல்லை','New registration requests will appear here for approval.'=>'புதிய பதிவுக் கோரிக்கைகள் ஒப்புதலுக்காக இங்கே தோன்றும்.','Government Medical Officer'=>'அரச மருத்துவ அலுவலர்','Grama Niladhari'=>'கிராம அலுவலர்','Social Services Officer'=>'சமூக சேவை அலுவலர்','Divisional Secretary'=>'பிரதேச செயலாளர்','About WIDMS'=>'WIDMS பற்றி','System benefits'=>'அமைப்பின் நன்மைகள்','About WIDMS registration'=>'WIDMS பதிவு பற்றி','District and DS Division information is currently unavailable.'=>'மாவட்ட மற்றும் பிரதேச செயலகப் பிரிவு தகவல்கள் தற்போது கிடைக்கவில்லை.','Items requiring your attention'=>'உங்கள் கவனம் தேவைப்படும் விடயங்கள்','Open dashboard'=>'முகப்புப் பலகையைத் திறக்கவும்','Loading notifications…'=>'அறிவிப்புகள் ஏற்றப்படுகின்றன…','There are no requests waiting for review.'=>'மதிப்பாய்வுக்காக காத்திருக்கும் கோரிக்கைகள் இல்லை.','Notifications are temporarily unavailable.'=>'அறிவிப்புகள் தற்காலிகமாக கிடைக்கவில்லை.','New request received'=>'புதிய கோரிக்கை பெறப்பட்டது','Review'=>'மதிப்பாய்வு','Correction request'=>'திருத்தக் கோரிக்கை','User registration'=>'பயனர் பதிவு','Aid request'=>'உதவிக் கோரிக்கை','Stock release request'=>'இருப்பு வெளியீட்டுக் கோரிக்கை','Approved stock release'=>'அங்கீகரிக்கப்பட்ட இருப்பு வெளியீடு','Supplier payment reminder'=>'வழங்குநர் கொடுப்பனவு நினைவூட்டல்','Goods received'=>'பொருட்கள் பெறப்பட்டன','Pending handover'=>'நிலுவை ஒப்படைப்பு','Contact lens handover'=>'தொடர்பு வில்லை ஒப்படைப்பு','Ready for dispatch'=>'அனுப்பத் தயார்','Distribution action required'=>'விநியோக நடவடிக்கை தேவை','Final distribution required'=>'இறுதி விநியோகம் தேவை','Identity verification required'=>'அடையாளச் சரிபார்ப்பு தேவை','New account request'=>'புதிய கணக்குக் கோரிக்கை','Submitted by'=>'சமர்ப்பித்தவர்','Requested by'=>'கோரியவர்','For'=>'இதற்காக','Balance'=>'மீதி','Bill'=>'பில்','Power'=>'சக்தி','pending'=>'நிலுவை',
+            'User Registration Requests'=>'பயனர் பதிவுக் கோரிக்கைகள்','Reviewed Correction Requests'=>'மதிப்பாய்வு செய்யப்பட்ட திருத்தக் கோரிக்கைகள்','Admin note'=>'நிர்வாகி குறிப்பு','Required when rejecting the request'=>'கோரிக்கையை நிராகரிக்கும் போது அவசியம்','Official Approvals'=>'அதிகாரப்பூர்வ ஒப்புதல்கள்','Approved'=>'அங்கீகரிக்கப்பட்டது','Not approved'=>'அங்கீகரிக்கப்படவில்லை','Recorded Value'=>'பதிவுசெய்யப்பட்ட மதிப்பு','Proposed Value'=>'பரிந்துரைக்கப்பட்ட மதிப்பு','Reason for Correction'=>'திருத்தத்திற்கான காரணம்','Approve & Apply'=>'அங்கீகரித்து செயல்படுத்து','No pending aid requests'=>'நிலுவை உதவிக் கோரிக்கைகள் இல்லை','New aid requests will appear here for approval.'=>'புதிய உதவிக் கோரிக்கைகள் ஒப்புதலுக்காக இங்கே தோன்றும்.','No pending user registration requests'=>'நிலுவை பயனர் பதிவுக் கோரிக்கைகள் இல்லை','New registration requests will appear here for approval.'=>'புதிய பதிவுக் கோரிக்கைகள் ஒப்புதலுக்காக இங்கே தோன்றும்.','Government Medical Officer'=>'அரச மருத்துவ அலுவலர்','Grama Niladhari'=>'கிராம அலுவலர்','Social Services Officer'=>'சமூக சேவை அலுவலர்','Divisional Secretary'=>'பிரதேச செயலாளர்','About SWPCS'=>'SWPCS பற்றி','System benefits'=>'அமைப்பின் நன்மைகள்','About SWPCS registration'=>'SWPCS பதிவு பற்றி','District and DS Division information is currently unavailable.'=>'மாவட்ட மற்றும் பிரதேச செயலகப் பிரிவு தகவல்கள் தற்போது கிடைக்கவில்லை.','Items requiring your attention'=>'உங்கள் கவனம் தேவைப்படும் விடயங்கள்','Open dashboard'=>'முகப்புப் பலகையைத் திறக்கவும்','Loading notifications…'=>'அறிவிப்புகள் ஏற்றப்படுகின்றன…','There are no requests waiting for review.'=>'மதிப்பாய்வுக்காக காத்திருக்கும் கோரிக்கைகள் இல்லை.','Notifications are temporarily unavailable.'=>'அறிவிப்புகள் தற்காலிகமாக கிடைக்கவில்லை.','New request received'=>'புதிய கோரிக்கை பெறப்பட்டது','Review'=>'மதிப்பாய்வு','Correction request'=>'திருத்தக் கோரிக்கை','User registration'=>'பயனர் பதிவு','Aid request'=>'உதவிக் கோரிக்கை','Stock release request'=>'இருப்பு வெளியீட்டுக் கோரிக்கை','Approved stock release'=>'அங்கீகரிக்கப்பட்ட இருப்பு வெளியீடு','Supplier payment reminder'=>'வழங்குநர் கொடுப்பனவு நினைவூட்டல்','Goods received'=>'பொருட்கள் பெறப்பட்டன','Pending handover'=>'நிலுவை ஒப்படைப்பு','Contact lens handover'=>'தொடர்பு வில்லை ஒப்படைப்பு','Ready for dispatch'=>'அனுப்பத் தயார்','Distribution action required'=>'விநியோக நடவடிக்கை தேவை','Final distribution required'=>'இறுதி விநியோகம் தேவை','Identity verification required'=>'அடையாளச் சரிபார்ப்பு தேவை','New account request'=>'புதிய கணக்குக் கோரிக்கை','Submitted by'=>'சமர்ப்பித்தவர்','Requested by'=>'கோரியவர்','For'=>'இதற்காக','Balance'=>'மீதி','Bill'=>'பில்','Power'=>'சக்தி','pending'=>'நிலுவை',
         ],
     ];
 
@@ -1230,18 +1454,42 @@ function t(string $english): string
     }
     $mergedDistributionLabels = [
         'si' => [
+            'Filter aid requests' => 'ආධාර ඉල්ලීම් පෙරහන් කරන්න',
+            'Pending Admin' => 'පරිපාලක අනුමැතිය බලාපොරොත්තුවෙන්',
             'Direct Aid Releases & History' => 'සෘජු ආධාර නිකුතු සහ ඉතිහාසය',
             'View Releases & History' => 'නිකුතු සහ ඉතිහාසය බලන්න',
             'Release Queue' => 'නිකුතු පෝලිම',
             'Distribution History' => 'බෙදාහැරීම් ඉතිහාසය',
+            'Distribution' => 'බෙදාහැරීම',
+            'Final Distribution' => 'අවසන් බෙදාහැරීම',
+            'Distributed Aid' => 'බෙදාහැරූ ආධාර',
+            'Completed beneficiary distributions from your releases and SSO handovers.' => 'ඔබගේ නිකුතු සහ SSO වෙත භාරදීම් මගින් සම්පූර්ණ කළ ප්‍රතිලාභී බෙදාහැරීම්.',
+            'No aid has been distributed yet.' => 'තවම ආධාර බෙදාහැරී නැත.',
+            'Distribution history is temporarily unavailable.' => 'බෙදාහැරීම් ඉතිහාසය තාවකාලිකව ලබාගත නොහැක.',
+            'Distributed By' => 'බෙදාහැරියේ',
+            'Officer / Recipient' => 'නිලධාරියා / ලබන්නා',
+            'Handed to SSO' => 'SSO වෙත භාර දෙන ලදී',
+            'No distributions or SSO handovers recorded yet.' => 'බෙදාහැරීම් හෝ SSO වෙත භාරදීම් තවම සටහන් වී නැත.',
             'Distribution views' => 'බෙදාහැරීම් දසුන්',
             'No direct aid records match this view.' => 'මෙම දසුනට ගැළපෙන සෘජු ආධාර වාර්තා නොමැත.',
         ],
         'ta' => [
+            'Filter aid requests' => 'உதவிக் கோரிக்கைகளை வடிகட்டவும்',
+            'Pending Admin' => 'நிர்வாகி ஒப்புதலுக்காகக் காத்திருக்கிறது',
             'Direct Aid Releases & History' => 'நேரடி உதவி வெளியீடுகள் மற்றும் வரலாறு',
             'View Releases & History' => 'வெளியீடுகள் மற்றும் வரலாற்றைப் பார்க்கவும்',
             'Release Queue' => 'வெளியீட்டு வரிசை',
             'Distribution History' => 'விநியோக வரலாறு',
+            'Distribution' => 'விநியோகம்',
+            'Final Distribution' => 'இறுதி விநியோகம்',
+            'Distributed Aid' => 'விநியோகிக்கப்பட்ட உதவி',
+            'Completed beneficiary distributions from your releases and SSO handovers.' => 'உங்கள் வெளியீடுகள் மற்றும் SSO ஒப்படைப்புகள் மூலம் நிறைவேற்றப்பட்ட பயனாளி விநியோகங்கள்.',
+            'No aid has been distributed yet.' => 'உதவி இன்னும் விநியோகிக்கப்படவில்லை.',
+            'Distribution history is temporarily unavailable.' => 'விநியோக வரலாறு தற்காலிகமாக கிடைக்கவில்லை.',
+            'Distributed By' => 'விநியோகித்தவர்',
+            'Officer / Recipient' => 'அலுவலர் / பெற்றவர்',
+            'Handed to SSO' => 'SSO-விடம் ஒப்படைக்கப்பட்டது',
+            'No distributions or SSO handovers recorded yet.' => 'விநியோகங்களோ SSO ஒப்படைப்புகளோ இன்னும் பதிவாகவில்லை.',
             'Distribution views' => 'விநியோகக் காட்சிகள்',
             'No direct aid records match this view.' => 'இந்தக் காட்சிக்குப் பொருந்தும் நேரடி உதவிப் பதிவுகள் இல்லை.',
         ],
@@ -1285,10 +1533,10 @@ function widmsUiTranslationPayload(): array
     $commonKeys = [
         'Dashboard','Overview','Operations','Requests','Inventory','Reports','Monitoring','System','Config',
         'Search anything...','Search this page','Notifications','Open navigation','Close navigation',
-        'About WIDMS','System benefits','About WIDMS registration','Southern Province','Welfare services, connected','Support reaches people faster when every step is visible.',
+        'About SWPCS','System benefits','About SWPCS registration','Southern Province','Welfare services, connected','Support reaches people faster when every step is visible.',
         'Manage welfare inventory, requests, approvals and distributions through one secure workspace.',
         'Secure access','Clear approvals','Reliable records','Welfare Inventory & Distribution Management System',
-        'Welfare Inventory & Distribution Management','Join WIDMS','One coordinated service',
+        'Welfare Inventory & Distribution Management','Join SWPCS','One coordinated service',
         'Create access for your role in the welfare distribution network.',
         'Your request is reviewed by an administrator before the account becomes active.',
         'Enter your official details','Select your assigned role','Wait for administrator approval',
@@ -1505,14 +1753,15 @@ function widmsUiTranslationPayload(): array
             'Bulk workflow unavailable. Run migrations first.'=>'තොග කාර්ය ප්‍රවාහය ලබාගත නොහැක. පළමුව දත්ත සමුදා සංක්‍රමණ ක්‍රියාත්මක කරන්න.',
         ],
         'ta' => [
-            'Contact Lens Orders'=>'தொடர்பு வில்லை ஆணைகள்',
-            'Contact Lens Stock — By Power'=>'வலிமை அடிப்படையிலான தொடர்பு வில்லை கையிருப்பு',
-            'All Contact Lens Orders'=>'அனைத்து தொடர்பு வில்லை ஆணைகள்',
+            'Contact lens handover'=>'தொடு வில்லை ஒப்படைப்பு',
+            'Contact Lens Orders'=>'தொடு வில்லை ஆணைகள்',
+            'Contact Lens Stock — By Power'=>'வலிமை அடிப்படையிலான தொடு வில்லை கையிருப்பு',
+            'All Contact Lens Orders'=>'அனைத்து தொடு வில்லை ஆணைகள்',
             'Power'=>'வலிமை', 'In Stock'=>'கையிருப்பில்', 'Company'=>'நிறுவனம்', 'Last Received'=>'கடைசியாகப் பெற்றது',
-            'No contact lens stock records available.'=>'தொடர்பு வில்லை கையிருப்புப் பதிவுகள் இல்லை.',
+            'No contact lens stock records available.'=>'தொடு வில்லை கையிருப்புப் பதிவுகள் இல்லை.',
             'Available'=>'கிடைக்கிறது', 'Out of Stock'=>'கையிருப்பு இல்லை',
             'Search name, NIC or power...'=>'பெயர், அடையாள அட்டை எண் அல்லது வலிமையைத் தேடுக...',
-            'Search contact lens orders'=>'தொடர்பு வில்லை ஆணைகளைத் தேடுக',
+            'Search contact lens orders'=>'தொடு வில்லை ஆணைகளைத் தேடுக',
             'Beneficiary'=>'பயனாளர்', 'Division'=>'பிரிவு', 'Requested Power'=>'கோரிய வலிமை',
             'Current Power'=>'தற்போதைய வலிமை', 'Power Changed?'=>'வலிமை மாற்றப்பட்டதா?', 'Stock Check'=>'கையிருப்புச் சரிபார்ப்பு',
             'Changed'=>'மாற்றப்பட்டது', 'Same'=>'மாற்றமில்லை', 'Not checked'=>'சரிபார்க்கப்படவில்லை',
@@ -1520,13 +1769,13 @@ function widmsUiTranslationPayload(): array
             'Pending Admin Approval'=>'நிர்வாகி அங்கீகாரத்திற்காக நிலுவையில்',
             'Partially Received'=>'பகுதியளவில் பெறப்பட்டது', 'Fully Received'=>'முழுமையாகப் பெறப்பட்டது',
             'Completed'=>'நிறைவடைந்தது', 'Draft'=>'வரைவு',
-            'No contact lens orders available.'=>'தொடர்பு வில்லை ஆணைகள் இல்லை.',
+            'No contact lens orders available.'=>'தொடு வில்லை ஆணைகள் இல்லை.',
             'Rejection reason'=>'நிராகரிப்பதற்கான காரணம்', 'Approve'=>'அங்கீகரி', 'Reject'=>'நிராகரி', 'View'=>'பார்க்க',
             'Your session expired.'=>'உங்கள் அமர்வு காலாவதியானது.',
             'Enter a valid decision and a reason when rejecting.'=>'செல்லுபடியாகும் முடிவைத் தேர்ந்து, நிராகரிக்கும்போது காரணத்தை உள்ளிடவும்.',
-            'This contact lens request was already reviewed or does not exist.'=>'இந்த தொடர்பு வில்லை கோரிக்கை ஏற்கனவே மதிப்பாய்வு செய்யப்பட்டுள்ளது அல்லது இல்லை.',
-            'Contact lens request approved.'=>'தொடர்பு வில்லை கோரிக்கை அங்கீகரிக்கப்பட்டது.',
-            'Contact lens request rejected.'=>'தொடர்பு வில்லை கோரிக்கை நிராகரிக்கப்பட்டது.',
+            'This contact lens request was already reviewed or does not exist.'=>'இந்த தொடு வில்லை கோரிக்கை ஏற்கனவே மதிப்பாய்வு செய்யப்பட்டுள்ளது அல்லது இல்லை.',
+            'Contact lens request approved.'=>'தொடு வில்லை கோரிக்கை அங்கீகரிக்கப்பட்டது.',
+            'Contact lens request rejected.'=>'தொடு வில்லை கோரிக்கை நிராகரிக்கப்பட்டது.',
             'Enter a valid decision and rejection reason when rejecting.'=>'செல்லுபடியாகும் முடிவையும் நிராகரிப்பதற்கான காரணத்தையும் உள்ளிடவும்.',
             'Order is no longer awaiting Gate 2 review.'=>'ஆணை இனி இரண்டாம் கட்ட மதிப்பாய்வுக்காகக் காத்திருக்கவில்லை.',
             'An empty bulk order cannot be approved.'=>'காலியான மொத்த ஆணையை அங்கீகரிக்க முடியாது.',

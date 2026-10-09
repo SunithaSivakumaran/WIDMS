@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/notification-action-state.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -105,29 +106,40 @@ try {
         exit;
     };
 
-    $persistentCountStatement = $database->prepare(
-        "SELECT COUNT(*) FROM user_notifications
-         WHERE user_id = :user_id AND read_at IS NULL
-           AND COALESCE(target_url, '') NOT LIKE '%page=vision-camp%'
-           AND COALESCE(target_url, '') NOT LIKE '%page=contact-lens-orders%'
-           AND COALESCE(target_url, '') NOT LIKE '%page=pending-lens-handover%'"
-    );
-    $persistentCountStatement->execute(['user_id' => $userId]);
-    $persistentCount = (int) $persistentCountStatement->fetchColumn();
-
     $persistentStatement = $database->prepare(
-        "SELECT id, category, title, message, target_url, created_at
+        "SELECT id, notification_key, category, title, message, target_url, created_at
          FROM user_notifications
          WHERE user_id = :user_id AND read_at IS NULL
-           AND COALESCE(target_url, '') NOT LIKE '%page=vision-camp%'
+           AND (category = 'Vision Camp' OR COALESCE(target_url, '') NOT LIKE '%page=vision-camp%')
            AND COALESCE(target_url, '') NOT LIKE '%page=contact-lens-orders%'
            AND COALESCE(target_url, '') NOT LIKE '%page=pending-lens-handover%'
-         ORDER BY created_at DESC, id DESC
-         LIMIT 12"
+         ORDER BY created_at DESC, id DESC"
     );
     $persistentStatement->execute(['user_id' => $userId]);
+    $persistentCount = 0;
+    $campOwnerStatement = in_array($role, ['subject-officer', 'social-service-officer'], true)
+        ? $database->prepare('SELECT requested_by FROM spectacle_camps WHERE id = :camp_id LIMIT 1')
+        : null;
     foreach ($persistentStatement->fetchAll() as $notification) {
+        if (!notificationActionIsPending($database, (string) $notification['notification_key'])) {
+            continue;
+        }
+        $persistentCount++;
+        if ($persistentCount > 12) {
+            continue;
+        }
         $notificationId = (int) $notification['id'];
+        $notificationUrl = (string) $notification['target_url'];
+        if ($campOwnerStatement && (string)$notification['category'] === 'Vision Camp'
+            && preg_match('/^sc-(\d+)-/', (string)$notification['notification_key'], $campMatch)) {
+            $notificationCampId = (int)$campMatch[1];
+            $campOwnerStatement->execute(['camp_id' => $notificationCampId]);
+            $ownerId = $campOwnerStatement->fetchColumn();
+            if ($ownerId !== false) {
+                $campPage = $role === 'subject-officer' && (int)$ownerId === $userId ? 'my-spectacle-camps' : 'spectacle-camps';
+                $notificationUrl = 'dashboard.php?page='.$campPage.'#vision-camp-row-'.$notificationCampId;
+            }
+        }
         $items[] = [
             'key' => 'user-notification-' . $notificationId,
             'notification_id' => $notificationId,
@@ -137,7 +149,7 @@ try {
             'submitted_by' => t('Reviewed by Administrator'),
             'created_label' => date('d M Y, H:i', strtotime((string) $notification['created_at'])),
             'created_at' => (string) $notification['created_at'],
-            'url' => (string) $notification['target_url'],
+            'url' => $notificationUrl,
         ];
     }
 

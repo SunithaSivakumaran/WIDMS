@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
+require_once __DIR__ . '/../../includes/notifications.php';
 require_once __DIR__ . '/../../includes/ui-messages.php';
 
 $role = (string) ($_SESSION['role'] ?? '');
@@ -23,36 +24,7 @@ $errors = [];
 $success = (string) ($_SESSION['flash_success'] ?? '');
 unset($_SESSION['flash_success']);
 
-if (!$isHistory && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'set-returnable') {
-    $itemId = filter_input(INPUT_POST, 'item_id', FILTER_VALIDATE_INT)
-        ?: filter_var($_POST['item_id'] ?? null, FILTER_VALIDATE_INT);
-    $returnable = (string) ($_POST['is_returnable'] ?? '') === '1' ? 1 : 0;
-    if (!$isSubject || !verifyCsrfToken((string) ($_POST['csrf_token'] ?? '')) || !$itemId) {
-        $errors[] = t('Invalid returnable item setting.');
-    } else {
-        try {
-            $statement = $database->prepare('UPDATE inventory_items SET is_returnable = :returnable WHERE id = :item_id');
-            $statement->execute(['returnable' => $returnable, 'item_id' => $itemId]);
-            if ($statement->rowCount() === 0) {
-                $check = $database->prepare('SELECT id FROM inventory_items WHERE id = :item_id');
-                $check->execute(['item_id' => $itemId]);
-                if (!$check->fetchColumn()) {
-                    throw new RuntimeException(t('The selected aid item is unavailable.'));
-                }
-            }
-            logActivity('Returns', 'Updated item returnability', 'ITEM-' . $itemId, $returnable ? 'enabled' : 'disabled');
-            $_SESSION['flash_success'] = t('Returnable item setting saved.');
-            unset($_SESSION['csrf_token']);
-            header('Location: dashboard.php?page=returns#returnable-items');
-            exit;
-        } catch (Throwable $exception) {
-            error_log($exception->getMessage());
-            $errors[] = $exception instanceof RuntimeException ? $exception->getMessage() : t('Unable to save item setting.');
-        }
-    }
-}
-
-if (!$isHistory && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') !== 'set-returnable') {
+if (!$isHistory && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === '') {
     $distributionId = filter_input(INPUT_POST, 'distribution_id', FILTER_VALIDATE_INT)
         ?: filter_var($_POST['distribution_id'] ?? null, FILTER_VALIDATE_INT);
     $selectedItemId = filter_input(INPUT_POST, 'aid_item_id', FILTER_VALIDATE_INT)
@@ -76,30 +48,33 @@ if (!$isHistory && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['ac
     if ($errors === []) {
         try {
             $database->beginTransaction();
+            // SSO returns follow the beneficiary's assigned division, not the original issuer.
+            // Subject Officers can receive returnable aid from every division.
             $statement = $database->prepare(
                 'SELECT distribution.id, distribution.item_id, distribution.beneficiary_id, distribution.quantity,
                         item.is_returnable,
                         (SELECT COALESCE(SUM(ret.quantity), 0)
-                         FROM item_returns ret WHERE ret.distribution_id = distribution.id) AS already_returned
+                         FROM item_returns ret WHERE ret.distribution_id = distribution.id
+                           AND ret.stock_review_status <> \'rejected\') AS already_returned
                  FROM distributions distribution
                  JOIN inventory_items item ON item.id = distribution.item_id
+                 JOIN beneficiaries beneficiary ON beneficiary.id = distribution.beneficiary_id
+                 LEFT JOIN aid_requests aid_request ON aid_request.id = distribution.aid_request_id
+                 JOIN users receiver ON receiver.id = :user_id
+                    AND receiver.role = :actor_role AND receiver.status = "active"
                  WHERE distribution.id = :id
-                   AND (
-                       distribution.distributed_by = :user_id
-                       OR (:is_subject = 1 AND EXISTS (
-                           SELECT 1 FROM users issuer
-                           WHERE issuer.id = distribution.distributed_by
-                             AND issuer.role IN ("social-service-officer", "admin")
-                       ))
-                   )
+                   AND distribution.distributed_at IS NOT NULL
+                   AND (aid_request.status = \'distributed\'
+                        OR (distribution.aid_request_id IS NULL AND distribution.distribution_type = \'direct\'))
+                   AND (:is_subject = 1 OR receiver.ds_division_id = beneficiary.ds_division_id)
                  FOR UPDATE'
             );
-            $statement->execute(['id' => $distributionId, 'user_id' => $userId, 'is_subject' => $isSubject ? 1 : 0]);
+            $statement->execute(['id' => $distributionId, 'user_id' => $userId, 'actor_role' => $role, 'is_subject' => $isSubject ? 1 : 0]);
             $distribution = $statement->fetch();
             if (!$distribution || (int) $distribution['is_returnable'] !== 1
                 || (int) $distribution['item_id'] !== (int) $selectedItemId
                 || (int) $distribution['beneficiary_id'] !== (int) $selectedBeneficiaryId) {
-                throw new RuntimeException(t('This returnable distribution is unavailable in your issue history.'));
+                throw new RuntimeException(t('This returnable distribution is unavailable to you.'));
             }
             $outstanding = (int) $distribution['quantity'] - (int) $distribution['already_returned'];
             if ($quantity > $outstanding) {
@@ -111,9 +86,9 @@ if (!$isHistory && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['ac
                 : ($isSubject ? 'central-stock' : 'officer-pool');
             $statement = $database->prepare(
                 'INSERT INTO item_returns
-                    (distribution_id, quantity, returned_by_name, item_condition, reusable, restore_to, processed_by)
+                    (distribution_id, quantity, returned_by_name, item_condition, reusable, restore_to, stock_review_status, processed_by)
                  VALUES
-                    (:distribution_id, :quantity, :returned_by_name, :item_condition, :reusable, :restore_to, :processed_by)'
+                    (:distribution_id, :quantity, :returned_by_name, :item_condition, :reusable, :restore_to, :stock_review_status, :processed_by)'
             );
             $statement->execute([
                 'distribution_id' => $distributionId,
@@ -122,17 +97,18 @@ if (!$isHistory && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['ac
                 'item_condition' => $condition,
                 'reusable' => $condition === 'good' ? 1 : 0,
                 'restore_to' => $restoreTo,
+                'stock_review_status' => $restoreTo === 'central-stock' ? 'pending' : 'accepted',
                 'processed_by' => $userId,
             ]);
             $returnId = (int) $database->lastInsertId();
 
             if ($restoreTo === 'central-stock') {
-                $statement = $database->prepare(
-                    'UPDATE inventory_items SET quantity = quantity + :quantity WHERE id = :item_id'
-                );
-                $statement->execute(['quantity' => $quantity, 'item_id' => $distribution['item_id']]);
-                if ($statement->rowCount() !== 1) {
-                    throw new RuntimeException(t('The item stock could not be updated.'));
+                $keepers = $database->query("SELECT id FROM users WHERE role = 'store-keeper' AND status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($keepers as $keeperId) {
+                    notifyUser($database, (int) $keeperId, 'return-review-' . $returnId,
+                        'Return awaiting stock acceptance', 'Good return awaiting acceptance',
+                        'RET-' . str_pad((string) $returnId, 4, '0', STR_PAD_LEFT) . ' needs review before Central Stock is updated.',
+                        'dashboard.php?page=return-stock-review');
                 }
             } elseif ($restoreTo === 'officer-pool') {
                 $statement = $database->prepare(
@@ -146,15 +122,12 @@ if (!$isHistory && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['ac
                     throw new RuntimeException(t('An active DS Division assignment is required to restore your pool.'));
                 }
                 $statement = $database->prepare(
-                    'INSERT INTO officer_pools
-                        (officer_id, ds_division_id, item_id, allocated, reused)
-                     VALUES (:officer_id, :division_id, :item_id, 0, :quantity)
-                     ON DUPLICATE KEY UPDATE
-                        ds_division_id = VALUES(ds_division_id),
-                        reused = reused + VALUES(reused)'
+                    'INSERT INTO division_pools
+                        (ds_division_id, item_id, allocated, reused)
+                     VALUES (:division_id, :item_id, 0, :quantity)
+                     ON DUPLICATE KEY UPDATE reused = reused + VALUES(reused)'
                 );
                 $statement->execute([
-                    'officer_id' => $userId,
                     'division_id' => (int) $divisionId,
                     'item_id' => $distribution['item_id'],
                     'quantity' => $quantity,
@@ -164,11 +137,13 @@ if (!$isHistory && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['ac
             $database->commit();
             logActivity(
                 'Returns',
-                'Processed return of ' . $quantity . ' unit(s) to ' . $restoreTo,
+                ($restoreTo === 'central-stock' ? 'Submitted good return for Store Keeper acceptance: ' : 'Processed return of ') . $quantity . ' unit(s) to ' . $restoreTo,
                 'RET-' . str_pad((string) $returnId, 4, '0', STR_PAD_LEFT),
                 $restoreTo
             );
-            $_SESSION['flash_success'] = t('Return processed and stock destination updated.');
+            $_SESSION['flash_success'] = $restoreTo === 'central-stock'
+                ? t('Return recorded. Central Stock will update after Store Keeper acceptance.')
+                : t('Return processed and stock destination updated.');
             unset($_SESSION['csrf_token']);
             header('Location: dashboard.php?page=return-history#return-' . $returnId);
             exit;
@@ -185,47 +160,41 @@ if (!$isHistory && $_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['ac
 }
 
 try {
-    $returnableItems = [];
-    if ($isSubject) {
-        $returnableItems = $database->query(
-            'SELECT id, item_name, variety, is_returnable
-             FROM inventory_items ORDER BY item_name, variety, id'
-        )->fetchAll();
-    }
     $statement = $database->prepare(
         'SELECT distribution.id, distribution.item_id, distribution.beneficiary_id, distribution.quantity,
                 distribution.quantity - (
                     SELECT COALESCE(SUM(ret.quantity), 0)
                     FROM item_returns ret WHERE ret.distribution_id = distribution.id
+                      AND ret.stock_review_status <> \'rejected\'
                 ) AS outstanding,
-                beneficiary.full_name, beneficiary.nic,
+                beneficiary.full_name, beneficiary.nic, beneficiary.elders_card_number,
                 item.item_name, item.variety
          FROM distributions distribution
          JOIN beneficiaries beneficiary ON beneficiary.id = distribution.beneficiary_id
          JOIN inventory_items item ON item.id = distribution.item_id
+         LEFT JOIN aid_requests aid_request ON aid_request.id = distribution.aid_request_id
+         JOIN users receiver ON receiver.id = :user_id
+            AND receiver.role = :actor_role AND receiver.status = "active"
          WHERE item.is_returnable = 1
-           AND (
-               distribution.distributed_by = :user_id
-               OR (:is_subject = 1 AND EXISTS (
-                   SELECT 1 FROM users issuer
-                   WHERE issuer.id = distribution.distributed_by
-                     AND issuer.role IN ("social-service-officer", "admin")
-               ))
-           )
+           AND distribution.distributed_at IS NOT NULL
+           AND (aid_request.status = \'distributed\'
+                OR (distribution.aid_request_id IS NULL AND distribution.distribution_type = \'direct\'))
+           AND (:is_subject = 1 OR receiver.ds_division_id = beneficiary.ds_division_id)
          HAVING outstanding > 0
          ORDER BY distribution.id DESC'
     );
-    $statement->execute(['user_id' => $userId, 'is_subject' => $isSubject ? 1 : 0]);
+    $statement->execute(['user_id' => $userId, 'actor_role' => $role, 'is_subject' => $isSubject ? 1 : 0]);
     $issued = $statement->fetchAll();
     $issuedAidItems = [];
     $issuedBeneficiaries = [];
     foreach ($issued as $record) {
-        $issuedAidItems[(int) $record['item_id']] = (string) $record['item_name']
+        $issuedAidItems[(int) $record['item_id']] = widmsAidItemName((string) $record['item_name'])
             . ((string) $record['variety'] !== '' ? ' — ' . $record['variety'] : '');
+        $beneficiaryIdentifier = trim((string) ($record['nic'] ?: $record['elders_card_number'] ?: ''));
         $issuedBeneficiaries[(int) $record['item_id']][(int) $record['beneficiary_id']] = [
-            'name' => (string) $record['full_name'],
-            'label' => (string) $record['full_name'] . ((string) ($record['nic'] ?? '') !== ''
-                ? ' — ' . $record['nic'] : ' — #' . $record['beneficiary_id']),
+            'label' => (string) $record['full_name']
+                . ($beneficiaryIdentifier !== '' ? ' — ' . $beneficiaryIdentifier : '')
+                . ' (#' . $record['beneficiary_id'] . ')',
         ];
     }
 
@@ -235,14 +204,17 @@ try {
          JOIN distributions distribution ON distribution.id = ret.distribution_id
          JOIN beneficiaries beneficiary ON beneficiary.id = distribution.beneficiary_id
          JOIN inventory_items item ON item.id = distribution.item_id
-         WHERE ret.processed_by = :user_id
-         ORDER BY ret.id DESC LIMIT 100'
+         JOIN users viewer ON viewer.id = :user_id AND viewer.status = "active"
+         WHERE (:subject_history = 1 AND ret.processed_by = :processor_id)
+            OR (:division_history = 0 AND viewer.ds_division_id = distribution.ds_division_id)
+         ORDER BY ret.id DESC'
     );
-    $statement->execute(['user_id' => $userId]);
+    $statement->execute(['user_id' => $userId, 'processor_id' => $userId,
+        'subject_history' => $isSubject ? 1 : 0, 'division_history' => $isSubject ? 1 : 0]);
     $returns = $statement->fetchAll();
 } catch (PDOException $exception) {
     error_log($exception->getMessage());
-    $issued = $returns = $returnableItems = $issuedAidItems = $issuedBeneficiaries = [];
+    $issued = $returns = $issuedAidItems = $issuedBeneficiaries = [];
     $errors[] = t('Return workflow is unavailable.');
 }
 ?>
@@ -251,9 +223,9 @@ try {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= htmlspecialchars(t($isHistory ? 'Return History' : 'Return Management'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t($isHistory ? 'Return History' : 'Return Management'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css?v=93" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/admin-dashboard.css') ?>" rel="stylesheet">
 </head>
 <body class="return-page-body">
 <?php require $sidebar; ?>
@@ -263,8 +235,8 @@ try {
         <?php renderSuccessMessage($success); ?>
         <?php if ($errors): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars(implode(' ', $errors), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
         <?php if (!$isHistory): ?>
-        <section class="admin-data-card return-workflow-card">
-            <div class="admin-data-header"><div><h2><?= htmlspecialchars(t('Process Return'), ENT_QUOTES, 'UTF-8') ?></h2><small><?= htmlspecialchars(t('Only items marked returnable can be processed. Good items return to your role-specific stock; damaged items are excluded.'), ENT_QUOTES, 'UTF-8') ?></small></div><a class="outline-action" href="dashboard.php?page=return-history"><?= htmlspecialchars(t('View Return History'), ENT_QUOTES, 'UTF-8') ?></a></div>
+        <section class="admin-data-card return-workflow-card return-process-card">
+            <div class="return-workflow-toolbar"><a class="outline-action" href="dashboard.php?page=return-history"><?= htmlspecialchars(t('View Return History'), ENT_QUOTES, 'UTF-8') ?></a></div>
             <form method="post" class="return-workflow-form">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                 <div class="return-workflow-filter-row">
@@ -276,27 +248,32 @@ try {
                             <?php endforeach; ?>
                         </select>
                     </label>
-                    <label><span class="return-workflow-label"><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?> <span class="required-mark" aria-hidden="true">*</span></span>
-                        <select name="beneficiary_id" id="return-beneficiary-choice" required>
-                            <option value=""><?= htmlspecialchars(t('Select beneficiary'), ENT_QUOTES, 'UTF-8') ?></option>
-                            <?php foreach ($issuedBeneficiaries as $itemId => $beneficiaries): ?>
-                                <?php foreach ($beneficiaries as $beneficiaryId => $beneficiaryDetails): ?>
-                                    <option value="<?= $beneficiaryId ?>" data-item-id="<?= $itemId ?>" data-name="<?= htmlspecialchars($beneficiaryDetails['name'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($beneficiaryDetails['label'], ENT_QUOTES, 'UTF-8') ?></option>
+                    <div class="return-beneficiary-field"><label for="return-beneficiary-choice" class="return-workflow-label"><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?> <span class="required-mark" aria-hidden="true">*</span></label>
+                        <div class="return-beneficiary-combobox">
+                            <input type="text" id="return-beneficiary-choice" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="return-beneficiary-options" aria-expanded="false" placeholder="<?= htmlspecialchars(t('Search beneficiary by name or ID'), ENT_QUOTES, 'UTF-8') ?>" autocomplete="off" required data-invalid-selection="<?= htmlspecialchars(t('Select a beneficiary from the suggestions.'), ENT_QUOTES, 'UTF-8') ?>">
+                            <button type="button" class="return-beneficiary-toggle" aria-label="<?= htmlspecialchars(t('Show beneficiaries'), ENT_QUOTES, 'UTF-8') ?>" aria-controls="return-beneficiary-options" aria-expanded="false"><span aria-hidden="true"></span></button>
+                            <div id="return-beneficiary-options" class="return-beneficiary-options" role="listbox" hidden>
+                                <?php foreach ($issuedBeneficiaries as $itemId => $beneficiaries): ?>
+                                    <?php foreach ($beneficiaries as $beneficiaryId => $beneficiaryDetails): ?>
+                                        <button type="button" id="return-beneficiary-option-<?= $itemId ?>-<?= $beneficiaryId ?>" role="option" aria-selected="false" data-item-id="<?= $itemId ?>" data-beneficiary-id="<?= $beneficiaryId ?>"><?= htmlspecialchars($beneficiaryDetails['label'], ENT_QUOTES, 'UTF-8') ?></button>
+                                    <?php endforeach; ?>
                                 <?php endforeach; ?>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
+                                <span class="return-beneficiary-empty" hidden><?= htmlspecialchars(t('No matching beneficiaries'), ENT_QUOTES, 'UTF-8') ?></span>
+                            </div>
+                        </div>
+                        <input type="hidden" name="beneficiary_id" id="return-beneficiary-id" value="">
+                    </div>
                 </div>
                 <div class="return-workflow-fields">
                     <label><span class="return-workflow-label"><?= htmlspecialchars(t('Distribution Record'), ENT_QUOTES, 'UTF-8') ?> <span class="required-mark" aria-hidden="true">*</span></span>
                         <select name="distribution_id" required>
                             <option value=""><?= htmlspecialchars(t('Select issued item'), ENT_QUOTES, 'UTF-8') ?></option>
                             <?php foreach ($issued as $record): ?>
-                                <option value="<?= (int) $record['id'] ?>" data-item-id="<?= (int) $record['item_id'] ?>" data-beneficiary-id="<?= (int) $record['beneficiary_id'] ?>" data-outstanding="<?= (int) $record['outstanding'] ?>"><?= htmlspecialchars((string) $record['full_name'], ENT_QUOTES, 'UTF-8') ?> — DIST-<?= str_pad((string) $record['id'], 4, '0', STR_PAD_LEFT) ?> (<?= (int) $record['outstanding'] ?> <?= htmlspecialchars(t('outstanding'), ENT_QUOTES, 'UTF-8') ?>)</option>
+                                <option value="<?= (int) $record['id'] ?>" data-item-id="<?= (int) $record['item_id'] ?>" data-beneficiary-id="<?= (int) $record['beneficiary_id'] ?>" data-outstanding="<?= (int) $record['outstanding'] ?>">DIST-<?= str_pad((string) $record['id'], 4, '0', STR_PAD_LEFT) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </label>
-                    <label><span class="return-workflow-label"><?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?> <span class="required-mark" aria-hidden="true">*</span></span><input type="number" name="quantity" min="1" value="1" required></label>
+                    <label><span class="return-workflow-label"><?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?> <span class="required-mark" aria-hidden="true">*</span></span><input type="number" name="quantity" min="1" value="" required></label>
                     <label><span class="return-workflow-label"><?= htmlspecialchars(t('Returned By'), ENT_QUOTES, 'UTF-8') ?> <span class="required-mark" aria-hidden="true">*</span></span><input type="text" name="returned_by_name" list="return-person-names" maxlength="150" required autocomplete="off" placeholder="<?= htmlspecialchars(t('Name of person returning the item'), ENT_QUOTES, 'UTF-8') ?>"></label>
                     <datalist id="return-person-names">
                         <?php foreach (array_unique(array_column($issued, 'full_name')) as $personName): ?>
@@ -311,37 +288,27 @@ try {
                             <option value="unusable"><?= htmlspecialchars(t('Unusable'), ENT_QUOTES, 'UTF-8') ?></option>
                         </select>
                     </label>
-                    <div class="return-workflow-destination"><small><?= htmlspecialchars(t('Good items restore to'), ENT_QUOTES, 'UTF-8') ?></small><strong><?= htmlspecialchars(t($isSubject ? 'Central Stock' : 'My Officer Pool'), ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars(t('Damaged or unusable items are recorded as removed.'), ENT_QUOTES, 'UTF-8') ?></span></div>
+                    <div class="return-workflow-destination"><small><?= htmlspecialchars(t('Good items restore to'), ENT_QUOTES, 'UTF-8') ?></small><strong><?= htmlspecialchars(t($isSubject ? 'Central Stock' : 'My Officer Pool'), ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars(t($isSubject ? 'Central Stock updates only after Store Keeper acceptance.' : 'Damaged or unusable items are recorded as removed.'), ENT_QUOTES, 'UTF-8') ?></span></div>
                 </div>
                 <div class="return-workflow-footer"><button class="admin-primary-action" type="submit" <?= $issued === [] ? 'disabled' : '' ?>><?= htmlspecialchars(t('Process Return'), ENT_QUOTES, 'UTF-8') ?></button></div>
             </form>
         </section>
 
-        <?php if ($isSubject): ?>
-        <section class="admin-data-card return-workflow-card" id="returnable-items">
-            <div class="admin-data-header"><div><h2><?= htmlspecialchars(t('Returnable Aid Items'), ENT_QUOTES, 'UTF-8') ?></h2><small><?= htmlspecialchars(t('Choose which aid items may be returned after distribution.'), ENT_QUOTES, 'UTF-8') ?></small></div></div>
-            <div class="admin-data-table-wrap"><table class="admin-data-table">
-                <thead><tr><th><?= htmlspecialchars(t('Aid Item'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Returnable'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Action'), ENT_QUOTES, 'UTF-8') ?></th></tr></thead>
-                <tbody>
-                <?php if ($returnableItems === []): ?><tr><td colspan="3" class="admin-empty-row"><?= htmlspecialchars(t('No aid items available.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
-                <?php else: foreach ($returnableItems as $item): ?>
-                    <tr><td><strong><?= htmlspecialchars((string) $item['item_name'], ENT_QUOTES, 'UTF-8') ?></strong><?php if ((string) $item['variety'] !== ''): ?><small><?= htmlspecialchars((string) $item['variety'], ENT_QUOTES, 'UTF-8') ?></small><?php endif; ?></td><td><span class="goods-status-pill <?= (int) $item['is_returnable'] === 1 ? 'is-approved' : 'is-pending' ?>"><?= htmlspecialchars(t((int) $item['is_returnable'] === 1 ? 'Yes' : 'No'), ENT_QUOTES, 'UTF-8') ?></span></td><td><form method="post" class="returnable-item-form"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="action" value="set-returnable"><input type="hidden" name="item_id" value="<?= (int) $item['id'] ?>"><input type="hidden" name="is_returnable" value="<?= (int) $item['is_returnable'] === 1 ? 0 : 1 ?>"><button type="submit" class="outline-action"><?= htmlspecialchars(t((int) $item['is_returnable'] === 1 ? 'Disable Returns' : 'Enable Returns'), ENT_QUOTES, 'UTF-8') ?></button></form></td></tr>
-                <?php endforeach; endif; ?>
-                </tbody>
-            </table></div>
-        </section>
-        <?php endif; ?>
-
         <?php else: ?>
-        <section class="admin-data-card return-workflow-card">
-            <div class="admin-data-header"><div><h2><?= htmlspecialchars(t('Return History'), ENT_QUOTES, 'UTF-8') ?></h2><small><?= htmlspecialchars(t('Only returns processed by you are shown here.'), ENT_QUOTES, 'UTF-8') ?></small></div><a class="outline-action" href="dashboard.php?page=<?= $isSubject ? 'returns' : 'process-return' ?>"><?= htmlspecialchars(t('Process Return'), ENT_QUOTES, 'UTF-8') ?></a></div>
+        <section class="admin-data-card return-workflow-card return-history-card">
+            <div class="return-history-filters" role="search" aria-label="<?= htmlspecialchars(t('Filter return history'), ENT_QUOTES, 'UTF-8') ?>">
+                <label for="return-history-search"><span><?= htmlspecialchars(t('Search'), ENT_QUOTES, 'UTF-8') ?></span><input id="return-history-search" type="search" placeholder="<?= htmlspecialchars(t('Search return ID, beneficiary or aid item'), ENT_QUOTES, 'UTF-8') ?>"></label>
+                <label for="return-history-condition"><span><?= htmlspecialchars(t('Condition'), ENT_QUOTES, 'UTF-8') ?></span><select id="return-history-condition"><option value=""><?= htmlspecialchars(t('All conditions'), ENT_QUOTES, 'UTF-8') ?></option><option value="good"><?= htmlspecialchars(t('Good'), ENT_QUOTES, 'UTF-8') ?></option><option value="damaged"><?= htmlspecialchars(t('Damaged'), ENT_QUOTES, 'UTF-8') ?></option><option value="unusable"><?= htmlspecialchars(t('Unusable'), ENT_QUOTES, 'UTF-8') ?></option></select></label>
+            </div>
             <div class="admin-data-table-wrap"><table class="admin-data-table">
-                <thead><tr><th><?= htmlspecialchars(t('Return ID'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Returned By'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Item'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Condition'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Restored To'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Date'), ENT_QUOTES, 'UTF-8') ?></th></tr></thead>
+                <thead><tr><th><?= htmlspecialchars(t('Return ID'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Returned By'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Item'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Condition'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Stock Status'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Restored To'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Date'), ENT_QUOTES, 'UTF-8') ?></th></tr></thead>
                 <tbody>
-                <?php if ($returns === []): ?><tr><td colspan="8" class="admin-empty-row"><?= htmlspecialchars(t('No returns recorded yet.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
+                <?php if ($returns === []): ?><tr><td colspan="9" class="admin-empty-row"><?= htmlspecialchars(t('No returns recorded yet.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
                 <?php else: foreach ($returns as $return): ?>
-                    <tr id="return-<?= (int) $return['id'] ?>"><td><strong>RET-<?= str_pad((string) $return['id'], 4, '0', STR_PAD_LEFT) ?></strong></td><td><?= htmlspecialchars((string) $return['full_name'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) ($return['returned_by_name'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) $return['item_name'] . ((string) $return['variety'] !== '' ? ' — ' . $return['variety'] : ''), ENT_QUOTES, 'UTF-8') ?></td><td><?= (int) $return['quantity'] ?></td><td><?= htmlspecialchars(t(ucfirst((string) $return['item_condition'])), ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars(t(match ($return['restore_to']) {'officer-pool' => 'My Officer Pool', 'central-stock' => 'Central Stock', default => 'Removed / Disposal'}), ENT_QUOTES, 'UTF-8') ?></td><td><?= date('d M Y, H:i', strtotime((string) $return['processed_at'])) ?></td></tr>
-                <?php endforeach; endif; ?>
+                    <tr id="return-<?= (int) $return['id'] ?>" data-condition="<?= htmlspecialchars((string) $return['item_condition'], ENT_QUOTES, 'UTF-8') ?>" class="return-history-row"><td><strong>RET-<?= str_pad((string) $return['id'], 4, '0', STR_PAD_LEFT) ?></strong></td><td><?= htmlspecialchars((string) $return['full_name'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) ($return['returned_by_name'] ?: '—'), ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars(widmsAidItemName((string) $return['item_name']) . ((string) $return['variety'] !== '' ? ' — ' . $return['variety'] : ''), ENT_QUOTES, 'UTF-8') ?></td><td><?= (int) $return['quantity'] ?></td><td><span class="return-condition-pill return-condition-<?= htmlspecialchars((string) $return['item_condition'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(t(ucfirst((string) $return['item_condition'])), ENT_QUOTES, 'UTF-8') ?></span></td><td><span class="return-review-pill return-review-<?= htmlspecialchars((string) $return['stock_review_status'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(t(match ($return['stock_review_status']) {'pending' => 'Pending Store Keeper', 'rejected' => 'Rejected', default => 'Accepted'}), ENT_QUOTES, 'UTF-8') ?></span><?php if ($return['stock_review_note']): ?><small><?= htmlspecialchars((string) $return['stock_review_note'], ENT_QUOTES, 'UTF-8') ?></small><?php endif; ?></td><td><?= htmlspecialchars(t($return['stock_review_status'] === 'rejected' ? 'Not restocked' : ($return['stock_review_status'] === 'pending' ? 'Awaiting Central Stock' : match ($return['restore_to']) {'officer-pool' => 'My Officer Pool', 'central-stock' => 'Central Stock', default => 'Removed / Disposal'})), ENT_QUOTES, 'UTF-8') ?></td><td><?= date('d M Y, H:i', strtotime((string) $return['processed_at'])) ?></td></tr>
+                <?php endforeach; ?>
+                    <tr id="return-history-no-results" hidden><td colspan="9" class="admin-empty-row"><?= htmlspecialchars(t('No returns match these filters.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
+                <?php endif; ?>
                 </tbody>
             </table></div>
         </section>
@@ -352,47 +319,170 @@ try {
 <?php if (!$isHistory): ?>
 <script>
 (() => {
-    const distribution = document.querySelector('.return-workflow-form select[name="distribution_id"]');
+    const form = document.querySelector('.return-workflow-form');
+    const distribution = form?.querySelector('select[name="distribution_id"]');
     const aidItem = document.getElementById('return-aid-item');
     const beneficiary = document.getElementById('return-beneficiary-choice');
-    const returnedBy = document.querySelector('.return-workflow-form input[name="returned_by_name"]');
-    const quantity = document.querySelector('.return-workflow-form input[name="quantity"]');
-    if (!distribution || !beneficiary || !aidItem || !returnedBy || !quantity) return;
+    const beneficiaryId = document.getElementById('return-beneficiary-id');
+    const beneficiaryList = document.getElementById('return-beneficiary-options');
+    const beneficiaryToggle = form?.querySelector('.return-beneficiary-toggle');
+    const beneficiaryEmpty = form?.querySelector('.return-beneficiary-empty');
+    const returnedBy = form?.querySelector('input[name="returned_by_name"]');
+    const quantity = form?.querySelector('input[name="quantity"]');
+    const condition = form?.querySelector('select[name="condition"]');
+    if (!form || !distribution || !beneficiary || !beneficiaryId || !beneficiaryList || !beneficiaryToggle || !beneficiaryEmpty || !aidItem || !returnedBy || !quantity || !condition) return;
 
-    const beneficiaryOptions = [...beneficiary.options].slice(1).map(option => option.cloneNode(true));
+    const beneficiaryOptions = [...beneficiaryList.querySelectorAll('[role="option"]')];
+    const beneficiaryCombobox = beneficiary.closest('.return-beneficiary-combobox');
+    let activeOption = -1;
     const distributionOptions = [...distribution.options].slice(1).map(option => option.cloneNode(true));
     const resetSelect = (select, options, predicate) => {
         const placeholder = select.options[0];
         select.replaceChildren(placeholder, ...options.filter(predicate).map(option => option.cloneNode(true)));
         select.value = '';
     };
-    const updateQuantity = () => {
-        const outstanding = Number(distribution.selectedOptions[0]?.dataset.outstanding || 0);
-        if (outstanding > 0) quantity.max = String(outstanding);
-        else quantity.removeAttribute('max');
-        quantity.value = '1';
-    };
     const filterDistributions = () => {
         resetSelect(distribution, distributionOptions, option =>
-            option.dataset.itemId === aidItem.value && option.dataset.beneficiaryId === beneficiary.value
+            option.dataset.itemId === aidItem.value && option.dataset.beneficiaryId === beneficiaryId.value
         );
-        distribution.disabled = !beneficiary.value;
-        if (distribution.options.length === 2) distribution.selectedIndex = 1;
-        updateQuantity();
+        distribution.disabled = !beneficiaryId.value;
+        quantity.value = '';
+        quantity.removeAttribute('max');
+        quantity.disabled = true;
+        returnedBy.value = '';
+        condition.value = '';
+    };
+    const visibleBeneficiaries = () => beneficiaryOptions.filter(option => !option.hidden);
+    const closeBeneficiaries = () => {
+        beneficiaryList.hidden = true;
+        beneficiary.setAttribute('aria-expanded', 'false');
+        beneficiaryToggle.setAttribute('aria-expanded', 'false');
+        beneficiary.removeAttribute('aria-activedescendant');
+        activeOption = -1;
+        beneficiaryOptions.forEach(option => option.classList.remove('is-active'));
+    };
+    const openBeneficiaries = (showAll = false) => {
+        if (!aidItem.value) return;
+        const search = showAll ? '' : beneficiary.value.trim().toLocaleLowerCase();
+        beneficiaryOptions.forEach(option => {
+            option.hidden = option.dataset.itemId !== aidItem.value || !option.textContent.toLocaleLowerCase().includes(search);
+        });
+        beneficiaryEmpty.hidden = visibleBeneficiaries().length !== 0;
+        beneficiaryList.hidden = false;
+        beneficiary.setAttribute('aria-expanded', 'true');
+        beneficiaryToggle.setAttribute('aria-expanded', 'true');
+        activeOption = -1;
+        beneficiary.removeAttribute('aria-activedescendant');
+        beneficiaryOptions.forEach(option => option.classList.remove('is-active'));
+    };
+    const activateOption = index => {
+        const options = visibleBeneficiaries();
+        if (!options.length) return;
+        activeOption = (index + options.length) % options.length;
+        beneficiaryOptions.forEach(option => option.classList.remove('is-active'));
+        options[activeOption].classList.add('is-active');
+        beneficiary.setAttribute('aria-activedescendant', options[activeOption].id);
+        options[activeOption].scrollIntoView({block: 'nearest'});
+    };
+    const chooseBeneficiary = option => {
+        beneficiary.value = option.textContent;
+        beneficiaryId.value = option.dataset.beneficiaryId;
+        beneficiary.setCustomValidity('');
+        beneficiaryOptions.forEach(candidate => candidate.setAttribute('aria-selected', candidate === option ? 'true' : 'false'));
+        filterDistributions();
+        beneficiary.focus();
+        closeBeneficiaries();
     };
     const filterBeneficiaries = () => {
-        resetSelect(beneficiary, beneficiaryOptions, option => option.dataset.itemId === aidItem.value);
+        beneficiary.value = '';
+        beneficiaryId.value = '';
+        beneficiary.setCustomValidity('');
         beneficiary.disabled = !aidItem.value;
-        returnedBy.value = '';
+        beneficiaryToggle.disabled = !aidItem.value;
+        beneficiaryOptions.forEach(option => option.setAttribute('aria-selected', 'false'));
+        closeBeneficiaries();
         filterDistributions();
     };
     aidItem.addEventListener('change', filterBeneficiaries);
-    beneficiary.addEventListener('change', () => {
-        returnedBy.value = beneficiary.selectedOptions[0]?.dataset.name || '';
-        filterDistributions();
+    beneficiary.addEventListener('focus', () => openBeneficiaries(Boolean(beneficiaryId.value)));
+    beneficiary.addEventListener('input', () => {
+        beneficiary.setCustomValidity('');
+        if (beneficiaryId.value) {
+            beneficiaryId.value = '';
+            filterDistributions();
+        }
+        openBeneficiaries();
     });
-    distribution.addEventListener('change', updateQuantity);
+    beneficiary.addEventListener('keydown', event => {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (beneficiaryList.hidden) openBeneficiaries(Boolean(beneficiaryId.value));
+            const direction = event.key === 'ArrowDown' ? 1 : -1;
+            activateOption(activeOption < 0 && direction < 0 ? visibleBeneficiaries().length - 1 : activeOption + direction);
+        } else if (event.key === 'Enter' && !beneficiaryList.hidden && activeOption >= 0) {
+            event.preventDefault();
+            chooseBeneficiary(visibleBeneficiaries()[activeOption]);
+        } else if (event.key === 'Escape') {
+            closeBeneficiaries();
+        }
+    });
+    beneficiaryToggle.addEventListener('click', () => {
+        if (!beneficiaryList.hidden) {
+            closeBeneficiaries();
+        } else {
+            beneficiary.focus();
+            openBeneficiaries(true);
+        }
+    });
+    beneficiaryOptions.forEach(option => option.addEventListener('click', () => chooseBeneficiary(option)));
+    document.addEventListener('pointerdown', event => {
+        if (!beneficiaryCombobox.contains(event.target)) closeBeneficiaries();
+    });
+    form.addEventListener('submit', event => {
+        const match = beneficiaryOptions.find(option => option.dataset.itemId === aidItem.value
+            && option.dataset.beneficiaryId === beneficiaryId.value
+            && option.textContent === beneficiary.value);
+        if (!match) {
+            beneficiary.setCustomValidity(beneficiary.dataset.invalidSelection);
+            event.preventDefault();
+            beneficiary.reportValidity();
+        }
+    });
+    distribution.addEventListener('change', () => {
+        const outstanding = Number(distribution.selectedOptions[0]?.dataset.outstanding || 0);
+        if (outstanding > 0) {
+            quantity.max = String(outstanding);
+            quantity.value = String(outstanding);
+            quantity.disabled = false;
+        } else {
+            quantity.value = '';
+            quantity.removeAttribute('max');
+            quantity.disabled = true;
+        }
+    });
     filterBeneficiaries();
+})();
+</script>
+<?php else: ?>
+<script>
+(() => {
+    const search = document.getElementById('return-history-search');
+    const condition = document.getElementById('return-history-condition');
+    const rows = [...document.querySelectorAll('.return-history-row')];
+    const noResults = document.getElementById('return-history-no-results');
+    if (!search || !condition || !rows.length || !noResults) return;
+    const applyFilters = () => {
+        const term = search.value.trim().toLocaleLowerCase();
+        let visible = 0;
+        rows.forEach(row => {
+            row.hidden = (condition.value !== '' && row.dataset.condition !== condition.value)
+                || (term !== '' && !row.textContent.toLocaleLowerCase().includes(term));
+            if (!row.hidden) visible++;
+        });
+        noResults.hidden = visible !== 0;
+    };
+    search.addEventListener('input', applyFilters);
+    condition.addEventListener('change', applyFilters);
 })();
 </script>
 <?php endif; ?>

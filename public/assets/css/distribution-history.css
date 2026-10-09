@@ -1,0 +1,58 @@
+.subject-distribution-history-page .distribution-history-card .admin-data-table-wrap {
+  border: 1px solid #cbdce8;
+  border-radius: 8px;
+  box-shadow: 0 3px 12px rgba(23, 70, 106, .06);
+}
+.subject-distribution-history-page .distribution-history-table {
+  min-width: 1100px;
+  font-size: 13px;
+}
+.subject-distribution-history-page .distribution-history-table th {
+  padding: 14px 15px;
+  color: #234d6d;
+  background: #eaf2f7;
+  border-bottom: 1px solid #cbdce8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.subject-distribution-history-page .distribution-history-table td {
+  padding: 15px;
+  color: #24455f;
+  border-color: #dce7ee;
+  vertical-align: middle;
+}
+.subject-distribution-history-page .distribution-history-table tbody tr:nth-child(even) td {
+  background: #f7fafc;
+}
+.subject-distribution-history-page .distribution-history-table tbody tr:hover td {
+  background: #edf6fb;
+}
+.subject-distribution-history-page .distribution-history-table tbody tr.is-distributed td:first-child {
+  border-left: 5px solid #2fa87a;
+}
+.subject-distribution-history-page .distribution-history-table tbody tr.is-returned td:first-child {
+  border-left: 5px solid #daa34b;
+}
+.subject-distribution-history-page .distribution-history-table tbody tr.is-handover td:first-child {
+  border-left: 5px solid #3f87ba;
+}
+.subject-distribution-history-page .distribution-history-table .status-handover {
+  color: #145e90;
+  background: #e8f4fc;
+  border: 1px solid #a9d4ef;
+}
+.subject-distribution-history-page .distribution-history-table td strong {
+  color: #103b5a;
+  font-weight: 700;
+}
+.subject-distribution-history-page .distribution-history-table td small {
+  display: block;
+  margin-top: 4px;
+  color: #607e94;
+  font-size: 11px;
+}
+.subject-distribution-history-page .distribution-history-table tr:target td {
+  background: #e7f5ff !important;
+}

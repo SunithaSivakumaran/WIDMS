@@ -8,8 +8,8 @@ $profileImage = !empty($_SESSION['profile_image']) ? htmlspecialchars((string) $
 ?>
 <aside class="sidebar" id="admin-sidebar">
     <div class="sidebar-brand">
-        <img class="sidebar-logo" src="assets/images/client-logo.jpeg" alt="WIDMS logo">
-        <span class="sidebar-brand-name"><strong>WIDMS</strong></span>
+        <img class="sidebar-logo" src="assets/images/client-logo.jpeg" alt="SWPCS logo">
+        <span class="sidebar-brand-name"><strong>SWPCS</strong></span>
         <?php renderLanguageSwitcher('sidebar-language'); ?>
         <button type="button" class="sidebar-close" id="sidebar-close" aria-label="Close navigation">&times;</button>
     </div>

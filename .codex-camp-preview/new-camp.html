@@ -1,0 +1,141 @@
+<!doctype html><html lang="en"><head><base href="file:///D:/Program%20Files/xampp_new/htdocs/WIDMS-proj/WIDMS/public/"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>New Vision Camp | WIDMS</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link href="assets/css/admin-dashboard.css?v=68" rel="stylesheet"><link href="assets/css/spectacle-camps.css?v=1" rel="stylesheet"></head>
+<body class="widms-unified-ui sc-page">
+<aside class="sidebar management-role-sidebar" id="admin-sidebar">
+    <div class="sidebar-brand">
+        <img class="sidebar-logo" src="assets/images/client-logo.jpeg" alt="WIDMS logo">
+        <span class="sidebar-brand-name"><strong>WIDMS</strong></span>
+        <nav class="language-switcher sidebar-language" aria-label="Language"><a class="language-link" href="?page=spectacle-camp-new&amp;lang=si" lang="si">සිං</a><a class="language-link active" href="?page=spectacle-camp-new&amp;lang=en" lang="en" aria-current="true">ENG</a><a class="language-link" href="?page=spectacle-camp-new&amp;lang=ta" lang="ta">தமிழ்</a></nav>        <button type="button" class="sidebar-close" id="sidebar-close" aria-label="Close navigation">&times;</button>
+    </div>
+
+    <a class="admin-profile profile-link" href="profile.php" title="Edit profile">
+                    <span class="profile-avatar subject-avatar">
+                C            </span>            <span>
+                <strong>Camp Fixture</strong>
+                <small>Subject Officer</small>
+            </span>
+    </a>
+
+    <nav class="sidebar-nav" aria-label="Subject Officer navigation">
+                    <p class="nav-heading">Overview</p>
+                            <a href="dashboard.php"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                                <p class="nav-heading">Aid Requests</p>
+                            <a href="dashboard.php?page=direct-aid-request"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">📝</span>
+                    <span>Direct Aid Request</span>
+                </a>
+                            <a href="dashboard.php?page=my-aid-requests"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">📑</span>
+                    <span>Aid Activity History</span>
+                </a>
+                            <a href="dashboard.php?page=aid-requests"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">📋</span>
+                    <span>Aid Requests (Monitor)</span>
+                </a>
+                                <p class="nav-heading">Stock &amp; Quotas</p>
+                            <a href="dashboard.php?page=request-goods"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">&#10133;</span>
+                    <span>New Quota Request</span>
+                </a>
+                            <a href="dashboard.php?page=my-goods-requests"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">&#128203;</span>
+                    <span>Quota Request History</span>
+                </a>
+                            <a href="dashboard.php?page=current-stock"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">📦</span>
+                    <span>Current Stock</span>
+                </a>
+                            <a href="dashboard.php?page=officer-pools"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">📈</span>
+                    <span>Social Service Officer Pools</span>
+                </a>
+                                <p class="nav-heading">Returns</p>
+                            <a href="dashboard.php?page=returns"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">&#128260;</span>
+                    <span>Process Return</span>
+                </a>
+                            <a href="dashboard.php?page=return-history"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">&#128203;</span>
+                    <span>Return History</span>
+                </a>
+                                <p class="nav-heading">Vision Camps</p>
+                            <a href="dashboard.php?page=spectacle-camp-new"
+                   class="nav-link active" aria-current="page">
+                    <span class="nav-icon" aria-hidden="true">&#10133;</span>
+                    <span>New Vision Camp</span>
+                </a>
+                            <a href="dashboard.php?page=spectacle-camps"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">&#128083;</span>
+                    <span>My Vision Camps</span>
+                </a>
+                                <p class="nav-heading">Suppliers</p>
+                            <a href="dashboard.php?page=supplier-config"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">⚙️</span>
+                    <span>Register &amp; Allocate</span>
+                </a>
+                            <a href="dashboard.php?page=supplier-details"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">🏢</span>
+                    <span>Registered Suppliers</span>
+                </a>
+                            <a href="dashboard.php?page=supplier-balances"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">📊</span>
+                    <span>Balance Summary</span>
+                </a>
+                                <p class="nav-heading">Eligibility Configuration</p>
+                            <a href="dashboard.php?page=item-categories"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">🛠️</span>
+                    <span>Eligibility Rule Builder</span>
+                </a>
+                            <a href="dashboard.php?page=eligibility-rules"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">📋</span>
+                    <span>Configured Eligibility Rules</span>
+                </a>
+                                <p class="nav-heading">Reports &amp; Activity</p>
+                            <a href="dashboard.php?page=reports"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">📑</span>
+                    <span>Reports</span>
+                </a>
+                            <a href="dashboard.php?page=recent-activity"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">🕘</span>
+                    <span>Recent Activity</span>
+                </a>
+                            <a href="dashboard.php?page=audit-log"
+                   class="nav-link">
+                    <span class="nav-icon" aria-hidden="true">🔍</span>
+                    <span>Audit Log</span>
+                </a>
+                        </nav>
+
+    <!-- Translate this shared action for the selected interface language. -->
+    <a class="sign-out" href="logout.php"><span aria-hidden="true">&#8592;</span>Sign Out</a>
+</aside>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="admin-shell"><header class="topbar"><div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="Open navigation">&#9776;</button><h1>New Vision Camp</h1></div><div class="topbar-actions"><button class="notification-button" type="button" aria-label="Notifications">&#128276;</button></div></header>
+<main class="dashboard-content sc-content">
+<div class="sc-page-tools"><p>Spectacles only. Camp stock is kept separate from ordinary aid stock.</p><a class="admin-primary-action" href="dashboard.php?page=spectacle-camp-new">+ New Vision Camp</a></div>
+<section class="sc-panel"><h2>Vision Camp Request</h2><p>Admin approval is required before conducting the camp.</p>
+<form method="post" class="sc-form"><input type="hidden" name="csrf_token" value="827a6c514c68032c10d7e9ea7646daeb31de2b774fe83ef41065724f3d229d13"><input type="hidden" name="action" value="create-camp"><input type="hidden" name="camp_id" value="0"><input type="hidden" name="request_token" value="32e8cd929d216288e94fd0068a415e26"><label><span>District *</span><select name="district_id" data-sc-district required><option value="">Select District</option><option value="1" >Test district</option></select></label>
+<label><span>DS Division *</span><select name="ds_division_id" data-sc-division required><option value="">Select DS Division</option><option value="1" data-district="1" >Camp division</option><option value="2" data-district="1" >Other division</option></select></label>
+<label><span>Estimated Participants <span aria-hidden="true">*</span></span><input type="number" name="estimated_participants" value="" required min="1" max="100000"></label><label><span>Camp Date <span aria-hidden="true">*</span></span><input type="date" name="camp_date" value="" required min="2026-09-24"></label><label><span>Camp Time <span aria-hidden="true">*</span></span><input type="time" name="camp_time" value="" required ></label><label class="sc-wide"><span>Remarks</span><textarea name="remarks" rows="2" maxlength="1000"></textarea></label><div class="sc-wide sc-actions"><button class="admin-primary-action" type="submit">Submit for approval</button></div></form></section>
+</main></div></body></html>

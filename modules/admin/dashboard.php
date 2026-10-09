@@ -5,6 +5,7 @@ requireRole('admin');
 require_once __DIR__ . '/../../config/database.php';
 
 $activePage = 'dashboard';
+$pendingVisionCamps = 0;
 
 $metrics=['stock'=>0,'item_types'=>0,'pending'=>0,'officers'=>0,'today'=>0,'registrations'=>0,'aid'=>0,'goods'=>0,'corrections'=>0,'beneficiaries'=>0,'districts'=>0,'month'=>0];
 try {
@@ -15,7 +16,8 @@ try {
     $metrics['aid'] = (int) $db->query("SELECT COUNT(*) FROM aid_requests WHERE status='pending'")->fetchColumn();
     $metrics['goods'] = (int) $db->query("SELECT COUNT(DISTINCT COALESCE(NULLIF(request_batch_ref, ''), CONCAT('GR-', id))) FROM goods_requests WHERE status='pending-admin-approval'")->fetchColumn();
     $metrics['corrections'] = (int) $db->query("SELECT COUNT(*) FROM correction_requests WHERE status='pending'")->fetchColumn();
-    $metrics['pending'] = $metrics['registrations'] + $metrics['aid'] + $metrics['goods'] + $metrics['corrections']
+    $pendingVisionCamps = (int) $db->query("SELECT COUNT(*) FROM spectacle_camps WHERE status='pending'")->fetchColumn();
+    $metrics['pending'] = $metrics['registrations'] + $metrics['aid'] + $metrics['goods'] + $metrics['corrections'] + $pendingVisionCamps
         + (int) $db->query("SELECT COUNT(*) FROM beneficiary_registration_requests WHERE status='pending'")->fetchColumn();
     $metrics['officers'] = (int) $db->query("SELECT COUNT(*) FROM users WHERE role='social-service-officer' AND status='active'")->fetchColumn();
     $metrics['today'] = (int) $db->query('SELECT COALESCE(SUM(quantity),0) FROM distributions WHERE DATE(distributed_at)=CURDATE()')->fetchColumn();
@@ -31,7 +33,7 @@ try {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin Dashboard | WIDMS</title>
+    <title>Admin Dashboard | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css" rel="stylesheet">
 </head>
@@ -97,6 +99,12 @@ try {
 
                     <div class="admin-actions-content">
                         <div class="pending-action-grid">
+                            <a class="pending-action-card action-aid" href="dashboard.php?page=pending-approvals&amp;tab=vision-camps">
+                                <span class="pending-action-icon" aria-hidden="true">&#128083;</span>
+                                <span class="pending-action-copy"><small><?=htmlspecialchars(t('Vision Camp Requests'),ENT_QUOTES,'UTF-8')?></small><strong><?=htmlspecialchars(t('Awaiting approval'),ENT_QUOTES,'UTF-8')?></strong></span>
+                                <span class="pending-action-count <?=$pendingVisionCamps>0?'has-items':'is-zero'?>"><?=(int)$pendingVisionCamps?></span>
+                                <span class="pending-action-arrow" aria-hidden="true">&#8594;</span>
+                            </a>
                             <a class="pending-action-card action-registration" href="dashboard.php?page=pending-approvals">
                                 <span class="pending-action-icon" aria-hidden="true">👥</span>
                                 <span class="pending-action-copy"><small><?=htmlspecialchars(t('User Registration'),ENT_QUOTES,'UTF-8')?></small><strong><?=htmlspecialchars(t('Awaiting approval'),ENT_QUOTES,'UTF-8')?></strong></span>

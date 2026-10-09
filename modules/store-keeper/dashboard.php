@@ -83,7 +83,7 @@ try {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Store Keeper Dashboard | WIDMS</title>
+    <title><?= htmlspecialchars(t('Store Keeper Dashboard'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/admin-dashboard.css') ?>" rel="stylesheet">
 </head>
@@ -91,16 +91,16 @@ try {
 <?php require __DIR__ . '/../../includes/store-keeper-sidebar.php'; ?>
 <div class="admin-shell">
     <header class="topbar">
-        <div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="Open navigation">☰</button><h1>Dashboard</h1></div>
-        <div class="topbar-actions"><label class="search-box"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search anything..." aria-label="Search"></label><button class="notification-button" type="button" aria-label="Notifications">●</button></div>
+        <div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="<?= htmlspecialchars(t('Open navigation'), ENT_QUOTES, 'UTF-8') ?>">☰</button><h1><?= htmlspecialchars(t('Dashboard'), ENT_QUOTES, 'UTF-8') ?></h1></div>
+        <div class="topbar-actions"><label class="search-box"><span aria-hidden="true">⌕</span><input type="search" placeholder="<?= htmlspecialchars(t('Search anything...'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(t('Search'), ENT_QUOTES, 'UTF-8') ?>"></label><button class="notification-button" type="button" aria-label="<?= htmlspecialchars(t('Notifications'), ENT_QUOTES, 'UTF-8') ?>">●</button></div>
     </header>
     <main class="dashboard-content">
         <?php if ($loadError !== ''): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($loadError, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
-        <section class="stats-grid" aria-label="Store Keeper statistics">
+        <section class="stats-grid" aria-label="<?= htmlspecialchars(t('Store Keeper statistics'), ENT_QUOTES, 'UTF-8') ?>">
             <a class="stat-card stat-card-link" href="dashboard.php?page=approved-dispatches"><span class="stat-icon">📥</span><p><?= htmlspecialchars(t('Dispatch Requests'), ENT_QUOTES, 'UTF-8') ?></p><strong><?= $itemsToDispatch ?></strong><small><?= htmlspecialchars(t($itemsToDispatch > 0 ? 'Requests awaiting release' : 'No dispatch requests are waiting.'), ENT_QUOTES, 'UTF-8') ?></small><span class="stat-card-action"><?=htmlspecialchars(t('Open Dispatch Requests'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
-            <a class="stat-card stat-card-link" href="dashboard.php?page=current-stock"><span class="stat-icon">📦</span><p>Central Stock Items</p><strong><?= number_format($totalStock) ?></strong><small>Across <?= $itemTypeCount ?> item type<?= $itemTypeCount === 1 ? '' : 's' ?></small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
-            <a class="stat-card stat-card-link" href="dashboard.php?page=current-stock"><span class="stat-icon">⚠</span><p>Low Stock Alerts</p><strong><?= count($lowStockItems) ?></strong><small class="<?= $lowStockItems !== [] ? 'negative' : 'positive' ?>"><?= $lowStockItems !== [] ? htmlspecialchars(implode(' · ', array_slice(array_column($lowStockItems, 'item_name'), 0, 2)), ENT_QUOTES, 'UTF-8') : 'All stock levels are healthy' ?></small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
-            <article class="stat-card"><span class="stat-icon">💳</span><p>Outstanding Payments</p><strong>Rs <?= number_format($outstandingBalance, 2) ?></strong><small class="<?= $outstandingBalance > 0 ? 'negative' : 'positive' ?>"><?= $outstandingSuppliers ?> supplier<?= $outstandingSuppliers === 1 ? '' : 's' ?></small></article>
+            <a class="stat-card stat-card-link" href="dashboard.php?page=current-stock"><span class="stat-icon">📦</span><p><?= htmlspecialchars(t('Central Stock Items'), ENT_QUOTES, 'UTF-8') ?></p><strong><?= number_format($totalStock) ?></strong><small><?= htmlspecialchars(t('Across'), ENT_QUOTES, 'UTF-8') ?> <?= $itemTypeCount ?> <?= htmlspecialchars(t($itemTypeCount === 1 ? 'item type' : 'item types'), ENT_QUOTES, 'UTF-8') ?></small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
+            <a class="stat-card stat-card-link" href="dashboard.php?page=current-stock"><span class="stat-icon">⚠</span><p><?= htmlspecialchars(t('Low Stock Alerts'), ENT_QUOTES, 'UTF-8') ?></p><strong><?= count($lowStockItems) ?></strong><small class="<?= $lowStockItems !== [] ? 'negative' : 'positive' ?>"><?= $lowStockItems !== [] ? htmlspecialchars(implode(' · ', array_slice(array_column($lowStockItems, 'item_name'), 0, 2)), ENT_QUOTES, 'UTF-8') : htmlspecialchars(t('All stock levels are healthy'), ENT_QUOTES, 'UTF-8') ?></small><span class="stat-card-action"><?=htmlspecialchars(t('View details'),ENT_QUOTES,'UTF-8')?> <span aria-hidden="true">&#8594;</span></span></a>
+            <article class="stat-card"><span class="stat-icon">💳</span><p><?= htmlspecialchars(t('Outstanding Payments'), ENT_QUOTES, 'UTF-8') ?></p><strong>Rs <?= number_format($outstandingBalance, 2) ?></strong><small class="<?= $outstandingBalance > 0 ? 'negative' : 'positive' ?>"><?= $outstandingSuppliers ?> <?= htmlspecialchars(t($outstandingSuppliers === 1 ? 'supplier' : 'suppliers'), ENT_QUOTES, 'UTF-8') ?></small></article>
         </section>
         <section class="dashboard-grid">
             <article class="panel inventory-pie-panel store-stock-pie-panel">
@@ -136,7 +136,7 @@ try {
                                     <li class="attention-item is-low">
                                         <span class="attention-item-symbol" aria-hidden="true">&#128230;</span>
                                         <span class="attention-item-copy">
-                                            <b><?= htmlspecialchars($stockItem['item_name'], ENT_QUOTES, 'UTF-8') ?><?= $stockItem['variety'] !== '' ? ' — ' . htmlspecialchars($stockItem['variety'], ENT_QUOTES, 'UTF-8') : '' ?></b>
+                                            <b><?= htmlspecialchars(widmsAidItemName((string)$stockItem['item_name']), ENT_QUOTES, 'UTF-8') ?><?= $stockItem['variety'] !== '' ? ' — ' . htmlspecialchars($stockItem['variety'], ENT_QUOTES, 'UTF-8') : '' ?></b>
                                             <small><?= htmlspecialchars(t('Available'), ENT_QUOTES, 'UTF-8') ?>: <strong><?= (int) $stockItem['quantity'] ?></strong> · <?= htmlspecialchars(t('Minimum'), ENT_QUOTES, 'UTF-8') ?>: <?= $lowStockThreshold ?></small>
                                         </span>
                                         <em class="attention-badge danger"><?= htmlspecialchars(t('Low'), ENT_QUOTES, 'UTF-8') ?></em>
@@ -159,7 +159,7 @@ try {
                                 <?php foreach ($pendingDispatches as $request): ?>
                                     <li class="attention-item is-ready">
                                         <span class="attention-item-symbol" aria-hidden="true">&#128666;</span>
-                                        <span class="attention-item-copy"><b><?= $request['request_kind'] === 'direct' ? 'AR-' : 'GR-' ?><?=str_pad((string)$request['id'],4,'0',STR_PAD_LEFT)?> · <?=htmlspecialchars($request['item_name'],ENT_QUOTES,'UTF-8')?></b><small><?=htmlspecialchars($request['division_name'],ENT_QUOTES,'UTF-8')?> · <?= htmlspecialchars(t('Qty'), ENT_QUOTES, 'UTF-8') ?> <?=(int)$request['quantity']?></small></span>
+                                        <span class="attention-item-copy"><b><?= $request['request_kind'] === 'direct' ? 'AR-' : 'GR-' ?><?=str_pad((string)$request['id'],4,'0',STR_PAD_LEFT)?> · <?=htmlspecialchars(widmsAidItemName((string)$request['item_name']),ENT_QUOTES,'UTF-8')?></b><small><?=htmlspecialchars($request['division_name'],ENT_QUOTES,'UTF-8')?> · <?= htmlspecialchars(t('Qty'), ENT_QUOTES, 'UTF-8') ?> <?=(int)$request['quantity']?></small></span>
                                         <em class="attention-badge ready"><?= htmlspecialchars(t('Ready'), ENT_QUOTES, 'UTF-8') ?></em>
                                     </li>
                                 <?php endforeach; ?>

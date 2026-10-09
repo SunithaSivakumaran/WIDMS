@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/notifications.php';
 require_once __DIR__ . '/../../includes/aid-request-details.php';
+require_once __DIR__ . '/../../includes/beneficiary-division-guard.php';
 
 $activePage = 'direct-aid-release-queue';
 $database = database();
@@ -44,18 +45,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$release) {
                 throw new RuntimeException(t('This released item is no longer available for distribution.'));
             }
+            assertBeneficiaryRecordDivision($database, (int)$release['beneficiary_id']);
 
             $statement = $database->prepare(
                 "INSERT INTO distributions
-                    (aid_request_id, beneficiary_id, item_id, quantity,
+                    (aid_request_id, beneficiary_id, ds_division_id, item_id, quantity,
                      distribution_type, source, distributed_by)
                  VALUES
-                    (:request_id, :beneficiary_id, :item_id, :quantity,
+                    (:request_id, :beneficiary_id, (SELECT ds_division_id FROM beneficiaries WHERE id = :division_beneficiary), :item_id, :quantity,
                      'direct', 'central-stock', :admin_id)"
             );
             $statement->execute([
                 'request_id' => $release['aid_request_id'],
                 'beneficiary_id' => $release['beneficiary_id'],
+                'division_beneficiary' => $release['beneficiary_id'],
                 'item_id' => $release['item_id'],
                 'quantity' => $release['quantity'],
                 'admin_id' => $adminId,
@@ -136,10 +139,11 @@ try {
                 beneficiary.nic, beneficiary.elders_card_number,
                 beneficiary.date_of_birth, beneficiary.address,
                 district.name AS district_name, division.name AS division_name,
-                item.item_name, item.variety,
+                item.item_name, item.variety, spectacle_type.name AS spectacle_category_name,
                 EXISTS (
                     SELECT 1 FROM distributions distribution
                     JOIN item_returns item_return ON item_return.distribution_id = distribution.id
+                        AND item_return.stock_review_status = 'accepted'
                     WHERE distribution.aid_request_id = request.id
                 ) AS has_recorded_return
          FROM aid_requests request
@@ -148,6 +152,7 @@ try {
          JOIN districts district ON district.id = beneficiary.district_id
          JOIN ds_divisions division ON division.id = beneficiary.ds_division_id
          JOIN inventory_items item ON item.id = request.item_id
+         LEFT JOIN spectacle_categories spectacle_type ON spectacle_type.id = request.spectacle_category_id
          WHERE release_record.admin_id = :release_admin
             OR (request.submitted_by = :history_admin AND EXISTS (
                 SELECT 1 FROM distributions historical
@@ -184,7 +189,7 @@ $h = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QU
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= $h(t('Direct Aid Releases & History')) ?> | WIDMS</title>
+    <title><?= $h(t('Direct Aid Releases & History')) ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/admin-dashboard.css') ?>" rel="stylesheet">
 </head>
@@ -196,7 +201,6 @@ $h = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QU
             <button class="menu-button" id="menu-button" type="button" aria-label="<?= $h(t('Open navigation')) ?>">&#9776;</button>
             <h1><?= $h(t('Direct Aid Releases & History')) ?></h1>
         </div>
-        <a class="outline-action" href="dashboard.php?page=direct-distribution"><?= $h(t('New Direct Aid Distribution')) ?></a>
     </header>
     <main class="dashboard-content admin-operation-page admin-item-requests-page admin-direct-release-queue-content">
         <?php if ($success !== ''): ?><div class="alert alert-success" role="status"><?= $h(t($success)) ?></div><?php endif; ?>
@@ -262,8 +266,8 @@ $h = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QU
                             <td><?= $h($row['division_name']) ?></td>
                             <td class="request-aid-cell">
                                 <div class="request-aid-content">
-                                    <strong><?= $h($row['item_name'] . ($row['variety'] ? ' / ' . $row['variety'] : '') . ' × ' . $row['quantity']) ?></strong>
-                                    <?php if ($row['prescribed_power'] !== null): ?><small><?= $h(t('Prescription Power')) ?>: <?= $h(sprintf('%+.2f', (float) $row['prescribed_power'])) ?></small><?php endif; ?>
+                                    <strong><?= $h(widmsAidItemName((string)$row['item_name']) . ($row['variety'] ? ' / ' . $row['variety'] : '') . ' × ' . $row['quantity']) ?></strong>
+                                    <?php if ($row['spectacle_category_name'] !== null): ?><small><?= $h(t('Spectacle Type')) ?>: <?= $h(t((string) $row['spectacle_category_name'])) ?></small><?php endif; ?>
                                     <?php $details = aidRequestDetails($row); if ($details): ?>
                                     <button type="button" class="request-extra-info-button" data-request-extra-info="<?= $h(json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>" data-dialog-title="<?= $h(t('Beneficiary Details')) ?>" data-close-label="<?= $h(t('Close')) ?>"><?= $h(t('View details')) ?></button>
                                     <?php endif; ?>

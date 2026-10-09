@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/** Render the shared success notification used by every WIDMS role. */
+/** Render the shared success notification used by every SWPCS role. */
 function renderSuccessMessage(string $message): void
 {
     $message = trim($message);

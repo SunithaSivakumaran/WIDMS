@@ -26,7 +26,7 @@ if ($itemId > 0) {
              FROM stock_receipts r
              JOIN suppliers s ON s.id = r.supplier_id
              JOIN inventory_items i ON i.id = r.item_id
-             WHERE r.item_id = ?
+             WHERE r.item_id = ? AND r.stock_destination='central'
              ORDER BY CASE r.payment_status WHEN 'unpaid' THEN 1 WHEN 'partially-paid' THEN 2 WHEN 'fully-paid' THEN 3 ELSE 4 END, r.received_date ASC, r.id ASC"
         );
         $query->execute([$itemId]);

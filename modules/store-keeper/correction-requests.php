@@ -87,19 +87,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Correction Requests | WIDMS</title>
+    <title><?= htmlspecialchars(t('Correction Requests'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css?v=50" rel="stylesheet">
 </head>
 <body class="store-page store-correction-page">
 <?php require __DIR__ . '/../../includes/store-keeper-sidebar.php'; ?>
 <div class="admin-shell">
-    <header class="topbar"><div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="Open navigation">☰</button><h1>Correction Requests</h1></div></header>
+    <header class="topbar"><div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="<?= htmlspecialchars(t('Open navigation'), ENT_QUOTES, 'UTF-8') ?>">☰</button><h1><?= htmlspecialchars(t('Correction Requests'), ENT_QUOTES, 'UTF-8') ?></h1></div></header>
     <main class="dashboard-content correction-page">
         <?php if ($success !== ''): ?><div class="alert alert-success" role="status"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
         <?php if ($errors !== []): ?><div class="alert alert-danger" role="alert"><ul class="mb-0 ps-3"><?php foreach ($errors as $error): ?><li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul></div><?php endif; ?>
         <section class="correction-card correction-form-card">
-            <div class="correction-card-header"><div class="correction-entry-title"><span class="correction-entry-symbol" aria-hidden="true">↻</span><div><h2>Submit Correction Request</h2><p>Report an incorrect inventory record for administrator review.</p></div></div></div>
+            <div class="correction-card-header"><div class="correction-entry-title"><span class="correction-entry-symbol" aria-hidden="true">↻</span><div><h2><?= htmlspecialchars(t('Submit Correction Request'), ENT_QUOTES, 'UTF-8') ?></h2><p><?= htmlspecialchars(t('Report an incorrect inventory record for administrator review.'), ENT_QUOTES, 'UTF-8') ?></p></div></div></div>
             <?php renderCorrectionRequestForm($values, $errorTypes); ?>
         </section>
     </main>

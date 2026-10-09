@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/sms.php';
 require_once __DIR__ . '/../includes/registration.php';
+require_once __DIR__ . '/../includes/form-submissions.php';
 
 if (isLoggedIn()) {
     header('Location: dashboard.php');
@@ -18,7 +19,8 @@ $roles = [
 ];
 $values = ['full_name' => '', 'salary_number' => '', 'email' => '', 'phone' => '', 'role' => '', 'district_id' => '', 'ds_division_id' => ''];
 $errors = [];
-$success = '';
+$success = (string) ($_SESSION['signup_success'] ?? '');
+unset($_SESSION['signup_success']);
 $districts = [];
 $dsDivisions = [];
 
@@ -44,6 +46,9 @@ try {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!widmsConsumeFormSubmissionToken($_POST['widms_submission_token'] ?? null)) {
+        $errors[] = 'This form was already submitted or has expired. Refresh the page and try again.';
+    }
     foreach (array_keys($values) as $field) {
         $values[$field] = trim((string) ($_POST[$field] ?? ''));
     }
@@ -151,9 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'district_id' => $values['role'] === 'social-service-officer' ? (int) $values['district_id'] : null,
                     'ds_division_id' => $values['role'] === 'social-service-officer' ? (int) $values['ds_division_id'] : null,
                 ]);
-                $success = 'Your request was sent to the administrator. You will receive an email after it is reviewed.';
-                $values = array_fill_keys(array_keys($values), '');
-                unset($_SESSION['csrf_token']);
+                $_SESSION['signup_success'] = 'Your request was sent to the administrator. You will receive an email after it is reviewed.';
+                header('Location: signup.php', true, 303);
+                exit;
             }
         } catch (PDOException $exception) {
             error_log($exception->getMessage());
@@ -169,16 +174,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= htmlspecialchars(t('Request an account'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t('Request an account'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/login.css?v=3" rel="stylesheet">
 </head>
 <body>
 <main class="login-page signup-page auth-layout">
-    <!-- The brand panel keeps account registration visually connected to WIDMS. -->
-    <aside class="auth-showcase signup-showcase" aria-label="<?= htmlspecialchars(t('About WIDMS registration'), ENT_QUOTES, 'UTF-8') ?>">
+    <!-- The brand panel keeps account registration visually connected to SWPCS. -->
+    <aside class="auth-showcase signup-showcase" aria-label="<?= htmlspecialchars(t('About SWPCS registration'), ENT_QUOTES, 'UTF-8') ?>">
         <?php renderLanguageSwitcher('auth-language'); ?>
-        <div class="showcase-badge"><?= htmlspecialchars(t('Join WIDMS'), ENT_QUOTES, 'UTF-8') ?></div>
+        <div class="showcase-badge"><?= htmlspecialchars(t('Join SWPCS'), ENT_QUOTES, 'UTF-8') ?></div>
         <div class="showcase-content">
             <p class="showcase-kicker"><?= htmlspecialchars(t('One coordinated service'), ENT_QUOTES, 'UTF-8') ?></p>
             <h2><?= htmlspecialchars(t('Create access for your role in the welfare distribution network.'), ENT_QUOTES, 'UTF-8') ?></h2>
@@ -194,9 +199,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <section class="login-card signup-card" aria-labelledby="signup-title">
         <?php renderLanguageSwitcher('mobile-language'); ?>
         <header class="brand d-flex align-items-center">
-            <img class="brand-mark" src="assets/images/client-logo.jpeg" alt="WIDMS logo">
+            <img class="brand-mark" src="assets/images/client-logo.jpeg" alt="SWPCS logo">
             <div>
-                <p class="brand-name mb-0">WIDMS</p>
+                <p class="brand-name mb-0">SWPCS</p>
                 <p class="brand-description mb-0"><?= htmlspecialchars(t('Welfare Inventory & Distribution Management'), ENT_QUOTES, 'UTF-8') ?></p>
             </div>
         </header>
@@ -227,6 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form method="post" action="signup.php">
+            <?= widmsFormSubmissionField() ?>
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
             <div class="signup-grid">
                 <div class="full-width">
@@ -337,6 +343,7 @@ district.addEventListener('change', () => filterDivisions(true));
 updateDivision();
 </script>
 <script src="assets/js/password-toggle.js?v=2"></script>
+<script src="assets/js/form-submit-guard.js?v=<?= filemtime(__DIR__ . '/assets/js/form-submit-guard.js') ?>"></script>
 <?= widmsUiTranslationAssetsHtml() ?>
 </body>
 </html>

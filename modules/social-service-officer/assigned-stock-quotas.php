@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 requireRole('social-service-officer');
 require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../includes/goods-request-actor.php';
 
 $activePage = 'assigned-stock-quotas';
 $rows = [];
@@ -14,14 +15,24 @@ try {
                 g.approved_at, g.dispatched_at, g.allocated_to_sso_at,
                 i.item_name, i.variety,
                 d.name AS district_name, ds.name AS division_name,
-                requester.full_name AS requester_name
+                requester.full_name AS requester_name,
+                requester.username AS requester_username, requester.role AS requester_role,
+                approver.username AS approver_username, approver.role AS approver_role,
+                dispatcher.username AS dispatcher_username, dispatcher.role AS dispatcher_role
          FROM goods_requests g
          JOIN inventory_items i ON i.id = g.item_id
          JOIN ds_divisions ds ON ds.id = g.destination_ds_division_id
          JOIN districts d ON d.id = ds.district_id
          JOIN users requester ON requester.id = g.requested_by
-         WHERE g.destination_sso_id = :user_id
+         LEFT JOIN users approver ON approver.id = g.approved_by
+         LEFT JOIN users dispatcher ON dispatcher.id = g.dispatched_by
+         WHERE g.destination_ds_division_id = (SELECT ds_division_id FROM users WHERE id = :user_id AND status = 'active')
            AND g.status IN ('approved-awaiting-dispatch', 'dispatched')
+           AND g.aid_request_id IS NULL
+           AND NOT EXISTS (
+               SELECT 1 FROM goods_request_aid_requests linked
+               WHERE linked.goods_request_id = g.id
+           )
          ORDER BY COALESCE(g.approved_at, g.created_at) DESC, g.id DESC"
     );
     $statement->execute(['user_id' => (int) $_SESSION['user_id']]);
@@ -36,9 +47,9 @@ try {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= htmlspecialchars(t('Assigned Stock Quotas'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t('Assigned Stock Quotas'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/admin-dashboard.css') ?>" rel="stylesheet">
 </head>
 <body class="pool-quota-page-body">
 <?php require __DIR__ . '/../../includes/social-service-officer-sidebar.php'; ?>
@@ -59,12 +70,13 @@ try {
                         <th><?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?></th>
                         <th><?= htmlspecialchars(t('District / DS Division'), ENT_QUOTES, 'UTF-8') ?></th>
                         <th><?= htmlspecialchars(t('Requested By'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th>Last Action By</th>
                         <th><?= htmlspecialchars(t('Status'), ENT_QUOTES, 'UTF-8') ?></th>
                         <th><?= htmlspecialchars(t('Document'), ENT_QUOTES, 'UTF-8') ?></th>
                     </tr></thead>
                     <tbody>
                     <?php if ($rows === []): ?>
-                        <tr><td colspan="7" class="admin-empty-row"><?= htmlspecialchars(t('No stock quota allocations are assigned to you.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
+                        <tr><td colspan="8" class="admin-empty-row"><?= htmlspecialchars(t('No stock quota allocations are assigned to you.'), ENT_QUOTES, 'UTF-8') ?></td></tr>
                     <?php else: foreach ($rows as $row): ?>
                         <?php
                         $statusLabel = (string) $row['status'] === 'approved-awaiting-dispatch'
@@ -73,13 +85,15 @@ try {
                         $statusClass = $row['allocated_to_sso_at']
                             ? 'is-approved'
                             : ((string) $row['status'] === 'approved-awaiting-dispatch' ? 'is-pending' : 'is-dispatched');
+                        $actor = widmsGoodsRequestLastActor($row);
                         ?>
                         <tr id="goods-request-<?= (int) $row['id'] ?>" class="admin-notification-target" tabindex="-1">
                             <td><strong><?= htmlspecialchars((string) ($row['request_batch_ref'] ?: 'GR-' . str_pad((string) $row['id'], 4, '0', STR_PAD_LEFT)), ENT_QUOTES, 'UTF-8') ?></strong></td>
-                            <td><strong><?= htmlspecialchars((string) $row['item_name'], ENT_QUOTES, 'UTF-8') ?></strong><?php if ((string) $row['variety'] !== ''): ?><small><?= htmlspecialchars((string) $row['variety'], ENT_QUOTES, 'UTF-8') ?></small><?php endif; ?></td>
+                            <td><strong><?= htmlspecialchars(widmsAidItemName((string) $row['item_name']), ENT_QUOTES, 'UTF-8') ?></strong><?php if ((string) $row['variety'] !== ''): ?><small><?= htmlspecialchars((string) $row['variety'], ENT_QUOTES, 'UTF-8') ?></small><?php endif; ?></td>
                             <td><?= number_format((int) $row['quantity']) ?></td>
                             <td><?= htmlspecialchars($row['district_name'] . ' / ' . $row['division_name'], ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars((string) $row['requester_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                            <td class="goods-actor-cell"><strong><?= htmlspecialchars($actor['username'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= htmlspecialchars(t($actor['role']), ENT_QUOTES, 'UTF-8') ?></small></td>
                             <td><span class="goods-status-pill <?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(t($statusLabel), ENT_QUOTES, 'UTF-8') ?></span></td>
                             <td><a class="outline-action" target="_blank" rel="noopener" href="dashboard.php?page=goods-request-document&amp;request_id=<?= (int) $row['id'] ?>&amp;print=1"><?= htmlspecialchars(t('View PDF'), ENT_QUOTES, 'UTF-8') ?></a></td>
                         </tr>

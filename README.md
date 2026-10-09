@@ -1,6 +1,6 @@
-# Welfare Inventory & Distribution Management System (WIDMS)
+# SWPCS
 
-WIDMS is implemented with HTML, CSS, JavaScript, Bootstrap, PHP, and MySQL. It includes authentication, role-specific dashboards, beneficiary and geographic master data, aid and goods workflows, supplier stock and payments, officer pools, returns, vision camps, contact-lens workflows, corrections, and audit history.
+SWPCS is implemented with HTML, CSS, JavaScript, Bootstrap, PHP, and MySQL. It includes authentication, role-specific dashboards, beneficiary and geographic master data, aid and goods workflows, supplier stock and payments, officer pools, returns, vision camps, contact-lens workflows, corrections, and audit history.
 
 ## Database setup
 
@@ -12,13 +12,19 @@ Every account requires a phone number. On a new installation, enter the first ad
 
 The XAMPP defaults are in `config/database.php`. On another machine, set `WIDMS_DB_HOST`, `WIDMS_DB_PORT`, `WIDMS_DB_NAME`, `WIDMS_DB_USER`, and `WIDMS_DB_PASS` if they differ. Migration does not copy records from another computer; restore a database backup separately if you need existing users or operational data. It never runs the retired demo-data cleanup scripts.
 
-The migration runner is idempotent and includes the entities and relationships from the WIDMS ER diagram. See `database/README.md` for the table-name mappings used by the application.
+The migration runner is idempotent and includes the entities and relationships from the SWPCS ER diagram. See `database/README.md` for the table-name mappings used by the application.
+
+## Vision Camps
+
+The spectacles-only workflow is available under **Vision Camps** in each role's sidebar. See [the workflow and migration guide](database/SPECTACLE_CAMPS.md) for approvals, participant records, separate camp stock, SSO transfers and SMS routing. Install it through `php database/migrate.php` and test with `php tests/spectacle-camps.php --render`.
 
 ## Account approval SMS
 
 New account applications require a unique Salary Number (1–30 digits, with leading zeros preserved). After approval, the login is `swpcs` followed by that number, for example `swpcs00123`. The approval SMS and email include the username and instructions to use the password entered at signup. Passwords remain hashed; they are never stored as readable text or sent by SMS. Existing accounts and older pending requests retain their email usernames. Salary numbers are reserved even on rejected applications to prevent duplicate registrations.
 
-After an Admin approves an account request, WIDMS sends the applicant a confirmation SMS using the phone number recorded on the application. SMS is sent only after the active account has been committed. Rejections do not send an account-created SMS. Existing email notifications continue independently.
+After an Admin approves an account request, SWPCS sends the applicant a confirmation SMS using the phone number recorded on the application. SMS is sent only after the active account has been committed. Rejected applicants receive a rejection SMS with the saved Admin reason (required, maximum 200 characters so the full reason fits the gateway message limit, including Unicode). Both decisions use the existing registration SMS status fields and duplicate-send protection. Existing email notifications continue independently.
+
+Admin's Add User form also queues an account-created SMS containing the new username, never the password. Suspending a user queues a suspension notice asking them to contact their administrator. These queue entries commit atomically with the account change, use the existing notification SMS outbox, and are processed by the same post-submission/background worker. Only suspension notices can be delivered to suspended accounts; ordinary alerts remain disabled for them. A suspension notice is skipped if the account has already been reactivated. No additional schema migration is needed beyond the existing SMS migrations.
 
 Copy `config/sms.local.example.php` to `config/sms.local.php` and enter the Textit.biz credentials, or set `WIDMS_SMS_ENABLED=true`, `WIDMS_SMS_USER_ID`, and `WIDMS_SMS_PASSWORD`. Keep the local file private; Git ignores it. Configure these credentials again when deploying to another server. Run `php database/migrate.php` to install the SMS status columns.
 
@@ -28,7 +34,7 @@ The integration uses HTTPS POST according to the [Textit.biz Basic API](https://
 
 ## System notification SMS
 
-New in-system alerts are also queued for each active recipient's saved phone number, including Admin pending requests, Store Keeper dispatch/payment alerts, Subject Officer goods received, SSO handovers, and stored workflow notifications. SMS contains the role, category and reference; beneficiary names, prescriptions and detailed notification bodies remain inside WIDMS. Accounts sharing a phone receive separate notifications addressed to their respective roles.
+New in-system alerts are also queued for each active recipient's saved phone number, including Admin pending requests, Store Keeper dispatch/payment alerts, Subject Officer goods received, SSO handovers, and stored workflow notifications. SMS contains the role, category and reference; beneficiary names, prescriptions and detailed notification bodies remain inside SWPCS. Accounts sharing a phone receive separate notifications addressed to their respective roles.
 
 `migration_notification_sms_queue.sql` installs the queue, source view, and activation baseline. Existing alerts are skipped, not texted retroactively. Successful CSRF-validated web form submissions collect and send a bounded batch after database transactions finish, including submissions that redirect. Opening pages and reading the notification bell do not send SMS. Account approval SMS continues separately.
 

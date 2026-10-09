@@ -64,6 +64,20 @@ $migrations = [
     'migration_schema_column_order.sql',
     'migration_required_user_phone.sql',
     'migration_notification_sms_queue.sql',
+    'migration_spectacle_camps.sql',
+    'migration_camp_participant_gender.sql',
+    'migration_camp_quantity_only.sql',
+    'migration_vision_camp_supplier_receipts.sql',
+    'migration_sso_aid_distribution_permission.sql',
+    'migration_division_owned_sso_pools.sql',
+    'migration_return_stock_acceptance.sql',
+    'migration_spectacle_categories.sql',
+    'migration_shared_subject_officer_actions.sql',
+    'migration_vision_camp_stock_batches.sql',
+    'migration_vision_camp_distribution_times.sql',
+    'migration_vision_camp_distribution_place.sql',
+    'migration_vision_camp_letter_templates.sql',
+    'migration_contact_lens_quantity_only.sql',
 ];
 
 if (!preg_match('/\A[A-Za-z0-9_]{1,64}\z/D', DB_NAME)) {
@@ -91,11 +105,22 @@ foreach ($migrations as $file) {
     }
     $preparedMigrations[$file] = $sql;
 }
-if (isset($argv[1]) && $argv[1] !== '--check') {
-    throw new RuntimeException('Unknown option. Use --check for a read-only migration-file check.');
+if (isset($argv[1]) && !in_array($argv[1], ['--check', '--status'], true)) {
+    throw new RuntimeException('Unknown option. Use --check or --status for a read-only check.');
 }
 if (($argv[1] ?? '') === '--check') {
     echo count($preparedMigrations) . " migration files validated; no database changes made.\n";
+    exit(0);
+}
+if (($argv[1] ?? '') === '--status') {
+    $existing = database();
+    $appliedFiles = array_fill_keys($existing->query('SELECT migration_file FROM widms_schema_migrations')->fetchAll(PDO::FETCH_COLUMN), true);
+    foreach ($migrations as $file) {
+        if (!isset($appliedFiles[$file])) {
+            echo "Pending $file\n";
+        }
+    }
+    echo "Read-only migration status; no database changes made.\n";
     exit(0);
 }
 

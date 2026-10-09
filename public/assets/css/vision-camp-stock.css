@@ -1,0 +1,21 @@
+.camp-stock-actions a { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:8px 12px; text-decoration:none; }
+.camp-stock-filters { display:flex; align-items:end; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
+.camp-stock-filters .receipt-filter-field { flex:1 1 185px; max-width:260px; }
+.camp-stock-filters .receipt-filter-field:first-child { flex-basis:320px; max-width:420px; }
+.camp-stock-filters input,.camp-stock-filters select { width:100%; min-height:42px; padding:8px 11px; border:1px solid #b9cddd; border-radius:7px; background:#fff; color:#173f5d; }
+.camp-stock-table-wrap { overflow:auto; }
+.camp-stock-table { min-width:580px; }
+.camp-stock-table th,.camp-stock-table td { vertical-align:middle; }
+.camp-stock-table td[hidden],.camp-stock-table tr[hidden] { display:none; }
+.camp-stock-location { min-width:170px; }
+.camp-stock-location strong,.camp-stock-location span,.camp-stock-location small { display:block; }
+.camp-stock-location span { margin-top:5px; color:#245577; }
+.camp-stock-location small { margin-top:3px; color:#668095; }
+.camp-stock-badge { display:inline-block; padding:7px 11px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; }
+.camp-stock-awaiting,.camp-stock-partial { background:#fff0c5; color:#805400; }
+.camp-stock-in-stock { background:#dff4eb; color:#086745; }
+.camp-stock-released { background:#e8f2fa; color:#245577; }
+.camp-stock-none { background:#eef2f5; color:#607587; }
+.camp-stock-table td small { display:block; margin-top:5px; color:#607d91; }
+.camp-stock-actions { min-width:135px; }
+.camp-stock-actions a { width:100%; margin:3px 0; white-space:normal; text-align:center; }

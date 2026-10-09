@@ -2,15 +2,19 @@
 declare(strict_types=1);
 
 requireRole('admin');
+if (($_GET['tab'] ?? '') === 'vision-camps') {
+    require __DIR__ . '/vision-camp-requests.php';
+    return;
+}
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/sms.php';
 require_once __DIR__ . '/../../includes/registration.php';
 require_once __DIR__ . '/../../includes/activity.php';
-require_once __DIR__ . '/../../includes/admin-approval-tabs.php';
 
 $activePage = 'pending-approvals';
-$notice = '';
+$notice = (string) ($_SESSION['pending_approval_flash'] ?? '');
+unset($_SESSION['pending_approval_flash']);
 $noticeType = 'success';
 $loadError = '';
 $registrations = [];
@@ -36,6 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $noticeType = 'danger';
     } elseif ($decision === 'rejected' && $decisionReason === '') {
         $notice = t('A rejection reason is required.');
+        $noticeType = 'danger';
+    } elseif ($decision === 'rejected' && mb_strlen($decisionReason) > 200) {
+        $notice = t('The rejection reason must not exceed 200 characters.');
         $noticeType = 'danger';
     } else {
         $decisionSaved = false;
@@ -113,13 +120,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $connection->commit();
             $decisionSaved = true;
 
-            // Account creation is committed before contacting any external provider.
-            if ($decision === 'approved') {
-                try {
+            // Both decisions commit before contacting any external provider.
+            try {
+                if ($decision === 'approved') {
                     widmsSendRegistrationApprovalSms($connection, (int) $requestId);
-                } catch (Throwable $notificationException) {
-                    error_log('WIDMS approval SMS could not be recorded for REG-' . (int) $requestId . '.');
+                } else {
+                    widmsSendRegistrationRejectionSms($connection, (int) $requestId);
                 }
+            } catch (Throwable $notificationException) {
+                error_log('SWPCS registration SMS could not be recorded for REG-' . (int) $requestId . '.');
             }
             logActivity('Users', ucfirst($decision) . ' user registration request', 'REG-' . str_pad((string)$requestId,3,'0',STR_PAD_LEFT), $decision);
 
@@ -145,6 +154,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $noticeType === 'success' && $notice !== '') {
+    $_SESSION['pending_approval_flash'] = $notice;
+    header('Location: dashboard.php?page=pending-approvals', true, 303);
+    exit;
 }
 
 try {
@@ -178,9 +193,9 @@ try {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pending Approvals | WIDMS</title>
+    <title>Pending Approvals | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=72" rel="stylesheet">
 </head>
 <body>
 <?php require __DIR__ . '/../../includes/admin-sidebar.php'; ?>
@@ -190,12 +205,6 @@ try {
         <div class="topbar-actions"><label class="search-box"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search anything..." aria-label="Search"></label><button class="notification-button" type="button" aria-label="Notifications">●</button></div>
     </header>
     <main class="dashboard-content approvals-page admin-correction-review-page registration-review-page">
-        <?php renderAdminApprovalTabs([
-            'registrations' => count($registrations),
-            'aid' => $pendingItemRequests,
-            'stock' => $pendingStockReleases,
-            'corrections' => $pendingCorrectionRequests,
-        ], 'registrations'); ?>
         <?php if ($notice !== ''): ?><div class="alert alert-<?= $noticeType ?>" role="status"><?= htmlspecialchars($notice, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
         <?php if ($loadError !== ''): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($loadError, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
         <section class="approval-tab-panel active" data-panel="registrations">
@@ -228,7 +237,7 @@ try {
                             <form method="post" action="dashboard.php?page=pending-approvals" class="admin-decision-form registration-decision-form">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="request_id" value="<?= (int) $registration['id'] ?>">
-                                <label><?= htmlspecialchars(t('Admin note'), ENT_QUOTES, 'UTF-8') ?><textarea name="decision_reason" rows="2" placeholder="<?= htmlspecialchars(t('Required when rejecting the request'), ENT_QUOTES, 'UTF-8') ?>"></textarea></label>
+                                <label><?= htmlspecialchars(t('Admin note'), ENT_QUOTES, 'UTF-8') ?><textarea name="decision_reason" rows="2" maxlength="200" placeholder="<?= htmlspecialchars(t('Required when rejecting the request'), ENT_QUOTES, 'UTF-8') ?>"></textarea></label>
                                 <div class="correction-decision-footer registration-decision-footer">
                                     <small><?= htmlspecialchars(t('Approving creates an active account with the requested role and assigned division.'), ENT_QUOTES, 'UTF-8') ?></small>
                                     <div class="correction-decision-actions">

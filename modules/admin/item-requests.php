@@ -27,8 +27,8 @@ requireRole('admin');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/eligibility.php';
-require_once __DIR__ . '/../../includes/admin-approval-tabs.php';
 require_once __DIR__ . '/../../includes/aid-request-details.php';
+require_once __DIR__ . '/../../includes/beneficiary-division-guard.php';
 require_once __DIR__ . '/../../includes/notifications.php';
 
 
@@ -221,6 +221,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
 
+            if ($decision === 'approve') {
+                assertBeneficiaryRecordDivision($db, (int)$request['beneficiary_id']);
+            }
+
             /*
             |--------------------------------------------------------------------------
             | Re-check Beneficiary Eligibility Before Approval
@@ -343,7 +347,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $submitterRole === 'subject-officer' ? (int) $request['submitted_by'] : null
                 );
             }
-
 
             /*
             |--------------------------------------------------------------------------
@@ -535,6 +538,7 @@ try {
          LEFT JOIN (
             SELECT distribution_id, SUM(quantity) AS returned_quantity
             FROM item_returns
+            WHERE stock_review_status = \'accepted\'
             GROUP BY distribution_id
          ) ret ON ret.distribution_id = dist.id
 
@@ -601,7 +605,7 @@ try {
     >
 
 
-    <title><?= htmlspecialchars(t($pendingView ? 'Pending Aid Requests' : 'Reviewed Aid Requests'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t($pendingView ? 'Pending Aid Requests' : 'Reviewed Aid Requests'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
 
 
     <!-- Bootstrap CSS -->
@@ -612,10 +616,10 @@ try {
     >
 
 
-    <!-- WIDMS Main CSS -->
+    <!-- SWPCS Main CSS -->
 
     <link
-        href="assets/css/admin-dashboard.css?v=69"
+        href="assets/css/admin-dashboard.css?v=72"
         rel="stylesheet"
     >
 
@@ -683,16 +687,7 @@ require __DIR__ .
     >
 
 
-        <?php if ($pendingView): ?>
-        <?php renderAdminApprovalTabs([
-            'registrations' => $pendingUserRegistrations,
-            'aid' => $pendingItemRequests,
-            'stock' => $pendingStockReleases,
-            'corrections' => $pendingCorrectionRequests,
-        ], 'aid'); ?>
-        <?php endif; ?>
-
-        <!-- Keep decision feedback directly below the approval tabs. -->
+        <!-- Keep decision feedback above the request cards. -->
         <?php renderSuccessMessage($success); ?>
 
 
@@ -732,7 +727,7 @@ require __DIR__ .
                     $identification = !empty($r['nic'])
                         ? 'NIC · ' . $r['nic']
                         : (!empty($r['elders_card_number']) ? t("Elders' ID") . ' · ' . $r['elders_card_number'] : '—');
-                    $aidLabel = $r['item_name'] . ($r['variety'] ? ' — ' . $r['variety'] : '') . ' × ' . (int) $r['quantity'];
+                    $aidLabel = widmsAidItemName((string) $r['item_name']) . ($r['variety'] ? ' — ' . $r['variety'] : '') . ' × ' . (int) $r['quantity'];
                     $directDocument = preg_match('#^uploads/aid-documents/direct-[a-f0-9]{24}\.pdf$#', (string) ($r['direct_request_document'] ?? ''))
                         ? (string) $r['direct_request_document']
                         : '';
@@ -962,7 +957,7 @@ require __DIR__ .
 
                             <td class="request-aid-cell">
                                 <?= htmlspecialchars(
-                                    $r['item_name'] .
+                                    widmsAidItemName((string) $r['item_name']) .
                                     (
                                         $r['variety']
                                             ? ' — ' . $r['variety']
@@ -1120,7 +1115,7 @@ require __DIR__ .
 
 
 <!-- ==================================================================
-     WIDMS SHARED JAVASCRIPT
+     SWPCS SHARED JAVASCRIPT
 =================================================================== -->
 
 <script src="assets/js/admin-dashboard.js?v=17"></script>

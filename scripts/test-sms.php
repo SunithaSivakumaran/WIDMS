@@ -17,7 +17,7 @@ if (widmsSmsPhone($phone) === null) {
     fwrite(STDERR, "Provide one valid Sri Lankan mobile number.\n");
     exit(1);
 }
-$result = widmsSendSms($phone, 'WIDMS SMS connection test. This is a test message.');
+$result = widmsSendSms($phone, 'SWPCS SMS connection test. This is a test message.');
 echo $result['status'] === 'sent'
     ? "SMS accepted by the gateway. Check the recipient phone.\n"
     : "SMS not confirmed: " . ($result['error'] ?? $result['status']) . ".\n";

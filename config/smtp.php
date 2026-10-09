@@ -18,7 +18,7 @@ $settings = [
     'from_email' => getenv('WIDMS_SMTP_FROM_EMAIL') ?: '',
 
     'from_name' => getenv('WIDMS_SMTP_FROM_NAME')
-        ?: 'WIDMS Administration',
+        ?: 'SWPCS Administration',
 ];
 
 

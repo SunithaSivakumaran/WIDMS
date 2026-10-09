@@ -18,8 +18,18 @@ function widmsSmsPhone(string $phone): ?string
 function widmsAccountApprovedSmsText(?string $username = null): string
 {
     return $username !== null
-        ? 'Your WIDMS account has been successfully created. Username: ' . $username . '. Log in with the password you entered during registration.'
-        : 'Your account has been successfully created. You can now log in to WIDMS using your registered email address and password.';
+        ? 'Your SWPCS account has been successfully created. Username: ' . $username . '. Log in with the password you entered during registration.'
+        : 'Your account has been successfully created. You can now log in to SWPCS using your registered email address and password.';
+}
+
+function widmsAdminCreatedAccountSmsText(string $username): string
+{
+    return 'Your SWPCS account has been successfully created. Username: ' . $username . '. You can now log in to SWPCS. Contact your administrator for your login password.';
+}
+
+function widmsAccountRejectedSmsText(string $reason): string
+{
+    return 'Your SWPCS account registration request was rejected. Reason: ' . trim($reason);
 }
 
 /** Textit documents a colon-delimited status on the first response line. */
@@ -52,6 +62,15 @@ function widmsParseSmsResponse(string $body): array
         }
     }
     $reference = trim($reference, " \t");
+    // Textit documents two successful response shapes. The older one embeds a
+    // MessageID and recipient number; retain only the ID. The newer one reports
+    // an uploaded count/type without a unique ID, so store no reference.
+    if (preg_match('/\ARoute=[A-Za-z0-9_-]+,[ \t]*MessageID=([A-Za-z0-9._:-]{1,100}),[ \t]*Recipient=[0-9]{9,15}\z/iD', $reference, $parts)) {
+        return ['status' => 'sent', 'reference' => $parts[1], 'error' => null];
+    }
+    if (preg_match('/\A[1-9][0-9]*-MSG_[A-Z0-9_]+-[0-9]+[ \t]+Uploaded_Successfully\z/iD', $reference)) {
+        return ['status' => 'sent', 'reference' => null, 'error' => null];
+    }
     // IDs are opaque: punctuation is valid. Never accept markup, control bytes,
     // an absent ID, or a value that cannot fit the database reference column.
     if ($reference === '' || strlen($reference) > 100 || preg_match('/[\x00-\x20\x7F-\xFF<>]/', $reference)) {
@@ -120,7 +139,7 @@ function widmsSendSms(string $phone, string $message, ?array $settings = null, ?
     $result = widmsParseSmsResponse($body);
     if ($result['status'] === 'unknown') {
         // Structure only: never write credentials, phone numbers or raw replies.
-        error_log('WIDMS SMS response: ' . $result['error'] . '; HTTP 200; bytes=' . strlen($body) . '.');
+        error_log('SWPCS SMS response: ' . $result['error'] . '; HTTP 200; bytes=' . strlen($body) . '.');
     }
     return $result;
 }
@@ -128,34 +147,54 @@ function widmsSendSms(string $phone, string $message, ?array $settings = null, ?
 /** Call only after approval commits. One atomic claim prevents repeat sends. */
 function widmsSendRegistrationApprovalSms(PDO $db, int $requestId, ?callable $sender = null): array
 {
-    if ($db->inTransaction()) {
-        throw new LogicException('Account approval must commit before SMS notification.');
+    return widmsSendRegistrationDecisionSms($db, $requestId, 'approved', $sender);
+}
+
+function widmsSendRegistrationRejectionSms(PDO $db, int $requestId, ?callable $sender = null): array
+{
+    return widmsSendRegistrationDecisionSms($db, $requestId, 'rejected', $sender);
+}
+
+/** Send once for a committed decision; rejected applicants do not have a user account. */
+function widmsSendRegistrationDecisionSms(PDO $db, int $requestId, string $decision, ?callable $sender = null): array
+{
+    if (!in_array($decision, ['approved', 'rejected'], true)) {
+        throw new InvalidArgumentException('Invalid registration decision.');
     }
-    $claim = $db->prepare(
-        "UPDATE registration_requests SET sms_status = 'sending'
-         WHERE id = :id AND status = 'approved' AND sms_status = 'not-sent'
-           AND EXISTS (SELECT 1 FROM users
+    if ($db->inTransaction()) {
+        throw new LogicException('Account decision must commit before SMS notification.');
+    }
+    $eligibility = $decision === 'approved'
+        ? "EXISTS (SELECT 1 FROM users
                        WHERE users.status = 'active' AND
                          ((registration_requests.salary_number IS NOT NULL AND users.salary_number = registration_requests.salary_number)
                           OR (registration_requests.salary_number IS NULL AND users.username = registration_requests.email)))"
+        : "rejection_reason IS NOT NULL AND TRIM(rejection_reason) <> ''";
+    $claim = $db->prepare(
+        "UPDATE registration_requests SET sms_status = 'sending'
+         WHERE id = :id AND status = :decision AND sms_status = 'not-sent'
+           AND $eligibility"
     );
-    $claim->execute(['id' => $requestId]);
+    $claim->execute(['id' => $requestId, 'decision' => $decision]);
     if ($claim->rowCount() !== 1) {
         return ['status' => 'skipped', 'error' => null];
     }
 
     try {
-        $select = $db->prepare("SELECT r.phone, u.username FROM registration_requests r JOIN users u ON
+        $select = $db->prepare($decision === 'approved' ? "SELECT r.phone, u.username FROM registration_requests r JOIN users u ON
             ((r.salary_number IS NOT NULL AND u.salary_number = r.salary_number)
              OR (r.salary_number IS NULL AND u.username = r.email))
-            WHERE r.id = :id AND u.status = 'active'");
+            WHERE r.id = :id AND u.status = 'active'"
+            : "SELECT phone,rejection_reason FROM registration_requests WHERE id = :id AND status = 'rejected'");
         $select->execute(['id' => $requestId]);
         $recipient = $select->fetch(PDO::FETCH_ASSOC);
         if (!$recipient) {
-            throw new RuntimeException('Approved account is no longer active.');
+            throw new RuntimeException('Registration notification recipient is unavailable.');
         }
         $phone = (string) $recipient['phone'];
-        $message = widmsAccountApprovedSmsText($recipient['username']);
+        $message = $decision === 'approved'
+            ? widmsAccountApprovedSmsText($recipient['username'])
+            : widmsAccountRejectedSmsText($recipient['rejection_reason']);
         $result = $sender !== null
             ? $sender($phone, $message)
             : widmsSendSms($phone, $message);
@@ -177,7 +216,7 @@ function widmsSendRegistrationApprovalSms(PDO $db, int $requestId, ?callable $se
         'id' => $requestId,
     ]);
     if ($result['status'] !== 'sent') {
-        error_log('WIDMS approval SMS REG-' . $requestId . ': ' . $result['status'] . '.');
+        error_log('SWPCS registration SMS REG-' . $requestId . ': ' . $result['status'] . '.');
     }
     return $result;
 }

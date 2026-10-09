@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/optical-stock.php';
+require_once __DIR__ . '/spectacle-categories.php';
 
 /**
  * Store one durable notification for a specific user.
@@ -20,8 +21,8 @@ function notifyUser(
         throw new InvalidArgumentException('Invalid notification recipient or key.');
     }
 
-    // Notification links must remain inside the authenticated WIDMS dashboard.
-    if (!preg_match('/^dashboard\.php\?page=[a-z0-9-]+(?:&[a-z0-9_-]+=[a-z0-9_-]+)*(?:#(?:(?:aid|goods)-request|fulfillment)-\d+)?$/i', $targetUrl)) {
+    // Notification links must remain inside the authenticated SWPCS dashboard.
+    if (!preg_match('/^dashboard\.php\?page=[a-z0-9-]+(?:&[a-z0-9_-]+=[a-z0-9_-]+)*(?:#(?:(?:aid|goods|vision-camp)-request|vision-camp-row|fulfillment)-\d+)?$/i', $targetUrl)) {
         throw new InvalidArgumentException('Invalid notification target.');
     }
 
@@ -50,7 +51,7 @@ function notifyApprovedAidRouting(PDO $database, int $requestId, ?int $responsib
     }
 
     $contextStatement = $database->prepare(
-        "SELECT ar.item_id, ar.quantity, ar.prescribed_power, ar.submitted_by,
+        "SELECT ar.item_id, ar.quantity, ar.prescribed_power, ar.spectacle_category_id, ar.submitted_by,
                 b.ds_division_id, i.item_name, i.variety, c.name AS category_name,
                 submitter.role AS submitter_role
          FROM aid_requests ar
@@ -70,8 +71,8 @@ function notifyApprovedAidRouting(PDO $database, int $requestId, ?int $responsib
     $ssoStatement = $database->prepare(
         "SELECT u.id, COALESCE(p.allocated - p.distributed + p.reused, 0) AS available
          FROM users u
-         LEFT JOIN officer_pools p
-           ON p.officer_id = u.id AND p.item_id = :item_id
+         LEFT JOIN division_pools p
+           ON p.ds_division_id = u.ds_division_id AND p.item_id = :item_id
          WHERE u.role = 'social-service-officer'
            AND u.status = 'active'
            AND u.ds_division_id = :division_id
@@ -92,6 +93,31 @@ function notifyApprovedAidRouting(PDO $database, int $requestId, ?int $responsib
         (string) $context['variety'],
         (string) $context['category_name']
     );
+    if (widmsIsSpectacleItem((string) $context['item_name'])) {
+        $categoryId = (int) ($context['spectacle_category_id'] ?? 0);
+        $balances = widmsSpectacleCategoryBalances($database, (int) $context['item_id']);
+        $matched = $categoryId > 0
+            && ($balances[$categoryId] ?? 0) >= (int) $context['quantity'];
+        $recipients = (string) $context['submitter_role'] === 'subject-officer'
+            ? [(int) $context['submitted_by']]
+            : array_map('intval', $database->query(
+                "SELECT id FROM users WHERE role = 'subject-officer' AND status = 'active'"
+            )->fetchAll(PDO::FETCH_COLUMN));
+        foreach ($recipients as $subjectOfficerId) {
+            notifyUser(
+                $database,
+                $subjectOfficerId,
+                'approved-spectacle-routing-' . $requestId,
+                $matched ? 'Spectacle type available' : 'Spectacle type unavailable',
+                $title,
+                $matched
+                    ? 'The selected spectacle type is in Central Stock. Add this request to an approved aid bundle.'
+                    : 'The selected spectacle type is not currently available in Central Stock.',
+                'dashboard.php?page=approved-aid-bundles&request_id=' . $requestId . '#aid-request-' . $requestId
+            );
+        }
+        return;
+    }
 
     // A Subject Officer remains responsible for requests submitted under that
     // account. SSO pool stock may be consumed by the Subject Officer, but the
@@ -99,27 +125,14 @@ function notifyApprovedAidRouting(PDO $database, int $requestId, ?int $responsib
     if ((string) $context['submitter_role'] === 'subject-officer') {
         $subjectOfficerId = (int) $context['submitted_by'];
         if ($isOptical) {
-            $powerAvailable = $context['prescribed_power'] === null
-                ? 0
-                : widmsOpticalPowerAvailable(
-                    $database,
-                    (int) $context['item_id'],
-                    (float) $context['prescribed_power']
-                );
-            $hasPowerMatch = $context['prescribed_power'] !== null
-                && $powerAvailable >= (int) $context['quantity'];
             notifyUser(
                 $database,
                 $subjectOfficerId,
                 'approved-optical-routing-' . $requestId,
-                $hasPowerMatch ? 'Optical power available' : 'Optical power unavailable',
+                'Contact Lens request approved',
                 $title,
-                $hasPowerMatch
-                    ? 'The exact prescribed power is in Central Stock. Select this request for Admin-approved release.'
-                    : 'The exact prescribed power is not currently available in Central Stock.',
-                $hasPowerMatch
-                    ? 'dashboard.php?page=optical-aid-requests&request_id=' . $requestId . '#aid-request-' . $requestId
-                    : 'dashboard.php?page=my-aid-requests#aid-request-' . $requestId
+                'Check Central Stock quantity and select this request for Admin-approved release.',
+                'dashboard.php?page=approved-aid-bundles&request_id=' . $requestId . '#aid-request-' . $requestId
             );
             return;
         }
@@ -137,23 +150,13 @@ function notifyApprovedAidRouting(PDO $database, int $requestId, ?int $responsib
                 : 'The assigned SSO pool has insufficient stock. Arrange a stock quota.',
             $hasSsoPoolStock
                 ? 'dashboard.php?page=distribute-items&request_id=' . $requestId . '#aid-request-' . $requestId
-                : 'dashboard.php?page=request-goods&aid_request_id=' . $requestId
+                : 'dashboard.php?page=approved-aid-bundles&request_id=' . $requestId
         );
         return;
     }
 
-    // Optical aid always follows the exact-power Central Stock release path;
-    // a generic SSO pool balance is not sufficient proof of a power match.
+    // Contact Lens requests use Central Stock quantity and the approval flow.
     if ($isOptical) {
-        $powerAvailable = $context['prescribed_power'] === null
-            ? 0
-            : widmsOpticalPowerAvailable(
-                $database,
-                (int) $context['item_id'],
-                (float) $context['prescribed_power']
-            );
-        $hasPowerMatch = $context['prescribed_power'] !== null
-            && $powerAvailable >= (int) $context['quantity'];
         $subjectOfficerIds = $database->query(
             "SELECT id FROM users WHERE role = 'subject-officer' AND status = 'active' ORDER BY id"
         )->fetchAll(PDO::FETCH_COLUMN);
@@ -162,11 +165,9 @@ function notifyApprovedAidRouting(PDO $database, int $requestId, ?int $responsib
                 $database,
                 (int) $subjectOfficerId,
                 'approved-optical-routing-' . $requestId,
-                $hasPowerMatch ? 'Optical power available' : 'Optical power unavailable',
+                'Contact Lens request approved',
                 $title,
-                $hasPowerMatch
-                    ? 'The exact prescribed power is in Central Stock. Select this request for Admin-approved release.'
-                    : 'The exact prescribed power is not currently available in Central Stock.',
+                'Check Central Stock quantity and select this request for Admin-approved release.',
                 'dashboard.php?page=optical-aid-requests&request_id=' . $requestId . '#aid-request-' . $requestId
             );
         }

@@ -9,8 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   })
   const quantity = document.getElementById('quantity')
+  const receiptForm = document.getElementById('receipt-form')
   const unitCost = document.getElementById('unit_cost')
+  const bulkTotalCost = document.getElementById('bulk_total_cost')
   const totalCost = document.getElementById('total_cost')
+  const totalCostField = document.getElementById('total-cost-field')
   const paymentStatus = document.getElementById('payment_status')
   const checkField = document.createElement('label')
   checkField.id = 'check-number-field'
@@ -26,77 +29,120 @@ document.addEventListener('DOMContentLoaded', () => {
   balanceField.id = 'balance-field'
   const supplier = document.getElementById('supplier_id')
   const item = document.getElementById('item_id')
+  const destination = document.getElementById('stock_destination')
+  const camp = document.getElementById('camp_id')
+  const receivedDate = document.getElementById('received_date')
+  const campField = document.getElementById('camp-field')
+  const campDivisionField = document.getElementById('camp-division-field')
+  const campDivision = document.getElementById('camp_division')
+  const unitCostField = document.getElementById('unit-cost-field')
+  const bulkCostField = document.getElementById('bulk-cost-field')
   const itemHelp = document.getElementById('item-help')
-  const powerField = document.getElementById('power-field')
-  const powerValue = document.getElementById('power_value')
+  const spectacleLinesField = document.getElementById('spectacle-lines-field')
+  const spectacleLines = [...spectacleLinesField.querySelectorAll('.spectacle-receipt-line')]
+  const spectacleTotal = document.getElementById('spectacle-receipt-total')
   const quantityLabel = document.getElementById('quantity-label')
   const quantityHelp = document.getElementById('quantity-help')
-  const powerControls = document.createElement('div')
-  powerControls.className = 'power-controls'
-  powerField.insertBefore(powerControls, document.getElementById('power_sign'))
-  powerControls.append(document.getElementById('power_sign'), powerValue)
-  const powerCount = document.createElement('input')
-  powerCount.type = 'number'; powerCount.min = '1'; powerCount.id = 'power_count'; powerCount.name = 'power_count'; powerCount.placeholder = 'Lens count for this power'; powerCount.hidden = true
-  const powerCountLabel = document.createElement('span')
-  powerCountLabel.textContent = 'Lens count for this power'
-  powerControls.append(powerCount)
-  const powerEntriesInput = document.createElement('input'); powerEntriesInput.type = 'hidden'; powerEntriesInput.name = 'power_entries'; powerField.append(powerEntriesInput)
-  const powerEntries = []
-  const powerTable = document.createElement('div')
-  powerTable.className = 'power-entry-summary'
-  powerTable.innerHTML = '<button type="button" class="add-power-entry" data-add-power>Add</button><strong>Power entries</strong><table><thead><tr><th>Power</th><th>Count</th><th></th></tr></thead><tbody></tbody></table><small class="power-total-hint">Add each power and its quantity. Counts cannot exceed the total.</small>'
-  powerField.append(powerTable)
-  const powerBody = powerTable.querySelector('tbody')
-  function renderPowerEntries() {
-    powerBody.innerHTML = powerEntries.map((entry, index) => `<tr><td>${entry.sign}${Number(entry.power).toFixed(2)}</td><td>${entry.count}</td><td><button type="button" data-edit="${index}">Edit</button></td></tr>`).join('')
-    powerEntriesInput.value = JSON.stringify(powerEntries)
-    powerBody.querySelectorAll('[data-edit]').forEach((button) => button.addEventListener('click', () => { const index = Number(button.dataset.edit); const entry = powerEntries[index]; powerEntries.splice(index, 1); document.getElementById('power_sign').value = entry.sign; powerValue.value = entry.power; powerCount.value = entry.count; renderPowerEntries(); updatePowerField() }))
-  }
-  powerTable.querySelector('[data-add-power]').addEventListener('click', () => {
-    const count = Number(powerCount.value || 0); const total = Number(quantity.value || 0); const used = powerEntries.reduce((sum, entry) => sum + Number(entry.count), 0)
-    if (!powerValue.value || count < 1 || used + count > total) { powerCount.setCustomValidity('Power counts cannot exceed the total quantity.'); powerCount.reportValidity(); return }
-    powerCount.setCustomValidity(''); powerEntries.push({ sign: document.getElementById('power_sign').value, power: Number(powerValue.value), count }); renderPowerEntries(); powerValue.value = ''; powerCount.value = ''
-  })
-
-  function isPowerItem() {
-    const text = item.selectedOptions[0]?.textContent || ''
-    return /contact\s*lens|spectacles?|\bspecs\b/i.test(text)
+  function isSpectacles() {
+    return item.selectedOptions[0]?.dataset.optical === 'spectacles'
   }
 
-  function updatePowerField() {
-    const enabled = isPowerItem()
-    powerField.hidden = !enabled
-    if (powerField.firstChild && powerField.firstChild.nodeType === Node.TEXT_NODE)
-      powerField.firstChild.textContent = enabled ? 'Power (Number) ' : 'Power (Number) '
-    // Power rows are validated by the Add button/server; cleared editor fields
-    // must not block submission after a row has already been added.
-    powerValue.required = false
-    powerCount.hidden = !enabled
-    powerCount.required = false
-    powerCountLabel.hidden = !enabled
-    quantityLabel.textContent = enabled ? `Total Number of ${/contact\s*lens/i.test(item.selectedOptions[0]?.textContent || '') ? 'Contact Lenses' : 'Spectacles'}` : 'Quantity'
-    powerCountLabel.textContent = enabled ? `${/contact\s*lens/i.test(item.selectedOptions[0]?.textContent || '') ? 'Lens' : 'Spectacle'} count for this power` : 'Count for this power'
-    powerCount.placeholder = powerCountLabel.textContent
-    quantityHelp.textContent = enabled ? 'Number received for the selected power (used for total-cost calculation).' : 'Number of aid units received.'
-    powerTable.hidden = !enabled
-    const sign = document.getElementById('power_sign').value
-    powerTable.querySelector('[data-power]').textContent = powerValue.value === '' ? '—' : `${sign}${Number(powerValue.value).toFixed(2)}`
-    powerTable.querySelector('[data-count]').textContent = powerCount.value || '—'
-    renderPowerEntries()
+  let previousCampSelection
+  function updateSpectacleFields() {
+    const enabled = isSpectacles()
+    const isCamp = destination.value === 'vision-camp'
+    const campSelection = isCamp ? camp.value : ''
+    if (previousCampSelection !== undefined && previousCampSelection !== campSelection) {
+      spectacleLines.forEach(row => {
+        row.querySelector('[type="checkbox"]').checked = false
+        row.querySelector('[name$="[quantity]"]').value = ''
+        row.querySelector('[name$="[unit_cost]"]').value = ''
+      })
+    }
+    previousCampSelection = campSelection
+    const campNeeds = isCamp && camp.value ? JSON.parse(camp.selectedOptions[0]?.dataset.needs || '{}') : {}
+    spectacleLinesField.hidden = !enabled
+    spectacleLines.forEach(row => {
+      const checkbox = row.querySelector('[type="checkbox"]')
+      const campSelected = row.querySelector('[data-camp-selected]')
+      const count = row.querySelector('[name$="[quantity]"]')
+      const price = row.querySelector('[name$="[unit_cost]"]')
+      const needed = Number(campNeeds[checkbox.dataset.categoryId] || 0)
+      if (isCamp) {
+        checkbox.checked = needed > 0
+        count.value = needed > 0 ? String(needed) : ''
+      }
+      const selected = enabled && checkbox.checked
+      row.hidden = enabled && isCamp && needed === 0
+      checkbox.disabled = !enabled || isCamp || checkbox.dataset.categoryStatus !== 'active'
+      campSelected.disabled = !enabled || !isCamp || needed === 0
+      count.disabled = !selected
+      count.readOnly = isCamp
+      price.disabled = !selected
+      count.required = selected
+      price.required = selected
+      row.classList.toggle('is-selected', selected)
+    })
+    const firstType = spectacleLines[0]?.querySelector('[type="checkbox"]')
+    firstType?.setCustomValidity(enabled && !spectacleLines.some(row => row.querySelector('[type="checkbox"]').checked)
+      ? 'Select at least one spectacle type.' : '')
+    quantity.readOnly = enabled
+    totalCostField.hidden = enabled
+    if (enabled) {
+      quantityLabel.textContent = receiptForm.dataset.totalSpectacles
+      quantityHelp.textContent = 'Calculated from the selected spectacle types.'
+    } else {
+      quantityLabel.textContent = 'Quantity'
+      quantityHelp.textContent = 'Number of aid units received.'
+    }
+    unitCostField.hidden = enabled || isCamp
+    unitCost.required = !enabled && !isCamp
+    bulkCostField.hidden = enabled || !isCamp
+    bulkTotalCost.required = !enabled && isCamp
+    if (enabled) {
+      quantity.value = spectacleLines.reduce((sum, row) =>
+        sum + (row.querySelector('[type="checkbox"]').checked
+          ? Math.max(0, Number(row.querySelector('[name$="[quantity]"]').value) || 0) : 0), 0)
+    }
+    calculate()
+  }
+
+  function updateDestination() {
+    const isCamp = destination.value === 'vision-camp'
+    campField.hidden = !isCamp
+    campDivisionField.hidden = !isCamp
+    camp.required = isCamp
+    if (!isCamp) {
+      camp.value = ''
+      campDivision.value = ''
+    } else {
+      campDivision.value = camp.selectedOptions[0]?.dataset.division || ''
+    }
+    updateCampDate()
+    filterAuthorizedItems()
+    calculate()
+  }
+
+  function updateCampDate() {
+    receivedDate.min = destination.value === 'vision-camp' ? camp.selectedOptions[0]?.dataset.completedDate || '' : ''
+    if (receivedDate.min && receivedDate.value < receivedDate.min) receivedDate.value = receivedDate.min
   }
 
   function filterAuthorizedItems() {
     const supplierId = supplier.value
+    const campItemId = destination.value === 'vision-camp' ? camp.selectedOptions[0]?.dataset.itemId || '' : ''
     let availableItems = 0
     Array.from(item.options).forEach((option, index) => {
       if (index === 0) return
       const isAuthorized =
         supplierId !== '' &&
-        option.dataset.suppliers.includes(`,${supplierId},`)
+        option.dataset.suppliers.includes(`,${supplierId},`) &&
+        (destination.value !== 'vision-camp' || (campItemId !== '' && option.value === campItemId))
       option.hidden = !isAuthorized
       option.disabled = !isAuthorized
       if (isAuthorized) availableItems += 1
     })
+    if (campItemId !== '' && Array.from(item.options).some(option => option.value === campItemId && !option.disabled)) item.value = campItemId
     if (
       !supplierId ||
       item.selectedOptions[0]?.disabled ||
@@ -107,22 +153,35 @@ document.addEventListener('DOMContentLoaded', () => {
     item.options[0].textContent =
       supplierId === ''
         ? 'Select a supplier first'
+        : destination.value === 'vision-camp' && campItemId === ''
+          ? 'Select a completed Vision Camp first'
         : availableItems > 0
-          ? 'Select item and variety'
+          ? (campItemId ? 'Vision Camp item' : 'Select item and variety')
           : 'No authorized items for this supplier'
     itemHelp.textContent =
       supplierId === ''
         ? 'Choose a supplier to load its authorized items.'
+        : destination.value === 'vision-camp' && campItemId === ''
+          ? 'Choose a completed Vision Camp to identify its spectacles item.'
         : availableItems > 0
-          ? `${availableItems} authorized item${availableItems === 1 ? '' : 's'} available.`
+          ? (campItemId ? 'The built-in Spectacles item is selected for this camp.' : `${availableItems} authorized item${availableItems === 1 ? '' : 's'} available.`)
           : 'Allocate an item to this supplier in Supplier Configuration first.'
-    updatePowerField()
+    updateSpectacleFields()
   }
 
   function calculate() {
-    const total =
-      Math.max(0, Number(quantity.value) || 0) *
-      Math.max(0, Number(unitCost.value) || 0)
+    const total = isSpectacles()
+      ? spectacleLines.reduce((sum, row) => {
+        const selected = row.querySelector('[type="checkbox"]').checked
+        const count = selected ? Math.max(0, Number(row.querySelector('[name$="[quantity]"]').value) || 0) : 0
+        const price = selected ? Math.max(0, Number(row.querySelector('[name$="[unit_cost]"]').value) || 0) : 0
+        row.querySelector('output').value = (count * price).toFixed(2)
+        return sum + count * price
+      }, 0)
+      : destination.value === 'vision-camp'
+      ? Math.max(0, Number(bulkTotalCost.value) || 0)
+      : Math.max(0, Number(quantity.value) || 0) * Math.max(0, Number(unitCost.value) || 0)
+    spectacleTotal.value = `Rs ${isSpectacles() ? total.toFixed(2) : '0.00'}`
     let paid = 0
     if (paymentStatus.value === 'fully-paid') paid = total
     if (paymentStatus.value === 'partially-paid')
@@ -136,21 +195,31 @@ document.addEventListener('DOMContentLoaded', () => {
     checkNumber.required = paymentStatus.value !== 'unpaid'
   }
 
-  ;[quantity, unitCost, paymentStatus, paidAmount].forEach((field) =>
+  ;[quantity, unitCost, bulkTotalCost, paymentStatus, paidAmount].forEach((field) =>
     field.addEventListener('input', calculate),
   )
   paymentStatus.addEventListener('change', calculate)
   supplier.addEventListener('change', filterAuthorizedItems)
-  item.addEventListener('change', updatePowerField)
-  powerValue.addEventListener('input', updatePowerField)
-  powerCount.addEventListener('input', updatePowerField)
-  powerCount.addEventListener('input', () => powerCount.setCustomValidity(''))
-  document.getElementById('power_sign').addEventListener('change', updatePowerField)
-  document.getElementById('receipt-form').addEventListener('submit', () => {
-    powerValue.required = false
-    powerCount.required = false
-    powerEntriesInput.value = JSON.stringify(powerEntries)
+  destination.addEventListener('change', updateDestination)
+  camp.addEventListener('change', () => { campDivision.value = camp.selectedOptions[0]?.dataset.division || ''; updateCampDate(); filterAuthorizedItems() })
+  item.addEventListener('change', updateSpectacleFields)
+  spectacleLines.forEach(row => row.querySelectorAll('input').forEach(field =>
+    field.addEventListener('input', updateSpectacleFields)))
+  let receiptSubmitting = false
+  const recordButton = receiptForm.querySelector('.record-receipt-button')
+  receiptForm.addEventListener('submit', (event) => {
+    if (receiptSubmitting) {
+      event.preventDefault()
+      return
+    }
+    receiptSubmitting = true
+    recordButton.disabled = true
+    recordButton.textContent = 'Recording...'
   })
-  filterAuthorizedItems()
-  calculate()
+  window.addEventListener('pageshow', () => {
+    receiptSubmitting = false
+    recordButton.disabled = false
+    recordButton.textContent = 'Record'
+  })
+  updateDestination()
 })

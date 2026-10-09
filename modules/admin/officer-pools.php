@@ -327,16 +327,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $poolStatement = $db->prepare(
                     "
-                    INSERT INTO officer_pools
+                    INSERT INTO division_pools
                     (
-                        officer_id,
+                        ds_division_id,
                         item_id,
                         allocated
                     )
 
                     VALUES
                     (
-                        :officer,
+                        :division,
                         :item,
                         :quantity
                     )
@@ -349,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
                 $poolStatement->execute([
-                    'officer'  => $officer,
+                    'division' => $dsDivision,
                     'item'     => $item,
                     'quantity' => $quantity
                 ]);
@@ -364,6 +364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     INSERT INTO pool_allocations
                     (
                         officer_id,
+                        ds_division_id,
                         item_id,
                         quantity,
                         allocated_by
@@ -372,6 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     VALUES
                     (
                         :officer,
+                        :division,
                         :item,
                         :quantity,
                         :allocated_by
@@ -382,6 +384,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $allocationStatement->execute([
                     'officer'     => $officer,
+                    'division'    => $dsDivision,
                     'item'        => $item,
                     'quantity'    => $quantity,
                     'allocated_by' =>
@@ -462,32 +465,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
 /* =========================================================
-   LOAD OFFICERS, DIVISIONS, STOCK AND POOL DATA
+   LOAD DIVISIONS, STOCK ITEMS AND POOL DATA
    ========================================================= */
 
 try {
-
-
-    /* -----------------------------------------------------
-       SOCIAL SERVICE OFFICERS
-       ----------------------------------------------------- */
-
-    $officers = database()->query(
-        "
-        SELECT
-            id,
-            full_name,
-            ds_division_id
-
-        FROM users
-
-        WHERE
-            role = 'social-service-officer'
-            AND status = 'active'
-
-        ORDER BY full_name
-        "
-    )->fetchAll(PDO::FETCH_ASSOC);
 
 
     /* -----------------------------------------------------
@@ -496,8 +477,9 @@ try {
 
     $divisions = database()->query(
         "
-        SELECT
+        SELECT DISTINCT
             ds.id,
+            ds.district_id,
 
             CONCAT(
                 d.name,
@@ -509,44 +491,32 @@ try {
 
         JOIN districts d
             ON d.id = ds.district_id
+        JOIN users u
+            ON u.ds_division_id = ds.id
+           AND u.role = 'social-service-officer'
+           AND u.status = 'active'
 
-        WHERE ds.status = 'active'
-
-        ORDER BY
-            d.name,
-            ds.name
+        ORDER BY name
         "
     )->fetchAll(PDO::FETCH_ASSOC);
 
+    $districts = database()->query(
+        "SELECT DISTINCT d.id, d.name
+         FROM districts d
+         JOIN ds_divisions ds ON ds.district_id = d.id
+         JOIN users u ON u.ds_division_id = ds.id
+         WHERE u.role = 'social-service-officer' AND u.status = 'active'
+         ORDER BY d.name"
+    )->fetchAll(PDO::FETCH_ASSOC);
 
-    /* -----------------------------------------------------
-       AVAILABLE DIVISION STOCK
-       ----------------------------------------------------- */
-
-    $divisionStock = database()->query(
-        "
-        SELECT
-            di.item_id,
-            di.ds_division_id,
-            di.quantity,
-            i.item_name,
-            i.variety,
-            ds.name AS division_name
-
-        FROM division_inventory di
-
-        JOIN inventory_items i
-            ON i.id = di.item_id
-
-        JOIN ds_divisions ds
-            ON ds.id = di.ds_division_id
-
-        WHERE di.quantity > 0
-
-        ORDER BY
-            ds.name,
-            i.item_name
-        "
+    $stockItems = database()->query(
+        "SELECT DISTINCT i.id, i.item_name, i.variety
+         FROM inventory_items i
+         JOIN division_pools p ON p.item_id = i.id
+         JOIN ds_divisions ds ON ds.id = p.ds_division_id
+         JOIN users u ON u.ds_division_id = ds.id
+         WHERE u.role = 'social-service-officer' AND u.status = 'active'
+         ORDER BY i.item_name, i.variety"
     )->fetchAll(PDO::FETCH_ASSOC);
 
 
@@ -557,47 +527,39 @@ try {
     $rows = database()->query(
         "
         SELECT
-
-            u.full_name,
-
+            active_ssos.officer_id,
+            active_ssos.full_name,
+            active_ssos.ds_division_id,
+            d.id AS district_id,
             ds.name AS ds_name,
-
             d.name AS district_name,
-
+            p.item_id,
             i.item_name,
-
             i.variety,
-
             p.allocated,
-
             p.distributed,
-
             p.reused,
-
-            (
-                p.allocated
-                - p.distributed
-                + p.reused
-            ) AS remaining,
-
-            u.status
-
-        FROM officer_pools p
-
-        JOIN users u
-            ON u.id = p.officer_id
-
-        LEFT JOIN ds_divisions ds
-            ON ds.id = u.ds_division_id
-
-        LEFT JOIN districts d
-            ON d.id = u.district_id
-
-        JOIN inventory_items i
+            p.updated_at AS pool_updated_at,
+            GREATEST(COALESCE(CAST(p.allocated AS SIGNED) - CAST(p.distributed AS SIGNED) + CAST(p.reused AS SIGNED), 0), 0) AS remaining
+        FROM (
+            SELECT ds_division_id, MIN(id) AS officer_id,
+                   GROUP_CONCAT(full_name ORDER BY full_name SEPARATOR ', ') AS full_name
+            FROM users
+            WHERE role = 'social-service-officer' AND status = 'active'
+              AND ds_division_id IS NOT NULL
+            GROUP BY ds_division_id
+        ) active_ssos
+        JOIN ds_divisions ds
+            ON ds.id = active_ssos.ds_division_id
+        JOIN districts d
+            ON d.id = ds.district_id
+        LEFT JOIN division_pools p
+            ON p.ds_division_id = ds.id
+        LEFT JOIN inventory_items i
             ON i.id = p.item_id
-
         ORDER BY
-            u.full_name,
+            d.name,
+            ds.name,
             i.item_name
         "
     )->fetchAll(PDO::FETCH_ASSOC);
@@ -607,9 +569,9 @@ try {
 
     error_log($e->getMessage());
 
-    $officers = [];
     $divisions = [];
-    $divisionStock = [];
+    $districts = [];
+    $stockItems = [];
     $rows = [];
 
     $errors[] =
@@ -621,36 +583,205 @@ try {
    SUMMARY TOTALS
    ========================================================= */
 
-$totals = [
+$lowStockThreshold = 10;
+try {
+    $configuredThreshold = database()->query(
+        "SELECT setting_value FROM system_settings WHERE setting_key = 'low_stock_threshold' LIMIT 1"
+    )->fetchColumn();
+    if ($configuredThreshold !== false) {
+        $lowStockThreshold = max(0, (int) $configuredThreshold);
+    }
+} catch (PDOException $e) {
+    error_log('Officer pool low-stock threshold unavailable: ' . $e->getMessage());
+}
 
-    'officers' =>
-        count($officers),
+$selectedDivision = filter_input(INPUT_GET, 'division_id', FILTER_VALIDATE_INT) ?: 0;
+$selectedDistrict = filter_input(INPUT_GET, 'district_id', FILTER_VALIDATE_INT) ?: 0;
+$selectedItem = filter_input(INPUT_GET, 'item_id', FILTER_VALIDATE_INT) ?: 0;
+$selectedPool = filter_input(INPUT_GET, 'pool_id', FILTER_VALIDATE_INT) ?: 0;
+$selectedItem = $selectedPool > 0 ? $selectedItem : 0;
+$selectedLevel = (string) ($_GET['stock'] ?? 'all');
+if (!in_array($selectedLevel, ['all', 'low', 'healthy'], true)) {
+    $selectedLevel = 'all';
+}
+$search = trim((string) ($_GET['search'] ?? ''));
+$search = substr($search, 0, 100);
 
-    'allocated' =>
-        array_sum(
-            array_column(
-                $rows,
-                'allocated'
-            )
-        ),
+$lowStockCount = 0;
+$lowStockKeys = [];
+$filteredRows = [];
+$officerSummaries = [];
+foreach ($rows as $row) {
+    $hasAllocation = $row['item_id'] !== null;
+    $remaining = (int) $row['remaining'];
+    $level = !$hasAllocation ? 'none' : ($remaining <= $lowStockThreshold ? 'low' : 'healthy');
+    $row['stock_level'] = $level;
 
-    'distributed' =>
-        array_sum(
-            array_column(
-                $rows,
-                'distributed'
-            )
-        ),
+    $poolId = (int) $row['ds_division_id'];
+    if (!isset($officerSummaries[$poolId])) {
+        $officerSummaries[$poolId] = [
+            'pool_id' => $poolId,
+            'full_name' => (string) $row['full_name'],
+            'district_id' => (int) ($row['district_id'] ?? 0),
+            'ds_division_id' => (int) ($row['ds_division_id'] ?? 0),
+            'district_name' => (string) ($row['district_name'] ?? ''),
+            'ds_name' => (string) ($row['ds_name'] ?? ''),
+            'item_count' => 0,
+            'remaining' => 0,
+            'low_count' => 0,
+            'pool_items' => [],
+        ];
+    }
+    $officerSummaries[$poolId]['pool_items'][] = [
+        'id' => $hasAllocation ? (string) $row['item_id'] : '',
+        'level' => $level,
+        'search' => $hasAllocation ? implode(' ', [(string) $row['item_name'], widmsAidItemName((string) $row['item_name']), (string) ($row['variety'] ?? '')]) : '',
+    ];
+    if ($hasAllocation) {
+        $officerSummaries[$poolId]['item_count']++;
+        $officerSummaries[$poolId]['remaining'] += $remaining;
+        if ($level === 'low') {
+            $officerSummaries[$poolId]['low_count']++;
+        }
+    }
 
-    'remaining' =>
-        array_sum(
-            array_column(
-                $rows,
-                'remaining'
-            )
-        )
+    if ($level === 'low') {
+        $lowStockKeys[(int) $row['ds_division_id'] . ':' . (int) $row['item_id']] = true;
+    }
 
-];
+    if ($selectedDivision && (int) $row['ds_division_id'] !== $selectedDivision) {
+        continue;
+    }
+    if ($selectedDistrict && (int) $row['district_id'] !== $selectedDistrict) {
+        continue;
+    }
+    if ($selectedItem && (int) $row['item_id'] !== $selectedItem) {
+        continue;
+    }
+    if ($selectedPool && (int) $row['ds_division_id'] !== $selectedPool) {
+        continue;
+    }
+    if ($selectedLevel !== 'all' && $level !== $selectedLevel) {
+        continue;
+    }
+    if ($search !== '' && stripos(
+        implode(' ', [(string) $row['full_name'], (string) $row['ds_name'], (string) $row['district_name'], (string) $row['item_name'], widmsAidItemName((string) ($row['item_name'] ?? '')), (string) $row['variety']]),
+        $search
+    ) === false) {
+        continue;
+    }
+    $filteredRows[] = $row;
+}
+$visiblePoolIds = array_fill_keys(array_map(static fn(array $row): int => (int) $row['ds_division_id'], $filteredRows), true);
+$lowStockCount = count($lowStockKeys);
+$visibleOfficers = $officerSummaries;
+$selectedPoolDetails = $officerSummaries[$selectedPool] ?? null;
+$detailRows = array_values(array_filter($filteredRows, static fn(array $row): bool => $row['item_id'] !== null));
+$detailStockItems = $selectedPool > 0 ? array_values(array_filter($stockItems, static function(array $item) use ($rows, $selectedPool): bool {
+    foreach ($rows as $row) if ((int)$row['ds_division_id'] === $selectedPool && (int)($row['item_id'] ?? 0) === (int)$item['id']) return true;
+    return false;
+})) : [];
+
+if (($_GET['export'] ?? '') === 'pdf') {
+    if ($selectedPool > 0 && $selectedPoolDetails === null) {
+        http_response_code(404);
+        exit('SSO pool not found.');
+    }
+    $autoload = __DIR__ . '/../../vendor/autoload.php';
+    if (!is_file($autoload)) {
+        http_response_code(503);
+        exit('PDF generator is unavailable. Run composer install.');
+    }
+    require_once $autoload;
+
+    $poolPdfEscape = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    $reportNow = new DateTimeImmutable('now', new DateTimeZone('Asia/Colombo'));
+    $reportDate = $reportNow->format('d M Y, H:i');
+    $reportTitle = $selectedPoolDetails ? $selectedPoolDetails['ds_name'] . ' - Division Pool Details' : 'DS Division Pools';
+    $filterLabels = [];
+    if ($search !== '') $filterLabels[] = 'Search: ' . $search;
+    if ($selectedDistrict) {
+        foreach ($districts as $district) {
+            if ((int) $district['id'] === $selectedDistrict) $filterLabels[] = 'District: ' . $district['name'];
+        }
+    }
+    if ($selectedDivision) {
+        foreach ($divisions as $division) {
+            if ((int) $division['id'] === $selectedDivision) $filterLabels[] = 'DS Division: ' . $division['name'];
+        }
+    }
+    if ($selectedItem) {
+        foreach ($stockItems as $stockItem) {
+            if ((int) $stockItem['id'] === $selectedItem) $filterLabels[] = 'Stock item: ' . widmsAidItemName((string) $stockItem['item_name']) . ((string) $stockItem['variety'] !== '' ? ' - ' . $stockItem['variety'] : '');
+        }
+    }
+    if ($selectedLevel !== 'all') $filterLabels[] = 'Stock level: ' . ucfirst($selectedLevel);
+    $pdfOfficers = array_filter($officerSummaries, static fn(array $officer): bool => isset($visiblePoolIds[$officer['pool_id']]));
+
+    ob_start();
+    ?>
+    <!doctype html><html><head><meta charset="UTF-8"><style>
+        @page { margin: 24px; }
+        body { font-family: DejaVu Sans, sans-serif; color: #18374f; font-size: 10px; }
+        h1 { color: #155785; font-size: 19px; margin: 0 0 7px; }
+        .meta { color: #4f6678; margin: 0 0 7px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th { background: #e8f2f8; color: #153e5d; text-align: left; }
+        th, td { border: 1px solid #d2e0e9; padding: 8px 7px; vertical-align: top; }
+        tr { page-break-inside: avoid; }
+        .low { color: #aa2626; font-weight: bold; }
+        .muted { color: #698095; }
+    </style></head><body>
+        <h1><?= $poolPdfEscape($reportTitle) ?></h1>
+        <p class="meta">Report date: <?= $poolPdfEscape($reportDate) ?> (Sri Lanka time)</p>
+        <?php if ($selectedPoolDetails): ?>
+            <p class="meta">District: <?= $poolPdfEscape($selectedPoolDetails['district_name'] ?: 'Unassigned') ?> &nbsp; | &nbsp; Assigned SSO: <?= $poolPdfEscape($selectedPoolDetails['full_name']) ?></p>
+        <?php endif; ?>
+        <p class="meta">Filters: <?= $poolPdfEscape($filterLabels ? implode(' | ', $filterLabels) : 'None') ?></p>
+        <?php if ($selectedPoolDetails): ?>
+            <table><thead><tr><th>Aid item</th><th>Allocated</th><th>Distributed</th><th>Reused</th><th>Remaining</th><th>Stock level</th><th>Last updated</th></tr></thead><tbody>
+                <?php if ($detailRows === []): ?><tr><td colspan="7">No pool aid items match this view.</td></tr><?php endif; ?>
+                <?php foreach ($detailRows as $poolRow): ?>
+                    <?php $poolRemaining = (int) $poolRow['remaining']; ?>
+                    <tr>
+                        <td><?= $poolPdfEscape(widmsAidItemName((string) $poolRow['item_name']) . ((string) $poolRow['variety'] !== '' ? ' - ' . $poolRow['variety'] : '')) ?></td>
+                        <td><?= (int) $poolRow['allocated'] ?></td><td><?= (int) $poolRow['distributed'] ?></td><td><?= (int) $poolRow['reused'] ?></td><td><?= $poolRemaining ?></td>
+                        <td class="<?= $poolRow['stock_level'] === 'low' ? 'low' : '' ?>"><?= $poolPdfEscape($poolRow['stock_level'] === 'low' ? ($poolRemaining === 0 ? 'Empty' : 'Low') : 'Healthy') ?></td>
+                        <td><?= $poolPdfEscape($poolRow['pool_updated_at'] ?: '-') ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody></table>
+        <?php else: ?>
+            <table><thead><tr><th>DS Division / District</th><th>Assigned SSO</th><th>Pool aid items</th><th>Deliverable units</th><th>Pool stock</th></tr></thead><tbody>
+                <?php if ($pdfOfficers === []): ?><tr><td colspan="5">No divisions match these filters.</td></tr><?php endif; ?>
+                <?php foreach ($pdfOfficers as $officer): ?>
+                    <tr>
+                        <td><?= $poolPdfEscape(($officer['ds_name'] ?: 'Unassigned') . ' / ' . ($officer['district_name'] ?: 'Unassigned')) ?></td><td><?= $poolPdfEscape($officer['full_name']) ?></td>
+                        <td><?= (int) $officer['item_count'] ?></td><td><?= (int) $officer['remaining'] ?></td>
+                        <td class="<?= $officer['low_count'] > 0 ? 'low' : '' ?>"><?= $poolPdfEscape($officer['item_count'] === 0 ? '—' : ($officer['low_count'] > 0 ? $officer['low_count'] . ' low item(s)' : 'Healthy')) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody></table>
+        <?php endif; ?>
+    </body></html>
+    <?php
+    $pdfHtml = (string) ob_get_clean();
+    $pdf = new \Dompdf\Dompdf(new \Dompdf\Options());
+    $pdf->loadHtml($pdfHtml, 'UTF-8');
+    $pdf->setPaper('A4', $selectedPoolDetails ? 'portrait' : 'landscape');
+    $pdf->render();
+    $pdf->stream('SWPCS-Division-Pool-' . ($selectedPoolDetails ? $selectedPool . '-' : '') . $reportNow->format('Y-m-d') . '.pdf', ['Attachment' => true]);
+    exit;
+}
+
+$poolExportParams = ['page' => 'officer-pools', 'export' => 'pdf'];
+if ($selectedPool > 0) $poolExportParams['pool_id'] = $selectedPool;
+if ($selectedDistrict > 0) $poolExportParams['district_id'] = $selectedDistrict;
+if ($selectedDivision > 0) $poolExportParams['division_id'] = $selectedDivision;
+if ($selectedItem > 0) $poolExportParams['item_id'] = $selectedItem;
+if ($selectedLevel !== 'all') $poolExportParams['stock'] = $selectedLevel;
+if ($search !== '') $poolExportParams['search'] = $search;
+$poolExportUrl = 'dashboard.php?' . http_build_query($poolExportParams);
 
 ?>
 
@@ -669,7 +800,7 @@ $totals = [
 
 
     <title>
-        Social Service Officer Pools | WIDMS
+        DS Division Pools | SWPCS
     </title>
 
 
@@ -683,6 +814,7 @@ $totals = [
         href="assets/css/admin-dashboard.css"
         rel="stylesheet"
     >
+    <link href="assets/css/officer-pools.css?v=<?= filemtime(__DIR__ . '/../../public/assets/css/officer-pools.css') ?>" rel="stylesheet">
 
 </head>
 
@@ -734,7 +866,7 @@ if ($currentRole === 'admin') {
 
 
             <h1>
-                Social Service Officer Pools
+                <?= htmlspecialchars(t('DS Division Pools'), ENT_QUOTES, 'UTF-8') ?>
             </h1>
 
 
@@ -831,120 +963,80 @@ if ($currentRole === 'admin') {
         <?php endif; ?>
 
 
-        <!-- =================================================
-             SUMMARY CARDS
-             ================================================= -->
-
-        <section class="operation-summary-grid">
-
-
-            <?php
-
-            $summaryCards = [
-
-                [
-                    'Total Officers',
-                    $totals['officers']
-                ],
-
-                [
-                    'Total Allocated',
-                    $totals['allocated']
-                ],
-
-                [
-                    'Total Distributed',
-                    $totals['distributed']
-                ],
-
-                [
-                    'Total Remaining',
-                    $totals['remaining']
-                ]
-
-            ];
-
-            ?>
-
-
-            <?php
-            foreach (
-                $summaryCards
-                as [$label, $value]
-            ):
-            ?>
-
-
-                <article class="operation-summary-card">
-
-
-                    <span>
-                        &#128230;
-                    </span>
-
-
-                    <p>
-
-                        <?= htmlspecialchars(
-                            $label,
-                            ENT_QUOTES,
-                            'UTF-8'
-                        ) ?>
-
-                    </p>
-
-
-                    <strong>
-
-                        <?= number_format(
-                            (int) $value
-                        ) ?>
-
-                    </strong>
-
-
-                    <small>
-                        Live pool total
-                    </small>
-
-
-                </article>
-
-
-            <?php endforeach; ?>
-
-
-        </section>
-
-
-        <!-- =================================================
-             ADMIN / SUBJECT OFFICER ACTION FORMS
-             ================================================= -->
-
-        
-
-
-        <!-- =================================================
-             OFFICER POOL BALANCE TABLE
-             ================================================= -->
-
         <section
-            class="admin-data-card pool-table-card"
+            class="admin-data-card pool-table-card" id="pool-results"
         >
-
-
-            <div class="admin-data-header">
-
-
-                <h2>
-                    Officer Pool Balances
-                </h2>
-
-
+            <?php if ($selectedPool > 0): ?>
+                <div class="pool-detail-heading">
+                    <a href="dashboard.php?page=officer-pools#pool-results">&larr; All division pools</a>
+                    <strong><?= htmlspecialchars($selectedPoolDetails['ds_name'] ?? 'Division not found', ENT_QUOTES, 'UTF-8') ?></strong>
+                    <?php if ($selectedPoolDetails): ?>
+                        <span><?= htmlspecialchars(($selectedPoolDetails['district_name'] ?: 'Unassigned') . ' · SSO: ' . $selectedPoolDetails['full_name'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php endif; ?>
+                    <form class="pool-detail-filters" method="get" action="dashboard.php#pool-results">
+                        <input type="hidden" name="page" value="officer-pools">
+                        <input type="hidden" name="pool_id" value="<?= $selectedPool ?>">
+                        <label>Stock item
+                            <select name="item_id" onchange="this.form.submit()">
+                                <option value="">All stock items</option>
+                                <?php foreach ($detailStockItems as $item): ?>
+                                    <option value="<?= (int)$item['id'] ?>" <?= $selectedItem === (int)$item['id'] ? 'selected' : '' ?>><?= htmlspecialchars(widmsAidItemName((string)$item['item_name']) . ((string)$item['variety'] !== '' ? ' - ' . $item['variety'] : ''), ENT_QUOTES, 'UTF-8') ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>Stock level
+                            <select name="stock" onchange="this.form.submit()">
+                                <option value="all" <?= $selectedLevel === 'all' ? 'selected' : '' ?>>All levels</option>
+                                <option value="low" <?= $selectedLevel === 'low' ? 'selected' : '' ?>>Low / empty</option>
+                                <option value="healthy" <?= $selectedLevel === 'healthy' ? 'selected' : '' ?>>Healthy</option>
+                            </select>
+                        </label>
+                        <?php if ($selectedItem || $selectedLevel !== 'all'): ?><a href="dashboard.php?page=officer-pools&amp;pool_id=<?= $selectedPool ?>#pool-results">Clear</a><?php endif; ?>
+                    </form>
+                    <a class="pool-pdf-button" href="<?= htmlspecialchars($poolExportUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Download PDF</a>
+                </div>
+            <?php else: ?>
+            <form class="pool-overview-filters" id="pool-overview-filters" method="get" action="dashboard.php#pool-results">
+                <input type="hidden" name="page" value="officer-pools">
+                <label>Search
+                    <input type="search" name="search" value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8') ?>" placeholder="Division, SSO, or aid item">
+                </label>
+                <label>District
+                    <select name="district_id" id="pool-district-filter">
+                        <option value="">All districts</option>
+                        <?php foreach ($districts as $district): ?>
+                            <option value="<?= (int) $district['id'] ?>" <?= $selectedDistrict === (int) $district['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $district['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>DS Division
+                    <select name="division_id" id="pool-division-filter">
+                        <option value="">All divisions</option>
+                        <?php foreach ($divisions as $division): ?>
+                            <option value="<?= (int) $division['id'] ?>" data-district="<?= (int) $division['district_id'] ?>" <?= $selectedDivision === (int) $division['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $division['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Stock level
+                    <select name="stock">
+                        <option value="all" <?= $selectedLevel === 'all' ? 'selected' : '' ?>>All levels</option>
+                        <option value="low" <?= $selectedLevel === 'low' ? 'selected' : '' ?>>Low / empty</option>
+                        <option value="healthy" <?= $selectedLevel === 'healthy' ? 'selected' : '' ?>>Healthy</option>
+                    </select>
+                </label>
+                <?php if ($selectedPool): ?><input type="hidden" name="pool_id" value="<?= $selectedPool ?>"><?php endif; ?>
+                <a id="pool-clear-filters" href="dashboard.php?page=officer-pools#pool-results">Clear</a>
+                <a class="pool-pdf-button" id="pool-export-pdf" href="<?= htmlspecialchars($poolExportUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">Download PDF</a>
+            </form>
+            <div class="pool-inline-alerts" aria-label="Pool stock alerts">
+                <a href="dashboard.php?page=officer-pools&amp;stock=low#pool-results"><b><?= $lowStockCount ?></b> low-stock <?= $lowStockCount === 1 ? 'item' : 'items' ?></a>
             </div>
+            <?php endif; ?>
 
 
             <div class="admin-data-table-wrap">
+
+                <?php if ($selectedPool > 0): ?>
 
 
                 <table
@@ -957,11 +1049,9 @@ if ($currentRole === 'admin') {
 
                         <tr>
 
-                            <th>Officer</th>
+                            <th><?= htmlspecialchars(t('DS Division / District'), ENT_QUOTES, 'UTF-8') ?></th>
 
-                            <th>DS Division</th>
-
-                            <th>District</th>
+                            <th><?= htmlspecialchars(t('Assigned SSO'), ENT_QUOTES, 'UTF-8') ?></th>
 
                             <th>Item</th>
 
@@ -975,8 +1065,6 @@ if ($currentRole === 'admin') {
 
                             <th>Stock Level</th>
 
-                            <th>Status</th>
-
                         </tr>
 
 
@@ -986,18 +1074,18 @@ if ($currentRole === 'admin') {
                     <tbody>
 
 
-                        <?php if (!$rows): ?>
+                        <?php if (!$detailRows): ?>
 
 
                             <tr>
 
 
                                 <td
-                                    colspan="10"
+                                    colspan="8"
                                     class="admin-empty-row"
                                 >
 
-                                    No officer pool allocations available.
+                                    <?= $selectedPoolDetails ? 'No pool aid items match this view.' : 'Division not found.' ?>
 
                                 </td>
 
@@ -1008,7 +1096,7 @@ if ($currentRole === 'admin') {
                         <?php else: ?>
 
 
-                            <?php foreach ($rows as $row): ?>
+                            <?php foreach ($detailRows as $row): ?>
 
 
                                 <?php
@@ -1017,18 +1105,7 @@ if ($currentRole === 'admin') {
                                     (int) $row['remaining'];
 
 
-                                if ($remaining === 0) {
-
-                                    $stockLevel = 'Empty';
-
-                                } elseif ($remaining < 5) {
-
-                                    $stockLevel = 'Low';
-
-                                } else {
-
-                                    $stockLevel = 'OK';
-                                }
+                                $stockLevel = $row['stock_level'] === 'low' ? ($remaining === 0 ? 'Empty' : 'Low') : 'Healthy';
 
                                 ?>
 
@@ -1038,15 +1115,15 @@ if ($currentRole === 'admin') {
 
                                     <td>
 
-                                        <strong>
+                                        <span class="pool-division-name"><?= htmlspecialchars($row['ds_name'] ?: 'Unassigned', ENT_QUOTES, 'UTF-8') ?></span>
+                                        <span class="pool-district-name"><?= htmlspecialchars($row['district_name'] ?: 'Unassigned', ENT_QUOTES, 'UTF-8') ?></span>
 
-                                            <?= htmlspecialchars(
-                                                $row['full_name'],
-                                                ENT_QUOTES,
-                                                'UTF-8'
-                                            ) ?>
+                                    </td>
 
-                                        </strong>
+
+                                    <td>
+
+                                        <?= htmlspecialchars($row['full_name'], ENT_QUOTES, 'UTF-8') ?>
 
                                     </td>
 
@@ -1054,31 +1131,7 @@ if ($currentRole === 'admin') {
                                     <td>
 
                                         <?= htmlspecialchars(
-                                            $row['ds_name']
-                                            ?: 'Unassigned',
-                                            ENT_QUOTES,
-                                            'UTF-8'
-                                        ) ?>
-
-                                    </td>
-
-
-                                    <td>
-
-                                        <?= htmlspecialchars(
-                                            $row['district_name']
-                                            ?: '—',
-                                            ENT_QUOTES,
-                                            'UTF-8'
-                                        ) ?>
-
-                                    </td>
-
-
-                                    <td>
-
-                                        <?= htmlspecialchars(
-                                            $row['item_name']
+                                            widmsAidItemName((string)$row['item_name'])
                                             . (
                                                 $row['variety']
                                                 ? ' — '
@@ -1122,24 +1175,7 @@ if ($currentRole === 'admin') {
 
                                     <td>
 
-                                        <?= htmlspecialchars(
-                                            $stockLevel,
-                                            ENT_QUOTES,
-                                            'UTF-8'
-                                        ) ?>
-
-                                    </td>
-
-
-                                    <td>
-
-                                        <?= htmlspecialchars(
-                                            ucfirst(
-                                                (string) $row['status']
-                                            ),
-                                            ENT_QUOTES,
-                                            'UTF-8'
-                                        ) ?>
+                                        <span class="pool-level pool-level-<?= htmlspecialchars((string) $row['stock_level'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($stockLevel, ENT_QUOTES, 'UTF-8') ?></span>
 
                                     </td>
 
@@ -1158,6 +1194,51 @@ if ($currentRole === 'admin') {
 
                 </table>
 
+                <?php else: ?>
+                <table class="admin-data-table officer-pools-table pool-officer-summary-table">
+                    <thead>
+                        <tr>
+                            <th><?= htmlspecialchars(t('DS Division / District'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <th><?= htmlspecialchars(t('Assigned SSO'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <th>Pool Aid Items</th>
+                            <th>Deliverable Units</th>
+                            <th>Pool Stock</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ($visibleOfficers === []): ?>
+                            <tr><td colspan="6" class="admin-empty-row">No divisions match these filters.</td></tr>
+                        <?php else: ?>
+                            <tr id="pool-no-results" <?= $visiblePoolIds === [] ? '' : 'hidden' ?>><td colspan="6" class="admin-empty-row">No divisions match these filters.</td></tr>
+                            <?php foreach ($visibleOfficers as $officer): ?>
+                                <?php
+                                $detailParams = ['page' => 'officer-pools', 'pool_id' => $officer['pool_id']];
+                                if ($selectedLevel !== 'all') $detailParams['stock'] = $selectedLevel;
+                                if ($selectedItem > 0) $detailParams['item_id'] = $selectedItem;
+                                $detailUrl = 'dashboard.php?' . http_build_query($detailParams) . '#pool-results';
+                                $poolLevel = $officer['item_count'] === 0 ? 'none' : ($officer['low_count'] > 0 ? 'low' : 'healthy');
+                                $poolText = $poolLevel === 'none' ? '—' : ($poolLevel === 'low' ? $officer['low_count'] . ' low item(s)' : 'Healthy');
+                                ?>
+                                <tr class="pool-officer-row"
+                                    data-district="<?= (int) $officer['district_id'] ?>"
+                                    data-division="<?= (int) $officer['ds_division_id'] ?>"
+                                    data-pool-items="<?= htmlspecialchars((string) json_encode($officer['pool_items'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>"
+                                    data-search-base="<?= htmlspecialchars($officer['full_name'] . ' ' . $officer['district_name'] . ' ' . $officer['ds_name'], ENT_QUOTES, 'UTF-8') ?>"
+                                    <?= isset($visiblePoolIds[$officer['pool_id']]) ? '' : 'hidden' ?>>
+                                    <td><span class="pool-division-name"><?= htmlspecialchars($officer['ds_name'] ?: 'Unassigned', ENT_QUOTES, 'UTF-8') ?></span><span class="pool-district-name"><?= htmlspecialchars($officer['district_name'] ?: 'Unassigned', ENT_QUOTES, 'UTF-8') ?></span></td>
+                                    <td><?= htmlspecialchars($officer['full_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><?= (int) $officer['item_count'] ?></td>
+                                    <td><?= (int) $officer['remaining'] ?></td>
+                                    <td><span class="pool-level pool-level-<?= $poolLevel ?>"><?= htmlspecialchars($poolText, ENT_QUOTES, 'UTF-8') ?></span></td>
+                                    <td><a class="pool-detail-button" href="<?= htmlspecialchars($detailUrl, ENT_QUOTES, 'UTF-8') ?>">View details</a></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+                <?php endif; ?>
+
 
             </div>
 
@@ -1172,6 +1253,86 @@ if ($currentRole === 'admin') {
 
 
 <script src="assets/js/admin-dashboard.js"></script>
+<script>
+(() => {
+    const form = document.getElementById('pool-overview-filters');
+    if (!form) return;
+    const district = form.elements.namedItem('district_id');
+    const division = form.elements.namedItem('division_id');
+    const item = form.elements.namedItem('item_id');
+    const level = form.elements.namedItem('stock');
+    const search = form.elements.namedItem('search');
+    const rows = [...document.querySelectorAll('.pool-officer-row')];
+    const poolItems = new Map(rows.map(row => [row, JSON.parse(row.dataset.poolItems || '[]')]));
+    const empty = document.getElementById('pool-no-results');
+    const exportLink = document.getElementById('pool-export-pdf');
+    const updateDivisions = () => {
+        for (const option of division.options) {
+            const matches = !district.value || !option.dataset.district || option.dataset.district === district.value;
+            option.hidden = !matches;
+            option.disabled = !matches;
+        }
+        if (division.selectedOptions[0]?.disabled) division.value = '';
+    };
+    const applyFilters = () => {
+        const query = search.value.trim().toLocaleLowerCase();
+        let shown = 0;
+        for (const row of rows) {
+            const commonMatches = !query || row.dataset.searchBase.toLocaleLowerCase().includes(query);
+            const matchingItem = poolItems.get(row).some(poolItem =>
+                (!item.value || poolItem.id === item.value)
+                && (level.value === 'all' || poolItem.level === level.value)
+                && (commonMatches || poolItem.search.toLocaleLowerCase().includes(query))
+            );
+            const matches = (!district.value || row.dataset.district === district.value)
+                && (!division.value || row.dataset.division === division.value)
+                && matchingItem;
+            row.hidden = !matches;
+            if (matches) shown++;
+            const link = row.querySelector('.pool-detail-button');
+            if (link) {
+                const detailUrl = new URL(link.href);
+                if (level.value === 'all') detailUrl.searchParams.delete('stock');
+                else detailUrl.searchParams.set('stock', level.value);
+                if (item.value) detailUrl.searchParams.set('item_id', item.value);
+                else detailUrl.searchParams.delete('item_id');
+                if (search.value.trim()) detailUrl.searchParams.set('search', search.value.trim());
+                else detailUrl.searchParams.delete('search');
+                link.href = detailUrl.pathname + detailUrl.search + '#pool-results';
+            }
+        }
+        if (empty) empty.hidden = shown !== 0;
+        const url = new URL(window.location.href);
+        url.searchParams.set('page', 'officer-pools');
+        for (const [key, value] of Object.entries({search: search.value.trim(), district_id: district.value, division_id: division.value, item_id: item.value, stock: level.value === 'all' ? '' : level.value})) {
+            if (value) url.searchParams.set(key, value);
+            else url.searchParams.delete(key);
+        }
+        if (exportLink) {
+            const exportUrl = new URL(url.href);
+            exportUrl.searchParams.set('export', 'pdf');
+            exportLink.href = exportUrl.pathname + exportUrl.search;
+        }
+        history.replaceState(null, '', url.pathname + url.search + url.hash);
+    };
+    district.addEventListener('change', () => { updateDivisions(); applyFilters(); });
+    for (const control of [division, item, level]) control.addEventListener('change', applyFilters);
+    search.addEventListener('input', applyFilters);
+    form.addEventListener('submit', event => { event.preventDefault(); applyFilters(); });
+    document.getElementById('pool-clear-filters')?.addEventListener('click', event => {
+        event.preventDefault();
+        search.value = '';
+        district.value = '';
+        division.value = '';
+        item.value = '';
+        level.value = 'all';
+        updateDivisions();
+        applyFilters();
+    });
+    updateDivisions();
+    applyFilters();
+})();
+</script>
 
 
 </body>

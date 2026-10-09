@@ -38,14 +38,14 @@ try {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Request History | WIDMS</title>
+    <title><?= htmlspecialchars(t('Correction Request History'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css?v=43" rel="stylesheet">
 </head>
 <body class="store-page store-correction-page request-history-page">
 <?php require __DIR__ . '/../../includes/store-keeper-sidebar.php'; ?>
 <div class="admin-shell">
-    <header class="topbar"><div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="Open navigation">☰</button><h1>Request History</h1></div></header>
+    <header class="topbar"><div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="<?= htmlspecialchars(t('Open navigation'), ENT_QUOTES, 'UTF-8') ?>">&#9776;</button><h1><?= htmlspecialchars(t('Correction Request History'), ENT_QUOTES, 'UTF-8') ?></h1></div></header>
     <main class="dashboard-content correction-page">
         <?php if ($errors !== []): ?><div class="alert alert-danger" role="alert"><ul class="mb-0 ps-3"><?php foreach ($errors as $error): ?><li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul></div><?php endif; ?>
         <?php renderCorrectionRequestHistory($requests, $errorTypes); ?>

@@ -5,10 +5,10 @@ if ((string) ($_SESSION['role'] ?? '') !== 'admin') { http_response_code(403); e
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/correction-application.php';
-require_once __DIR__ . '/../../includes/admin-approval-tabs.php';
 
 $activePage = 'correction-requests';
-$notice = '';
+$notice = (string) ($_SESSION['correction_review_flash'] ?? '');
+unset($_SESSION['correction_review_flash']);
 $noticeType = 'success';
 $requests = [];
 $errorTypes = ['wrong-unit-cost' => 'Wrong unit cost', 'wrong-quantity' => 'Wrong quantity', 'wrong-bill-number' => 'Wrong bill / invoice number', 'wrong-supplier' => 'Wrong supplier', 'wrong-date' => 'Wrong date received', 'wrong-cost' => 'Wrong cost', 'wrong-item' => 'Wrong item', 'wrong-payment-amount' => 'Wrong payment amount', 'wrong-check-number' => 'Wrong check number', 'wrong-payment-date' => 'Wrong payment date', 'other' => 'Other'];
@@ -70,6 +70,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $noticeType === 'success' && $notice !== '') {
+    $_SESSION['correction_review_flash'] = $notice;
+    header('Location: dashboard.php?page=correction-requests', true, 303);
+    exit;
+}
+
 try {
     $requests = database()->query(
         "SELECT c.*, u.full_name AS submitted_name
@@ -104,9 +110,9 @@ try {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Correction Requests | WIDMS</title>
+    <title>Correction Requests | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css?v=58" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=72" rel="stylesheet">
 </head>
 <body class="admin-correction-page">
 <?php require __DIR__ . '/../../includes/admin-sidebar.php'; ?>
@@ -119,7 +125,6 @@ try {
     </header>
 
     <main class="dashboard-content correction-page admin-correction-review-page">
-        <?php renderAdminApprovalTabs($approvalQueueCounts, 'corrections'); ?>
 
         <?php if ($notice !== ''): ?>
             <div class="alert alert-<?= htmlspecialchars($noticeType, ENT_QUOTES, 'UTF-8') ?>" role="<?= $noticeType === 'danger' ? 'alert' : 'status' ?>">

@@ -18,13 +18,21 @@ foreach (['0111234567', '077123456', '07712345678', '0771234567,0777654321', 'ab
     smsCheck(widmsSmsPhone($phone) === null, 'Invalid or multiple recipients were accepted.');
 }
 $settings = ['enabled' => true, 'user_id' => 'test-user', 'password' => 'test-secret'];
-$result = widmsSendSms('0771234567', 'WIDMS test', $settings, static function (string $url, string $payload): array {
+$result = widmsSendSms('0771234567', 'SWPCS test', $settings, static function (string $url, string $payload): array {
     parse_str($payload, $parameters);
     smsCheck($url === 'https://textit.biz/sendmsg/', 'SMS must use the fixed HTTPS endpoint.');
-    smsCheck($parameters['to'] === '94771234567' && $parameters['text'] === 'WIDMS test', 'Gateway payload is incorrect.');
+    smsCheck($parameters['to'] === '94771234567' && $parameters['text'] === 'SWPCS test', 'Gateway payload is incorrect.');
     return ['http_status' => 200, 'body' => "OK:12345\n"];
 });
 smsCheck($result['status'] === 'sent' && $result['reference'] === '12345', 'Gateway acceptance was not recognized.');
+$documentedReplies = [
+    ['OK:Route=RG_DIR, MessageID=55D7FCE7, Recipient=1234567890', '55D7FCE7'],
+    ['OK:1-MSG_GSM-14 Uploaded_Successfully', null],
+];
+foreach ($documentedReplies as [$body, $reference]) {
+    $result = widmsSendSms('0771234567', 'Camp stock received', $settings, static fn(): array => ['http_status' => 200, 'body' => $body]);
+    smsCheck($result['status'] === 'sent' && $result['reference'] === $reference, 'A documented Textit acceptance response was not recognized.');
+}
 foreach ([
     ["\xEF\xBB\xBF OK : msg.123/45:+abc \r\n", 'msg.123/45:+abc'],
     [" ok : abc-123_45 \n", 'abc-123_45'],
@@ -41,6 +49,8 @@ foreach ([
     ['OK:<script>alert(1)</script>', 'invalid-reference'],
     ["OK:123\0", 'invalid-reference'],
     ['OK:' . str_repeat('x', 101), 'invalid-reference'],
+    ['OK:1-MSG_GSM-14 Upload_Failed', 'invalid-reference'],
+    ['OK:Route=RG_DIR, MessageID=55D7FCE7, Recipient=<script>', 'invalid-reference'],
     ["OK:123\nERROR:rejected", 'multiple-response'],
     ["OK:123\nOK:456", 'multiple-response'],
     ['There was an error; OK:123', 'unexpected-response'],
@@ -66,7 +76,7 @@ smsCheck(!$called && $result['status'] === 'failed', 'Invalid phone reached the 
 $db = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 $db->exec("CREATE TABLE users (username TEXT, status TEXT, salary_number TEXT UNIQUE);
     CREATE TABLE registration_requests (id INTEGER PRIMARY KEY, email TEXT, phone TEXT, status TEXT,
-        sms_status TEXT DEFAULT 'not-sent', sms_error_code TEXT, sms_gateway_reference TEXT, sms_sent_at TEXT, salary_number TEXT UNIQUE);
+        sms_status TEXT DEFAULT 'not-sent', sms_error_code TEXT, sms_gateway_reference TEXT, sms_sent_at TEXT, salary_number TEXT UNIQUE, rejection_reason TEXT);
     INSERT INTO users (username,status) VALUES ('applicant@example.test','active');
     INSERT INTO registration_requests (id,email,phone,status) VALUES
         (1,'applicant@example.test','0771234567','approved'),
@@ -110,4 +120,29 @@ $salarySender = static function (string $phone, string $message) use (&$salaryCa
 };
 smsCheck(widmsSendRegistrationApprovalSms($db, 6, $salarySender)['status'] === 'sent', 'Salary account SMS was not sent.');
 smsCheck(widmsSendRegistrationApprovalSms($db, 6, $salarySender)['status'] === 'skipped' && $salaryCalls === 1, 'Salary account received duplicate SMS.');
+// Rejected applicants have no account, but still receive their saved reason once.
+$db->exec("INSERT INTO registration_requests (id,email,phone,status,rejection_reason) VALUES
+    (7,'rejected@example.test','0777654321','rejected','The selected division already has an officer.'),
+    (8,'uncertain@example.test','0777654321','rejected','Incorrect division.'),
+    (9,'missing-reason@example.test','0777654321','rejected','')");
+$rejectionCalls = 0;
+$rejectionSender = static function (string $phone, string $message) use (&$rejectionCalls): array {
+    $rejectionCalls++;
+    smsCheck($phone === '0777654321', 'Rejection SMS went to the wrong recipient.');
+    smsCheck($message === 'Your SWPCS account registration request was rejected. Reason: The selected division already has an officer.', 'Rejection reason missing or changed.');
+    return ['status'=>'sent','reference'=>'rejection-test','error'=>null];
+};
+$db->beginTransaction();
+try {
+    widmsSendRegistrationRejectionSms($db, 7, $rejectionSender);
+    throw new RuntimeException('Rejection SMS sent before commit.');
+} catch (LogicException $expected) {} finally { $db->rollBack(); }
+smsCheck(widmsSendRegistrationRejectionSms($db, 7, $rejectionSender)['status'] === 'sent', 'Rejected applicant was not notified.');
+foreach ([1,2,7,9] as $id) {
+    smsCheck(widmsSendRegistrationRejectionSms($db, $id, $rejectionSender)['status'] === 'skipped', 'Wrong decision, missing reason or duplicate rejection notified.');
+}
+smsCheck($rejectionCalls === 1, 'Rejection sent more than once.');
+widmsSendRegistrationRejectionSms($db,8,static fn(): array => ['status'=>'unknown','error'=>'gateway-unconfirmed']);
+smsCheck(widmsSendRegistrationRejectionSms($db,8,$rejectionSender)['status'] === 'skipped', 'Uncertain rejection retried.');
+smsCheck(strlen(widmsAccountRejectedSmsText(str_repeat('😀',200))) <= 1000, 'Valid rejection exceeds gateway message limit.');
 echo "Registration SMS checks passed; no real SMS messages sent.\n";

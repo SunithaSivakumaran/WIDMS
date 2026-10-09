@@ -14,19 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const label = nic.closest('label')
     if (label) label.childNodes[0].textContent = 'NIC Number '
   }
-  const aidType = document.getElementById('item_id'),
-    powerField = document.getElementById('power-field'),
-    lensPower = document.getElementById('prescribed_power')
-  const updateLensPower = () => {
-    if (!aidType || !powerField || !lensPower) return
-    const requiresPower =
-      aidType.selectedOptions[0]?.dataset.requiresPower === '1'
-    powerField.hidden = !requiresPower
-    lensPower.required = requiresPower
-    if (!requiresPower) lensPower.value = ''
-  }
-  aidType?.addEventListener('change', updateLensPower)
-  updateLensPower()
   const district = document.getElementById('district_id'),
     ds = document.getElementById('ds_division_id'),
     gn = document.getElementById('gn_division_id'),

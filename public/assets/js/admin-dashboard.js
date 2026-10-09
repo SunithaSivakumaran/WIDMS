@@ -313,6 +313,7 @@ const initializeWidmsDashboard = () => {
   }
 
   document.querySelectorAll('.alert-success, .alert-danger').forEach((notification) => {
+    notification.classList.add('widms-dismissible-alert')
     if (notification.classList.contains('alert-success')) {
       notification.classList.add('widms-success-message')
       if (!notification.querySelector('.widms-success-message-icon')) {
@@ -325,7 +326,6 @@ const initializeWidmsDashboard = () => {
     }
     if (notification.querySelector('.notification-close')) return
 
-    notification.classList.add('widms-dismissible-alert')
     const closeButton = document.createElement('button')
     closeButton.className = 'notification-close'
     closeButton.type = 'button'
@@ -436,9 +436,8 @@ const initializeWidmsDashboard = () => {
       if (!fields.length) body.innerHTML = '<tr><td colspan="3" class="beneficiary-fields-empty">No beneficiary information fields added.</td></tr>'
       fields.forEach((field, index) => {
         const row = document.createElement('tr')
-        // Power is a permanent field for the built-in vision items. Treat it
-        // as protected even when an older cached response omits is_system.
-        const isProtected = field.is_system || field.label.trim().toLocaleLowerCase() === 'power'
+        // Only fields explicitly marked as system-owned are protected.
+        const isProtected = field.is_system
         row.innerHTML = isProtected
           ? `<td></td><td><span class="beneficiary-field-type-badge"></span></td><td class="beneficiary-fields-actions"><span class="beneficiary-field-system-badge"></span></td>`
           : `<td></td><td><span class="beneficiary-field-type-badge"></span></td><td class="beneficiary-fields-actions"><button type="button" class="beneficiary-field-edit">Edit</button><button type="button" class="beneficiary-field-delete">Delete</button></td>`
@@ -578,22 +577,17 @@ const initializeWidmsDashboard = () => {
   const menuButton = document.getElementById('menu-button')
   const closeButton = document.getElementById('sidebar-close')
   const sidebarNav = sidebar?.querySelector('.sidebar-nav')
-  const sidebarScrollKey = 'widms-sidebar-scroll'
+  const sidebarScrollKey = `widms-sidebar-scroll:${sidebarNav?.getAttribute('aria-label') || 'navigation'}`
 
-  if (!sidebar || !overlay || !menuButton || !closeButton) return
-
-  if (sidebar.classList.contains('management-role-sidebar')) {
+  if (sidebar?.classList.contains('management-role-sidebar')) {
     document.body.classList.add('admin-ui')
   }
 
-  if (sidebarNav) {
-    const savedScroll = Number(sessionStorage.getItem(sidebarScrollKey))
-    if (Number.isFinite(savedScroll) && savedScroll > 0) {
-      sidebarNav.scrollTop = savedScroll
-    } else {
-      sidebarNav
-        .querySelector('.nav-link.active')
-        ?.scrollIntoView({ block: 'nearest' })
+  if (sidebarNav && sidebarNav.dataset.widmsScrollReady !== '1') {
+    sidebarNav.dataset.widmsScrollReady = '1'
+    const savedScroll = sessionStorage.getItem(sidebarScrollKey)
+    if (savedScroll !== null) {
+      sidebarNav.scrollTop = Math.max(0, Number(savedScroll) || 0)
     }
 
     const rememberSidebarPosition = () =>
@@ -609,19 +603,21 @@ const initializeWidmsDashboard = () => {
     window.addEventListener('pagehide', rememberSidebarPosition)
   }
 
-  const setSidebar = (open) => {
-    sidebar.classList.toggle('open', open)
-    overlay.classList.toggle('show', open)
-    document.body.classList.toggle('nav-open', open)
+  if (sidebar && overlay && menuButton && closeButton) {
+    const setSidebar = (open) => {
+      sidebar.classList.toggle('open', open)
+      overlay.classList.toggle('show', open)
+      document.body.classList.toggle('nav-open', open)
+    }
+
+    menuButton.addEventListener('click', () => setSidebar(true))
+    closeButton.addEventListener('click', () => setSidebar(false))
+    overlay.addEventListener('click', () => setSidebar(false))
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 991) setSidebar(false)
+    })
   }
-
-  menuButton.addEventListener('click', () => setSidebar(true))
-  closeButton.addEventListener('click', () => setSidebar(false))
-  overlay.addEventListener('click', () => setSidebar(false))
-
-  window.addEventListener('resize', () => {
-    if (window.innerWidth > 991) setSidebar(false)
-  })
 
   document.querySelectorAll('.alert-success').forEach((notification) => {
     window.setTimeout(() => {

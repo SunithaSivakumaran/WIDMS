@@ -5,6 +5,7 @@ declare(strict_types=1);
 requireRole('social-service-officer');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
+require_once __DIR__ . '/../../includes/beneficiary-division-guard.php';
 
 $activePage = 'pending-handover';
 $database = database();
@@ -29,7 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "SELECT f.id, f.aid_request_id, ar.beneficiary_id, ar.item_id, ar.quantity
                  FROM goods_fulfillments f
                  JOIN aid_requests ar ON ar.id = f.aid_request_id
-                 WHERE f.id = :id AND f.sso_id = :user AND f.status = 'pending-sso-handover'
+                 JOIN beneficiaries b ON b.id = ar.beneficiary_id
+                 WHERE f.id = :id AND b.ds_division_id = (SELECT ds_division_id FROM users WHERE id = :user AND status = 'active') AND f.status = 'pending-sso-handover'
                    AND ar.status = 'approved'
                    AND NOT EXISTS (SELECT 1 FROM distributions d WHERE d.aid_request_id = ar.id)
                  FOR UPDATE"
@@ -39,15 +41,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$handover) {
                 throw new RuntimeException('This aid handover is no longer pending.');
             }
+            assertBeneficiaryRecordDivision($database, (int)$handover['beneficiary_id']);
 
             $database->prepare(
                 "INSERT INTO distributions
-                    (aid_request_id, beneficiary_id, item_id, quantity, distribution_type, source, distributed_by)
+                    (aid_request_id, beneficiary_id, ds_division_id, item_id, quantity, distribution_type, source, distributed_by)
                  VALUES
-                    (:aid, :beneficiary, :item, :quantity, 'request-based', 'officer-pool', :user)"
+                    (:aid, :beneficiary, (SELECT ds_division_id FROM beneficiaries WHERE id = :division_beneficiary), :item, :quantity, 'request-based', 'officer-pool', :user)"
             )->execute([
                 'aid' => $handover['aid_request_id'],
                 'beneficiary' => $handover['beneficiary_id'],
+                'division_beneficiary' => $handover['beneficiary_id'],
                 'item' => $handover['item_id'],
                 'quantity' => $handover['quantity'],
                 'user' => $userId,
@@ -91,7 +95,7 @@ try {
          JOIN beneficiaries b ON b.id = ar.beneficiary_id
          JOIN inventory_items i ON i.id = ar.item_id
          JOIN users so ON so.id = f.subject_officer_id
-         WHERE f.sso_id = :user
+         WHERE b.ds_division_id = (SELECT ds_division_id FROM users WHERE id = :user AND status = 'active')
          ORDER BY CASE WHEN f.status = 'pending-sso-handover' THEN 0 ELSE 1 END, f.id DESC"
     );
     $statement->execute(['user' => $userId]);
@@ -108,7 +112,7 @@ $counts = array_count_values(array_column($rows, 'status'));
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= htmlspecialchars(t('Pending Aid Handover'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t('Pending Aid Handover'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="assets/css/admin-dashboard.css?v=85" rel="stylesheet">
 </head>
@@ -135,7 +139,7 @@ $counts = array_count_values(array_column($rows, 'status'));
                         <?php foreach ($rows as $row): ?>
                             <tr id="fulfillment-<?= (int) $row['id'] ?>">
                                 <td><?= htmlspecialchars($row['reference'], ENT_QUOTES, 'UTF-8') ?></td>
-                                <td><?= htmlspecialchars($row['item_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars(widmsAidItemName((string)$row['item_name']), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td><?= htmlspecialchars($row['full_name'], ENT_QUOTES, 'UTF-8') ?></td>
                                 <td><?= htmlspecialchars($row['nic'] ?: '—', ENT_QUOTES, 'UTF-8') ?></td>
                                 <td><?= htmlspecialchars($row['address'], ENT_QUOTES, 'UTF-8') ?></td>

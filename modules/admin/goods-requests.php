@@ -5,8 +5,8 @@ requireRole('admin');
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/activity.php';
 require_once __DIR__ . '/../../includes/notifications.php';
-require_once __DIR__ . '/../../includes/admin-approval-tabs.php';
 require_once __DIR__ . '/../../includes/optical-stock.php';
+require_once __DIR__ . '/../../includes/spectacle-categories.php';
 
 $activePage = 'goods-requests';
 $database = database();
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $linkedPowerStatement = $database->prepare(
-                    "SELECT ar.item_id, ar.prescribed_power,
+                    "SELECT ar.item_id, ar.spectacle_category_id,
                             i.item_name, i.variety, c.name AS category_name
                      FROM goods_request_aid_requests link
                      JOIN aid_requests ar ON ar.id = link.aid_request_id
@@ -111,28 +111,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 foreach ($batchRows as $row) {
                     $linkedPowerStatement->execute(['goods_request_id' => (int) $row['id']]);
                     foreach ($linkedPowerStatement->fetchAll() as $linkedRequest) {
-                        if (!widmsIsOpticalItem(
-                            (string) $linkedRequest['item_name'],
-                            (string) $linkedRequest['variety'],
-                            (string) $linkedRequest['category_name']
-                        )) {
+                        if (widmsIsSpectacleItem((string) $linkedRequest['item_name'])) {
+                            $categoryId = (int) ($linkedRequest['spectacle_category_id'] ?? 0);
+                            $categoryBalances = widmsSpectacleCategoryBalances(
+                                $database,
+                                (int) $linkedRequest['item_id']
+                            );
+                            if ($categoryId < 1 || ($categoryBalances[$categoryId] ?? -1) < 0) {
+                                throw new RuntimeException('The selected spectacle type is no longer available in Central Stock.');
+                            }
                             continue;
-                        }
-                        if ($linkedRequest['prescribed_power'] === null) {
-                            throw new RuntimeException('An optical request is missing its prescribed power.');
-                        }
-                        $balances = widmsOpticalPowerBalances(
-                            $database,
-                            (int) $linkedRequest['item_id'],
-                            true
-                        );
-                        $powerKey = widmsPowerKey((float) $linkedRequest['prescribed_power']);
-                        if ((int) ($balances[$powerKey] ?? 0) < 0) {
-                            throw new RuntimeException(sprintf(
-                                '%s power %+.2f is no longer sufficiently available in Central Stock.',
-                                (string) $linkedRequest['item_name'],
-                                (float) $linkedRequest['prescribed_power']
-                            ));
                         }
                     }
                 }
@@ -182,6 +170,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $totalUnits = array_sum(array_map('intval', array_column($batchRows, 'quantity')));
 
             if ($decision === 'approved') {
+                $storeKeepers=$database->query("SELECT id FROM users WHERE role='store-keeper' AND status='active'")->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($storeKeepers as $storeKeeperId) notifyUser(
+                    $database,(int)$storeKeeperId,
+                    'goods-release-'.$firstId.'-'.$storeKeeperId,
+                    'Approved aid bundle ready for release',
+                    $displayReference.' is ready for Store Keeper release',
+                    $totalUnits.' units approved for the requesting Subject Officer.',
+                    'dashboard.php?page=approved-dispatches#goods-request-'.$firstId
+                );
                 $allocationsBySso = [];
                 foreach ($batchRows as $row) {
                     $ssoId = (int) $row['destination_sso_id'];
@@ -206,6 +203,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     );
                 }
             }
+            $beneficiaryBatch = false;
+            foreach ($batchRows as $row) {
+                if ((int) $row['linked_needs'] > 0 || $row['aid_request_id'] !== null) {
+                    $beneficiaryBatch = true;
+                    break;
+                }
+            }
+            $subjectHistoryPage = $beneficiaryBatch ? 'my-beneficiary-requests' : 'my-goods-requests';
+            $adminHistoryPage = $beneficiaryBatch ? 'reviewed-beneficiary-requests' : 'reviewed-stock-quota-requests';
             notifyUser(
                 $database,
                 $requesterIds[0],
@@ -213,14 +219,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Stock quota request update',
                 $displayReference . ' ' . $decisionLabel,
                 count($batchRows) . ' allocations - ' . $totalUnits . ' total units',
-                'dashboard.php?page=my-goods-requests#goods-request-' . $firstId
+                'dashboard.php?page=' . $subjectHistoryPage . '#goods-request-' . $firstId
             );
 
             $database->commit();
             logActivity('Stock Quota Requests', ucfirst($decisionLabel) . ' stock quota request', $displayReference, $decisionLabel);
             $_SESSION['flash_success'] = 'Stock quota request ' . $decisionLabel . '.';
             unset($_SESSION['csrf_token']);
-            header('Location: dashboard.php?page=reviewed-stock-quota-requests#stock-quota-' . $firstId);
+            header('Location: dashboard.php?page=' . $adminHistoryPage . '#stock-quota-' . $firstId);
             exit;
         } catch (Throwable $exception) {
             if ($database->inTransaction()) {
@@ -237,10 +243,13 @@ try {
         "SELECT g.*, i.item_name, i.variety, i.quantity AS central_stock,
                 GREATEST(0, i.quantity - COALESCE((SELECT SUM(r.quantity) FROM goods_requests r
                     WHERE r.item_id = g.item_id AND r.status = 'approved-awaiting-dispatch'), 0)) AS available_stock,
-                (SELECT ar.prescribed_power
+                (SELECT category.name
                  FROM goods_request_aid_requests link
                  JOIN aid_requests ar ON ar.id = link.aid_request_id
-                 WHERE link.goods_request_id = g.id LIMIT 1) AS prescribed_power,
+                 JOIN spectacle_categories category ON category.id = ar.spectacle_category_id
+                 WHERE link.goods_request_id = g.id LIMIT 1) AS spectacle_category_name,
+                (SELECT b.full_name FROM goods_request_aid_requests link JOIN aid_requests ar ON ar.id=link.aid_request_id JOIN beneficiaries b ON b.id=ar.beneficiary_id WHERE link.goods_request_id=g.id LIMIT 1) AS beneficiary_name,
+                (SELECT COALESCE(NULLIF(b.nic,''),NULLIF(b.elders_card_number,'')) FROM goods_request_aid_requests link JOIN aid_requests ar ON ar.id=link.aid_request_id JOIN beneficiaries b ON b.id=ar.beneficiary_id WHERE link.goods_request_id=g.id LIMIT 1) AS beneficiary_identification,
                 ds.name AS division_name, d.name AS district_name,
                 requester.full_name AS requester_name, target.full_name AS sso_name
          FROM goods_requests g
@@ -252,18 +261,6 @@ try {
          WHERE g.status = 'pending-admin-approval'
          ORDER BY g.created_at, g.id"
     )->fetchAll();
-    $powerBalancesByItem = [];
-    foreach ($pendingRows as &$pendingRow) {
-        $pendingRow['power_available'] = null;
-        if ($pendingRow['prescribed_power'] !== null) {
-            $itemId = (int) $pendingRow['item_id'];
-            $powerBalancesByItem[$itemId] ??= widmsOpticalPowerBalances($database, $itemId);
-            $pendingRow['power_available'] = max(0, (int) (
-                $powerBalancesByItem[$itemId][widmsPowerKey((float) $pendingRow['prescribed_power'])] ?? 0
-            ));
-        }
-    }
-    unset($pendingRow);
     $approvalCounts = [
         'registrations' => (int) $database->query("SELECT COUNT(*) FROM registration_requests WHERE status = 'pending'")->fetchColumn(),
         'aid' => (int) $database->query("SELECT COUNT(*) FROM aid_requests WHERE status = 'pending'")->fetchColumn(),
@@ -298,16 +295,15 @@ foreach ($pendingRows as $row) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= htmlspecialchars(t('Stock Quota Requests'), ENT_QUOTES, 'UTF-8') ?> | WIDMS</title>
+    <title><?= htmlspecialchars(t('Stock Quota Requests'), ENT_QUOTES, 'UTF-8') ?> | SWPCS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="assets/css/admin-dashboard.css" rel="stylesheet">
+    <link href="assets/css/admin-dashboard.css?v=72" rel="stylesheet">
 </head>
 <body class="admin-correction-page">
 <?php require __DIR__ . '/../../includes/admin-sidebar.php'; ?>
 <div class="admin-shell">
     <header class="topbar"><div class="d-flex align-items-center gap-3"><button type="button" class="menu-button" id="menu-button" aria-label="Open navigation">&#9776;</button><h1><?= htmlspecialchars(t('Stock Quota Requests'), ENT_QUOTES, 'UTF-8') ?></h1></div></header>
     <main class="dashboard-content admin-correction-review-page admin-stock-quota-page">
-        <?php renderAdminApprovalTabs($approvalCounts, 'stock'); ?>
         <?php renderSuccessMessage($success); ?>
         <?php if ($errors): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars(implode(' ', array_map('t', array_unique($errors))), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
 
@@ -325,8 +321,8 @@ foreach ($pendingRows as $row) {
                         </div>
                         <div class="stock-quota-justification"><span><?= htmlspecialchars(t('Quota Justification'), ENT_QUOTES, 'UTF-8') ?></span><p><?= nl2br(htmlspecialchars($batch['justification'], ENT_QUOTES, 'UTF-8')) ?></p></div>
                         <div class="stock-quota-lines-wrap"><table class="admin-data-table stock-quota-lines-table">
-                            <thead><tr><th>#</th><th><?= htmlspecialchars(t('Aid Item'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Prescribed Power'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Available Stock'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('District / DS Division'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Receiving SSO'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Document'), ENT_QUOTES, 'UTF-8') ?></th></tr></thead>
-                            <tbody><?php foreach ($lines as $index => $line): ?><tr><td><?= $index + 1 ?></td><td><strong><?= htmlspecialchars((string) $line['item_name'], ENT_QUOTES, 'UTF-8') ?></strong><?php if ((string) $line['variety'] !== ''): ?><small><?= htmlspecialchars((string) $line['variety'], ENT_QUOTES, 'UTF-8') ?></small><?php endif; ?></td><td><?= $line['prescribed_power'] !== null ? sprintf('%+.2f', (float) $line['prescribed_power']) : '&mdash;' ?><?php if ($line['power_available'] !== null): ?><small><?= number_format((int) $line['power_available']) ?> <?= htmlspecialchars(t('remaining after reservations'), ENT_QUOTES, 'UTF-8') ?></small><?php endif; ?></td><td><?= number_format((int) $line['available_stock']) ?></td><td><strong><?= number_format((int) $line['quantity']) ?></strong></td><td><?= htmlspecialchars($line['district_name'] . ' / ' . $line['division_name'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) ($line['sso_name'] ?: t('Subject Officer direct release')), ENT_QUOTES, 'UTF-8') ?></td><td><a class="outline-action" target="_blank" rel="noopener" href="dashboard.php?page=goods-request-document&amp;request_id=<?= (int) $line['id'] ?>&amp;print=1"><?= htmlspecialchars(t('View PDF'), ENT_QUOTES, 'UTF-8') ?></a></td></tr><?php endforeach; ?></tbody>
+                            <thead><tr><th>#</th><th><?= htmlspecialchars(t('Beneficiary'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('NIC / Elder Card'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Aid Item'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Spectacle Type'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Available Stock'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Quantity'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('District / DS Division'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Receiving SSO'), ENT_QUOTES, 'UTF-8') ?></th><th><?= htmlspecialchars(t('Document'), ENT_QUOTES, 'UTF-8') ?></th></tr></thead>
+                            <tbody><?php foreach ($lines as $index => $line): ?><tr><td><?= $index + 1 ?></td><td><?= htmlspecialchars((string)($line['beneficiary_name']??'—'),ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars((string)($line['beneficiary_identification']??'—'),ENT_QUOTES,'UTF-8') ?></td><td><strong><?= htmlspecialchars(widmsAidItemName((string) $line['item_name']), ENT_QUOTES, 'UTF-8') ?></strong><?php if ((string) $line['variety'] !== ''): ?><small><?= htmlspecialchars((string) $line['variety'], ENT_QUOTES, 'UTF-8') ?></small><?php endif; ?></td><td><?= $line['spectacle_category_name'] !== null ? htmlspecialchars(t((string)$line['spectacle_category_name']), ENT_QUOTES, 'UTF-8') : '&mdash;' ?></td><td><?= number_format((int) $line['available_stock']) ?></td><td><strong><?= number_format((int) $line['quantity']) ?></strong></td><td><?= htmlspecialchars($line['district_name'] . ' / ' . $line['division_name'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) ($line['sso_name'] ?: t('Subject Officer direct release')), ENT_QUOTES, 'UTF-8') ?></td><td><a class="outline-action" target="_blank" rel="noopener" href="dashboard.php?page=goods-request-document&amp;request_id=<?= (int) $line['id'] ?>&amp;print=1"><?= htmlspecialchars(t('View PDF'), ENT_QUOTES, 'UTF-8') ?></a></td></tr><?php endforeach; ?></tbody>
                         </table></div>
                         <form method="post" action="dashboard.php?page=goods-requests" class="admin-decision-form stock-quota-decision-form">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') ?>">

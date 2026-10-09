@@ -80,4 +80,41 @@ notificationSmsCheck($uncertainCalls===1,'Uncertain message was retried.');
 $db->exec("INSERT INTO notification_sms_outbox (user_id,notification_key,message,status) VALUES (1,'claimed','Fixture','sending')");
 widmsProcessNotificationSms($db,10,$sender);
 notificationSmsCheck(count($calls)===4,'Already claimed message was resent.');
-echo "System notification SMS checks passed for all four roles; no real SMS or operational changes.\n";
+// Admin-created welcome messages are atomic with creation and never contain a password.
+$db->exec("UPDATE users SET username='swpcs00123' WHERE id=1");
+$db->beginTransaction();
+widmsQueueAdminCreatedAccountSms($db,1);
+$db->rollBack();
+notificationSmsCheck((int)$db->query("SELECT COUNT(*) FROM notification_sms_outbox WHERE notification_key='admin-created-account'")->fetchColumn()===0,'Rolled-back welcome was retained.');
+$db->beginTransaction();
+widmsQueueAdminCreatedAccountSms($db,1);
+widmsQueueAdminCreatedAccountSms($db,1);
+$db->commit();
+$welcome = [];
+$capture = static function (string $phone,string $message) use (&$welcome): array {
+    $welcome[] = [$phone,$message];
+    return ['status'=>'sent','reference'=>'account-event','error'=>null];
+};
+widmsProcessNotificationSms($db,10,$capture);
+notificationSmsCheck(count($welcome)===1 && $welcome[0][0]==='0771234561','Welcome duplicated or sent to wrong phone.');
+notificationSmsCheck(str_contains($welcome[0][1],'Username: swpcs00123.') && !str_contains($welcome[0][1],'not-a-real-login'),'Welcome must contain username, never stored credentials.');
+
+// Inactive users receive their suspension notice, but not ordinary notifications.
+$db->beginTransaction();
+widmsQueueAccountSuspendedSms($db,2);
+$db->rollBack();
+notificationSmsCheck((int)$db->query("SELECT COUNT(*) FROM notification_sms_outbox WHERE notification_key LIKE 'user-suspended-%'")->fetchColumn()===0,'Rolled-back suspension was retained.');
+$db->beginTransaction();
+widmsQueueAccountSuspendedSms($db,2);
+$db->commit();
+$totals=widmsProcessNotificationSms($db,10,$capture);
+notificationSmsCheck($totals['sent']===1 && count($welcome)===2 && $welcome[1][0]==='0771234562' && str_contains($welcome[1][1],'suspended'),'Suspended account did not receive its notice.');
+widmsProcessNotificationSms($db,10,$capture);
+notificationSmsCheck(count($welcome)===2,'Suspension notice sent twice.');
+$db->beginTransaction();
+widmsQueueAccountSuspendedSms($db,2);
+$db->commit();
+$db->exec("UPDATE users SET status='active' WHERE id=2");
+$totals=widmsProcessNotificationSms($db,10,$capture);
+notificationSmsCheck($totals['skipped']===1 && count($welcome)===2,'Reactivated user received stale suspension notice.');
+echo "System notification SMS checks passed for all four roles and account events; no real SMS or operational changes.\n";

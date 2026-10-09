@@ -1,0 +1,64 @@
+.optical-request-page { min-width:0; overflow-y:auto; }
+.optical-request-card { border:1px solid #c7d9e8; border-radius:12px; box-shadow:0 6px 20px rgba(18,58,90,.06); background:#fff; }
+.optical-request-card .admin-data-header { align-items:center; gap:14px; }
+.aid-bundle-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr)); gap:15px; padding:20px; }
+.aid-bundle-beneficiary-card { display:flex; flex-direction:column; gap:10px; min-width:0; padding:17px; border:1px solid #cbdce9; border-left:4px solid #2283bc; border-radius:10px; background:#fff; box-shadow:0 3px 10px rgba(18,58,90,.05); color:#183c58; cursor:pointer; transition:border-color .15s,box-shadow .15s,transform .15s; }
+.aid-bundle-beneficiary-card:hover,.aid-bundle-beneficiary-card:has(input:checked) { border-color:#237fbb; box-shadow:0 5px 16px rgba(18,95,150,.14); }
+.aid-bundle-beneficiary-card:has(input:checked) { background:#f0f8fe; }
+.aid-bundle-beneficiary-card:focus-within { outline:3px solid #a6d5f3; outline-offset:2px; }
+.aid-bundle-top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.aid-bundle-ref { color:#1768a8; font-size:13px; font-weight:800; }
+.aid-bundle-top input { width:20px; height:20px; accent-color:#1768a8; flex:none; }
+.aid-bundle-name { font-size:17px; line-height:1.35; overflow-wrap:anywhere; }
+.aid-bundle-beneficiary-card.aid-bundle-waiting,.aid-bundle-beneficiary-card.aid-bundle-waiting:hover { border-left-color:#d69a4d; background:#fffdfa; cursor:default; box-shadow:0 1px 4px rgba(89,61,24,.06); }
+.aid-bundle-waiting-badge { padding:5px 9px; border:1px solid #efdbba; border-radius:999px; background:#fff2d8; color:#835313; font-size:11px; font-weight:700; white-space:nowrap; }
+.aid-bundle-id { color:#43657d; font-size:13px; overflow-wrap:anywhere; }
+.aid-stock-comparison { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr)); gap:9px; width:100%; }
+.aid-stock-metric { display:flex; flex-direction:column; gap:3px; min-width:0; padding:11px 12px; border:1px solid #cfdeea; border-radius:8px; background:#f8fbfd; }
+.aid-stock-metric span { color:#526f85; font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; }
+.aid-stock-metric strong { color:#193e5b; font-size:14px; line-height:1.35; overflow-wrap:anywhere; }
+.aid-stock-metric small { color:#55738a; font-size:12px; }
+.aid-stock-matched { border-color:#a9d8c1; background:#f2faf6; }
+.aid-stock-matched strong,.aid-stock-matched small { color:#136449; }
+.aid-stock-short { border-color:#ebc1bb; background:#fff6f4; }
+.aid-stock-short strong,.aid-stock-short small { color:#a52d25; }
+.aid-bundle-location,.aid-bundle-source { font-size:12px; color:#607b8f; }
+.aid-bundle-source { border-top:1px solid #e2ebf2; padding-top:9px; }
+.aid-bundle-source.subject-actor-label { display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
+.aid-bundle-source.subject-actor-label > span { color:#688096; }
+.aid-bundle-source.subject-actor-label strong { color:#123c5f; font-size:13px; }
+.aid-bundle-source.subject-actor-label small { color:#688096; font-size:11px; }
+.goods-history-page .subject-actor-label,.released-aid-card .subject-actor-label { display:inline-flex; flex-direction:column; align-items:flex-start; gap:2px; line-height:1.25; }
+.goods-history-page .subject-actor-label strong,.released-aid-card .subject-actor-label strong { color:#123c5f; font-size:13px; }
+.goods-history-page .subject-actor-label small,.released-aid-card .subject-actor-label small { color:#688096; font-size:11px; }
+.goods-history-own-heading { margin:22px 0 12px; color:#123c5f; font-size:20px; font-weight:700; }
+.aid-bundle-empty { padding:24px; color:#58738a; text-align:center; }
+.optical-request-submit { margin:0 20px 20px; }
+.store-dispatch-request-card > .aid-stock-comparison,.store-linked-beneficiaries { margin:12px 0; }
+.store-linked-beneficiaries { display:grid; gap:12px; }
+.store-linked-beneficiary { display:grid; gap:5px; padding:13px; border:1px solid #d7e4ed; border-radius:9px; background:#fff; }
+.store-linked-beneficiary > strong { color:#183c58; }
+.store-linked-beneficiary > small { color:#5b7286; }
+.store-dispatch-card-actions button:disabled { opacity:.55; cursor:not-allowed; }
+.released-aid-card { cursor:default; }
+.released-aid-card:hover { transform:none; }
+.released-aid-card .aid-stock-comparison { margin:3px 0; }
+.released-aid-card .goods-status-pill { white-space:normal; text-align:center; }
+.released-aid-actions { display:grid; gap:10px; padding-top:11px; border-top:1px solid #e2ebf2; }
+.released-aid-actions > button { width:100%; }
+.released-aid-actions .fulfillment-handover-controls { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+.released-aid-actions select { min-width:0; }
+.released-aid-card > .outline-action { align-self:flex-start; margin-top:auto; }
+@media(max-width:700px) { .aid-bundle-grid { padding:12px; } .optical-request-submit { margin:0 12px 12px; } }
+@media(max-width:460px) { .released-aid-actions .fulfillment-handover-controls { grid-template-columns:1fr; } }
+.sso-distribution-section { margin-bottom:18px; }
+.sso-distribution-header-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.sso-distribution-header-actions .outline-action { display:inline-flex; align-items:center; min-height:38px; text-decoration:none; }
+.sso-distribution-section .fulfillment-count { display:inline-flex; align-items:center; justify-content:center; min-width:82px; padding:7px 11px; border:1px solid #a9d8c1; border-radius:999px; background:#e5f5ed; color:#126341; font-size:12px; font-weight:700; white-space:nowrap; }
+.sso-distribution-card,.sso-distribution-card:hover { cursor:default; background:#fff; transform:none; }
+.sso-ready-badge { padding:5px 9px; border:1px solid #aedcc3; border-radius:999px; background:#e4f5eb; color:#126341; font-size:11px; font-weight:700; white-space:nowrap; }
+.sso-distribute-form { display:grid; gap:11px; width:100%; margin-top:auto; padding-top:13px; border-top:1px solid #e2ebf2; }
+.sso-distribute-form label { display:grid; gap:6px; color:#173b58; font-size:13px; font-weight:600; }
+.sso-distribute-form label small { color:#657f91; font-weight:400; }
+.sso-distribute-form textarea { width:100%; min-height:68px; padding:9px 10px; border:1px solid #c7d9e8; border-radius:7px; resize:vertical; background:#fff; color:#173b58; }
+.sso-distribute-form button { width:100%; min-height:42px; }
